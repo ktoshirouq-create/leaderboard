@@ -8,71 +8,107 @@
 </head>
 <body>
 
+    <!-- MAIN LEADERBOARD VIEW -->
     <header class="app-header">
         <h1>THE LEADERBOARD</h1>
+        <button class="icon-btn" id="add-user-btn" aria-label="Add User">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
     </header>
 
-<main class="logger-container">
-    
-    <!-- WHO (Now dynamic) -->
-    <section class="log-section">
-        <h2 class="section-title">WHO</h2>
-        <div class="scroll-container" id="who-container">
-            <!-- This will be populated by the Google Sheet Roster -->
-            <p class="loading-text">Loading crew...</p>
-        </div>
-    </section>
-
-    <!-- WHEN -->
-    <section class="log-section">
-        <h2 class="section-title">WHEN</h2>
-        <div class="scroll-container" id="when-container">
-            <button class="pill-btn active" data-value="Today">Today</button>
-            <button class="pill-btn" data-value="Yesterday">Yesterday</button>
-            <button class="pill-btn" data-value="Custom">Custom...</button>
-        </div>
-    </section>
-
-    <!-- DISCIPLINE -->
-    <section class="log-section">
-        <h2 class="section-title">DISCIPLINE</h2>
-        <div class="scroll-container" id="discipline-container">
-            <button class="pill-btn active" data-value="In Boulder">In Boulder</button>
-            <button class="pill-btn" data-value="In Rope">In Rope</button>
-            <button class="pill-btn" data-value="Out Rope">Out Rope</button>
-            <button class="pill-btn" data-value="Out Boulder">Out Boulder</button>
-        </div>
-    </section>
-
-    <!-- GRADE (Dynamic) -->
-    <section class="log-section">
-        <h2 class="section-title">GRADE</h2>
-        <div class="scroll-container" id="grade-container">
-            <!-- JS Inject -->
-        </div>
-    </section>
-
-    <!-- STYLE -->
-    <section class="log-section">
-        <h2 class="section-title">STYLE</h2>
-        <div class="scroll-container" id="style-container">
-            <button class="pill-btn" data-value="Onsight">Onsight</button>
-            <button class="pill-btn" data-value="Flash">Flash</button>
-            <button class="pill-btn active" data-value="Send">Send</button>
-        </div>
-    </section>
-
-</main>
-    <!-- FLOATING ACTION BUTTON -->
-    <div class="fab-container">
-        <button id="submit-btn" class="submit-btn">SEND IT</button>
+    <!-- Discipline Switcher (Top) -->
+    <div class="discipline-tabs scroll-container" id="main-discipline-tabs">
+        <button class="pill-btn active" data-value="In Boulder">In Boulder</button>
+        <button class="pill-btn" data-value="Out Boulder">Out Boulder</button>
+        <button class="pill-btn" data-value="In Rope">In Rope</button>
+        <button class="pill-btn" data-value="Out Rope">Out Rope</button>
     </div>
 
-    <!-- SUCCESS OVERLAY (Hidden by default) -->
+    <!-- Leaderboard List -->
+    <main class="board-container">
+        <div id="loading-spinner" class="spinner">Loading Board...</div>
+        <div id="leaderboard-list">
+            <!-- JS will inject ranked climbers here -->
+        </div>
+    </main>
+
+    <!-- FLOATING ACTION BUTTON -->
+    <div class="fab-container">
+        <button id="open-logger-btn" class="submit-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="margin-right:8px; vertical-align: middle;"><path d="M12 5v14M5 12h14"/></svg>
+            LOG A SEND
+        </button>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- SLIDE-UP LOGGER MODAL                      -->
+    <!-- ========================================== -->
+    <div id="logger-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Log Send</h2>
+                <button id="close-logger-btn" class="icon-btn">✕</button>
+            </div>
+            
+            <div class="logger-container">
+                <!-- WHO -->
+                <section class="log-section">
+                    <h2 class="section-title">WHO</h2>
+                    <div class="scroll-container" id="who-container">
+                        <!-- JS injects active roster here -->
+                    </div>
+                </section>
+
+                <!-- WHEN -->
+                <section class="log-section">
+                    <h2 class="section-title">WHEN</h2>
+                    <div class="scroll-container" id="when-container">
+                        <button class="pill-btn active" data-value="Today">Today</button>
+                        <button class="pill-btn" data-value="Yesterday">Yesterday</button>
+                        <button class="pill-btn" data-value="Custom">Custom...</button>
+                    </div>
+                </section>
+
+                <!-- WHAT (Discipline) -->
+                <section class="log-section">
+                    <h2 class="section-title">WHAT</h2>
+                    <div class="scroll-container" id="what-container">
+                        <button class="pill-btn active" data-value="In Boulder">In Boulder</button>
+                        <button class="pill-btn" data-value="Out Boulder">Out Boulder</button>
+                        <button class="pill-btn" data-value="In Rope">In Rope</button>
+                        <button class="pill-btn" data-value="Out Rope">Out Rope</button>
+                    </div>
+                </section>
+
+                <!-- HOW HARD -->
+                <section class="log-section">
+                    <h2 class="section-title">GRADE</h2>
+                    <div class="scroll-container" id="grade-container">
+                        <!-- JS injects grades dynamically -->
+                    </div>
+                </section>
+
+                <!-- STYLE -->
+                <section class="log-section">
+                    <h2 class="section-title">STYLE</h2>
+                    <div class="scroll-container" id="style-container">
+                        <button class="pill-btn" data-value="Onsight">Onsight</button>
+                        <button class="pill-btn" data-value="Flash">Flash</button>
+                        <button class="pill-btn active" data-value="Send">Send</button>
+                    </div>
+                </section>
+                
+                <!-- SUBMIT -->
+                <button id="submit-log-btn" class="submit-btn" style="margin-top: 20px;">SEND IT</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUCCESS OVERLAY -->
     <div id="success-overlay" class="overlay hidden">
         <div class="overlay-content">
             <span class="check-icon">✓</span>
-            <h2>Logged</h2>
+            <h2 id="success-text">Logged</h2>
         </div>
     </div>
 
