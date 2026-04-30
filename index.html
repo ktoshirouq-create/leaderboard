@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Leaderboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="app-header">
+        <h1>THE LEADERBOARD</h1>
+    </header>
+
+    <main class="logger-container">
+        
+        <!-- WHO -->
+        <section class="log-section">
+            <h2 class="section-title">WHO</h2>
+            <div class="scroll-container" id="who-container">
+                <button class="avatar-btn active" data-value="You">
+                    <img src="https://via.placeholder.com/50/4CAF50/FFFFFF?text=Y" alt="You">
+                    <span>You</span>
+                </button>
+                <button class="avatar-btn" data-value="Tomas">
+                    <img src="https://via.placeholder.com/50/2196F3/FFFFFF?text=T" alt="Tomas">
+                    <span>Tomas</span>
+                </button>
+                <button class="avatar-btn" data-value="Pål">
+                    <img src="https://via.placeholder.com/50/FF9800/FFFFFF?text=P" alt="Pål">
+                    <span>Pål</span>
+                </button>
+                <button class="avatar-btn" data-value="Aga">
+                    <img src="https://via.placeholder.com/50/E91E63/FFFFFF?text=A" alt="Aga">
+                    <span>Aga</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- WHEN -->
+        <section class="log-section">
+            <h2 class="section-title">WHEN</h2>
+            <div class="scroll-container" id="when-container">
+                <button class="pill-btn active" data-value="Today">Today</button>
+                <button class="pill-btn" data-value="Yesterday">Yesterday</button>
+                <button class="pill-btn" data-value="Custom">Custom...</button>
+            </div>
+        </section>
+
+        <!-- WHAT (Discipline) -->
+        <section class="log-section">
+            <h2 class="section-title">WHAT</h2>
+            <div class="scroll-container" id="what-container">
+                <button class="pill-btn active" data-value="In Boulder">In Boulder</button>
+                <button class="pill-btn" data-value="Out Boulder">Out Boulder</button>
+                <button class="pill-btn" data-value="In Rope">In Rope</button>
+                <button class="pill-btn" data-value="Out Rope">Out Rope</button>
+            </div>
+        </section>
+
+        <!-- HOW HARD (Grades - Populated dynamically by JS) -->
+        <section class="log-section">
+            <h2 class="section-title">GRADE</h2>
+            <div class="scroll-container" id="grade-container">
+                <!-- JS will inject pills here based on 'WHAT' selection -->
+            </div>
+        </section>
+
+        <!-- STYLE -->
+        <section class="log-section">
+            <h2 class="section-title">STYLE</h2>
+            <div class="scroll-container" id="style-container">
+                <button class="pill-btn" data-value="Onsight">Onsight</button>
+                <button class="pill-btn" data-value="Flash">Flash</button>
+                <button class="pill-btn active" data-value="Send">Send</button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FLOATING ACTION BUTTON -->
+    <div class="fab-container">
+        <button id="submit-btn" class="submit-btn">SEND IT</button>
+    </div>
+
+    <!-- SUCCESS OVERLAY (Hidden by default) -->
+    <div id="success-overlay" class="overlay hidden">
+        <div class="overlay-content">
+            <span class="check-icon">✓</span>
+            <h2>Logged</h2>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
