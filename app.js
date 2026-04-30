@@ -1,10 +1,8 @@
 // ==========================================
 // CONFIGURATION & API
 // ==========================================
-// The Master Web App URL you generated:
 const API_URL = 'https://script.google.com/macros/s/AKfycbxS1G-POcgzt75cKiJUYnl6Kqe9EHQYAu5KDDMGqRE3SSvWOVWQYAoV-Rwr5Stb46p1/exec';
 
-// Grade Matrices
 const gymCircuits = [
     { text: '4', color: '#FFFFFF', value: '4' },
     { text: '5', color: '#4CAF50', value: '5' },
@@ -23,24 +21,18 @@ const linearGrades = [
     '7a', '7a+', '7b', '7b+', '7c', '7c+'
 ];
 
-// ==========================================
-// STATE MANAGEMENT
-// ==========================================
 let activeDiscipline = 'In Boulder';
-let rosterCache = [];
 
 // ==========================================
 // MATH ENGINE
 // ==========================================
 function calculateScore(discipline, gradeStr, style) {
     let score = 0;
-    
     if (discipline === 'In Boulder') {
         const baseScores = { '4': 400, '5': 500, '6A': 600, '6B': 633, '6C': 667, '7A': 700, '7B': 733 };
         score = baseScores[gradeStr] || 0;
         if (style === 'Flash') score += 17;
     } else {
-        // Ropes & Out Boulder (Math formula based on strings like '6c+')
         const numMatch = gradeStr.match(/\d/);
         const subMatch = gradeStr.match(/[a-c]\+?/);
         if (numMatch && subMatch) {
@@ -55,7 +47,6 @@ function calculateScore(discipline, gradeStr, style) {
 
 function getGradeFromScore(score, discipline) {
     if (score === 0) return 'Unranked';
-    // Helper to translate final average score back into readable grade (e.g. 683 -> 6c+)
     if (discipline === 'In Boulder') {
         const reversed = [
             { s: 733, g: '7B' }, { s: 700, g: '7A' }, { s: 667, g: '6C' },
@@ -79,10 +70,10 @@ function getGradeFromScore(score, discipline) {
 // ==========================================
 // UI LOGIC & API CALLS
 // ==========================================
-
 async function fetchLeaderboard() {
     const list = document.getElementById('leaderboard-list');
     const spinner = document.getElementById('loading-spinner');
+    if (!list || !spinner) return;
     
     list.innerHTML = '';
     spinner.style.display = 'block';
@@ -93,30 +84,28 @@ async function fetchLeaderboard() {
         
         spinner.style.display = 'none';
         renderLeaderboard(data.leaderboard);
-        updateWhoPicker(data.leaderboard); // Piggyback to build roster
+        updateWhoPicker(data.leaderboard); 
     } catch (error) {
         spinner.innerText = 'Error loading board. Check connection.';
-        console.error(error);
+        console.error("Fetch Error:", error);
     }
 }
 
 function renderLeaderboard(data) {
     const list = document.getElementById('leaderboard-list');
+    if (!list) return;
     list.innerHTML = '';
 
-    if (data.length === 0) {
-        list.innerHTML = '<p style="text-align:center; color:#888; margin-top:40px;">No sends logged in the last 60 days.</p>';
+    if (!data || data.length === 0) {
+        list.innerHTML = '<p style="text-align:center; color:#888; margin-top:40px;">No sends logged recently.</p>';
         return;
     }
 
     data.forEach((user) => {
         const displayGrade = getGradeFromScore(user.capacityScore, activeDiscipline);
-        
-        // Build card HTML
         const card = document.createElement('div');
         card.className = 'climber-card';
         card.dataset.rank = user.rank;
-        
         card.innerHTML = `
             <div class="rank-badge">${user.rank}</div>
             <div class="climber-info">
@@ -132,78 +121,32 @@ function renderLeaderboard(data) {
     });
 }
 
-// Format Date safely (For standardizing "Today" / "Yesterday")
 function getFormattedDate(offsetDays = 0) {
     const d = new Date();
     d.setDate(d.getDate() - offsetDays);
     return d.toISOString().split('T')[0];
 }
 
-// Handle Form Submission POST
-document.getElementById('submit-log-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('submit-log-btn');
-    btn.innerText = 'SENDING...';
-
-    // Gather selected values
-    const who = document.querySelector('#who-container .active')?.dataset.value;
-    const whenRaw = document.querySelector('#when-container .active')?.dataset.value;
-    const what = document.querySelector('#what-container .active')?.dataset.value;
-    const grade = document.querySelector('#grade-container .active')?.dataset.value;
-    const style = document.querySelector('#style-container .active')?.dataset.value;
-
-    if (!who) {
-        alert("Please wait for the roster to load, or add a user in the Google Sheet!");
-        btn.innerText = 'SEND IT';
-        return;
-    }
-
-    // Convert Date
-    let finalDate = getFormattedDate(0);
-    if (whenRaw === 'Yesterday') finalDate = getFormattedDate(1);
-    // Note: If 'Custom', in a full build we'd prompt a date picker. Defaulting to today here for safety.
-
-    // Calculate Score mathematically
-    const mathScore = calculateScore(what, grade, style);
-
-    const payload = {
-        climber: who,
-        date: finalDate,
-        discipline: what,
-        grade: grade,
-        style: style,
-        score: mathScore
-    };
-
-    try {
-        await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
-
-        // Success UI
-        document.getElementById('logger-modal').classList.add('hidden');
-        document.getElementById('success-overlay').classList.remove('hidden');
-        
-        setTimeout(() => {
-            document.getElementById('success-overlay').classList.add('hidden');
-            btn.innerText = 'SEND IT';
-            fetchLeaderboard(); // Refresh the board instantly
-        }, 1500);
-
-    } catch (error) {
-        alert("Error saving log.");
-        btn.innerText = 'SEND IT';
-    }
-});
-
-
-// ==========================================
-// UI INTERACTIONS & SETUP
-// ==========================================
+function updateWhoPicker(leaderboardData) {
+    const whoContainer = document.getElementById('who-container');
+    if (!whoContainer || !leaderboardData) return;
+    whoContainer.innerHTML = '';
+    
+    leaderboardData.forEach((user, index) => {
+        const btn = document.createElement('button');
+        btn.className = index === 0 ? 'avatar-btn active' : 'avatar-btn';
+        btn.dataset.value = user.name;
+        const avatarSrc = user.avatar || `https://ui-avatars.com/api/?name=${user.name}&background=random`;
+        btn.innerHTML = `<img src="${avatarSrc}" alt="${user.name}"><span>${user.name}</span>`;
+        whoContainer.appendChild(btn);
+    });
+}
 
 // Setup Pill Mutually Exclusive Selection
 function setupSelectables(containerId) {
     const container = document.getElementById(containerId);
+    if (!container) return;
+    
     container.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
@@ -212,7 +155,6 @@ function setupSelectables(containerId) {
         allBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        // Dynamic Grade Swapping
         if (containerId === 'what-container') {
             renderGrades(btn.dataset.value);
         }
@@ -221,6 +163,7 @@ function setupSelectables(containerId) {
 
 function renderGrades(discipline) {
     const gradeContainer = document.getElementById('grade-container');
+    if (!gradeContainer) return;
     gradeContainer.innerHTML = ''; 
 
     if (discipline === 'In Boulder') {
@@ -245,258 +188,102 @@ function renderGrades(discipline) {
     if(gradeContainer.firstElementChild) gradeContainer.firstElementChild.classList.add('active');
 }
 
-function updateWhoPicker(leaderboardData) {
-    const whoContainer = document.getElementById('who-container');
-    whoContainer.innerHTML = '';
+// ==========================================
+// INITIALIZATION (Safe Load)
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
     
-    leaderboardData.forEach((user, index) => {
-        const btn = document.createElement('button');
-        btn.className = index === 0 ? 'avatar-btn active' : 'avatar-btn';
-        btn.dataset.value = user.name;
-        
-        const avatarSrc = user.avatar || `https://ui-avatars.com/api/?name=${user.name}&background=random`;
-        btn.innerHTML = `<img src="${avatarSrc}" alt="${user.name}"><span>${user.name}</span>`;
-        whoContainer.appendChild(btn);
-    });
-}
+    setupSelectables('who-container');
+    setupSelectables('when-container');
+    setupSelectables('what-container');
+    setupSelectables('grade-container'); 
+    setupSelectables('style-container');
 
-// Modal Triggers
-document.getElementById('open-logger-btn').addEventListener('click', () => {
-    document.getElementById('logger-modal').classList.remove('hidden');
-});
-document.getElementById('close-logger-btn').addEventListener('click', () => {
-    document.getElementById('logger-modal').classList.add('hidden');
-});
-
-// Admin Add User Alert
-document.getElementById('add-user-btn').addEventListener('click', () => {
-    alert("To keep the app fast, User Management is handled in the Admin Panel.\n\nOpen your Google Sheet, go to the 'Roster' tab, and add the new Climber's name there!");
-});
-
-// Main Board Discipline Switcher
-document.getElementById('main-discipline-tabs').addEventListener('click', (e) => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    
-    document.querySelectorAll('#main-discipline-tabs button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    
-    activeDiscipline = btn.dataset.value;
-    
-    // Sync the logger's 'WHAT' selector to match the board you are currently viewing
-    const loggerWhatBtns = document.querySelectorAll('#what-container button');
-    loggerWhatBtns.forEach(b => {
-        if(b.dataset.value === activeDiscipline) {
-            b.click(); // Programmatically click to ensure grades update
-        }
-    });
-
+    renderGrades('In Boulder');
     fetchLeaderboard();
-});
 
-// Initialize App
-setupSelectables('who-container');
-setupSelectables('when-container');
-setupSelectables('what-container');
-setupSelectables('grade-container'); 
-setupSelectables('style-container');
-
-renderGrades('In Boulder');
-fetchLeaderboard(); // Initial data load// --- CONFIGURATION DATA ---
-const gymCircuits = [
-    { text: '4', color: '#FFFFFF', value: '4' },
-    { text: '5', color: '#4CAF50', value: '5' },
-    { text: '6A', color: '#2196F3', value: '6A' },
-    { text: '6B', color: '#FFEB3B', value: '6B' },
-    { text: '6C', color: '#F44336', value: '6C' },
-    { text: '7A', color: '#000000', value: '7A' },
-    { text: '7B', color: '#9C27B0', value: '7B' }
-];
-
-const linearGrades = [
-    '3a', '3a+', '3b', '3b+', '3c', '3c+',
-    '4a', '4a+', '4b', '4b+', '4c', '4c+',
-    '5a', '5a+', '5b', '5b+', '5c', '5c+',
-    '6a', '6a+', '6b', '6b+', '6c', '6c+',
-    '7a', '7a+', '7b', '7b+', '7c', '7c+'
-];
-
-// --- DOM ELEMENTS ---
-const gradeContainer = document.getElementById('grade-container');
-const whoContainer = document.getElementById('who-container');
-const submitBtn = document.getElementById('submit-btn');
-
-// --- LOGIC ---
-
-function setupSelectables(containerId) {
-    const container = document.getElementById(containerId);
-    container.addEventListener('click', (e) => {
-        const btn = e.target.closest('button');
-        if (!btn) return;
-        
-        container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        // Logic check: if discipline changed, swap grades
-        if (containerId === 'discipline-container') {
-            renderGrades(btn.dataset.value);
-        }
-    });
-}
-
-function renderGrades(discipline) {
-    gradeContainer.innerHTML = '';
+    // Modal Triggers
+    const openBtn = document.getElementById('open-logger-btn');
+    const closeBtn = document.getElementById('close-logger-btn');
+    const modal = document.getElementById('logger-modal');
     
-    // In Boulder = Colors + Grade
-    if (discipline === 'In Boulder') {
-        gymCircuits.forEach(grade => {
-            const btn = document.createElement('button');
-            btn.className = 'pill-btn grade-pill';
-            btn.dataset.value = grade.value;
-            btn.innerHTML = `<span class="color-dot" style="background-color: ${grade.color}; border: ${grade.color === '#000000' ? '1px solid #fff' : 'none'}"></span> ${grade.text}`;
-            gradeContainer.appendChild(btn);
-        });
-    } else {
-        // In Rope, Out Rope, Out Boulder = Text Only
-        linearGrades.forEach(grade => {
-            const btn = document.createElement('button');
-            btn.className = 'pill-btn';
-            btn.dataset.value = grade;
-            btn.innerText = grade;
-            gradeContainer.appendChild(btn);
-        });
-        // Auto-scroll to 6a as a starting midpoint
-        gradeContainer.scrollLeft = linearGrades.indexOf('6a') * 65;
-    }
-    gradeContainer.firstElementChild.classList.add('active');
-}
+    if (openBtn && modal) openBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+    if (closeBtn && modal) closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
-// Future: This will fetch from the doGet script
-function loadRoster(members = []) {
-    whoContainer.innerHTML = '';
-    if (members.length === 0) {
-        whoContainer.innerHTML = '<button class="pill-btn">+ Add Member</button>';
-        return;
-    }
-    // Logic to build avatar buttons will go here
-}
-
-// --- INITIALIZATION ---
-setupSelectables('who-container');
-setupSelectables('when-container');
-setupSelectables('discipline-container');
-setupSelectables('grade-container');
-setupSelectables('style-container');
-
-renderGrades('In Boulder');// --- CONFIGURATION DATA ---
-const gymCircuits = [
-    { text: '4', color: '#FFFFFF', value: '4' }, // White
-    { text: '5', color: '#4CAF50', value: '5' }, // Green
-    { text: '6A', color: '#2196F3', value: '6A' }, // Blue
-    { text: '6B', color: '#FFEB3B', value: '6B' }, // Yellow
-    { text: '6C', color: '#F44336', value: '6C' }, // Red
-    { text: '7A', color: '#000000', value: '7A' }, // Black (Border added in CSS if needed)
-    { text: '7B', color: '#9C27B0', value: '7B' }  // Purple
-];
-
-const linearGrades = [
-    '3a', '3a+', '3b', '3b+', '3c', '3c+',
-    '4a', '4a+', '4b', '4b+', '4c', '4c+',
-    '5a', '5a+', '5b', '5b+', '5c', '5c+',
-    '6a', '6a+', '6b', '6b+', '6c', '6c+',
-    '7a', '7a+', '7b', '7b+', '7c', '7c+'
-];
-
-// --- DOM ELEMENTS ---
-const gradeContainer = document.getElementById('grade-container');
-const whatPills = document.querySelectorAll('#what-container button');
-const submitBtn = document.getElementById('submit-btn');
-const successOverlay = document.getElementById('success-overlay');
-
-// --- LOGIC ---
-
-// 1. Handle Selection Visuals (Only one active per row)
-function setupSelectables(containerId) {
-    const container = document.getElementById(containerId);
-    container.addEventListener('click', (e) => {
-        const btn = e.target.closest('button');
-        if (!btn) return;
-        
-        // Remove active class from all in this specific container
-        const allBtns = container.querySelectorAll('button');
-        allBtns.forEach(b => b.classList.remove('active'));
-        
-        // Add active to clicked
-        btn.classList.add('active');
-
-        // If 'WHAT' was clicked, trigger grade swap
-        if (containerId === 'what-container') {
-            renderGrades(btn.dataset.value);
-        }
+    // Admin Alert
+    const addBtn = document.getElementById('add-user-btn');
+    if (addBtn) addBtn.addEventListener('click', () => {
+        alert("To keep the app fast, User Management is handled in the Admin Panel.\n\nOpen your Google Sheet, go to the 'Roster' tab, and add the new Climber's name there!");
     });
-}
 
-// 2. Render Grades Dynamically
-function renderGrades(discipline) {
-    gradeContainer.innerHTML = ''; // Clear current
+    // Main Board Discipline Switcher
+    const mainTabs = document.getElementById('main-discipline-tabs');
+    if (mainTabs) {
+        mainTabs.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            
+            document.querySelectorAll('#main-discipline-tabs button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            activeDiscipline = btn.dataset.value;
+            
+            const loggerWhatBtns = document.querySelectorAll('#what-container button');
+            loggerWhatBtns.forEach(b => {
+                if(b.dataset.value === activeDiscipline) b.click();
+            });
 
-    if (discipline === 'In Boulder') {
-        // Render Gym Circuits
-        gymCircuits.forEach(grade => {
-            const btn = document.createElement('button');
-            btn.className = 'pill-btn grade-pill';
-            btn.dataset.value = grade.value;
-            // Inject color dot and text
-            btn.innerHTML = `<span class="color-dot" style="background-color: ${grade.color}; border: ${grade.color === '#000000' ? '1px solid #fff' : 'none'}"></span> ${grade.text}`;
-            gradeContainer.appendChild(btn);
+            fetchLeaderboard();
         });
-    } else {
-        // Render Linear Grades (Ropes & Out Boulder)
-        // Find a sensible default starting index (e.g., 6a)
-        const startIndex = linearGrades.indexOf('6a') > -1 ? linearGrades.indexOf('6a') : 0;
-        
-        linearGrades.forEach(grade => {
-            const btn = document.createElement('button');
-            btn.className = 'pill-btn';
-            btn.dataset.value = grade;
-            btn.innerText = grade;
-            gradeContainer.appendChild(btn);
-        });
-
-        // Auto-scroll slightly to show 6a/6b range instead of starting at 3a
-        gradeContainer.scrollLeft = startIndex * 60; 
     }
 
-    // Set first child as active default
-    gradeContainer.firstElementChild.classList.add('active');
-}
+    // Submit Log
+    const submitBtn = document.getElementById('submit-log-btn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+            submitBtn.innerText = 'SENDING...';
 
-// 3. Gather Data & Simulate Submit
-submitBtn.addEventListener('click', () => {
-    // Gather all active values
-    const payload = {
-        who: document.querySelector('#who-container .active').dataset.value,
-        when: document.querySelector('#when-container .active').dataset.value,
-        what: document.querySelector('#what-container .active').dataset.value,
-        grade: document.querySelector('#grade-container .active').dataset.value,
-        style: document.querySelector('#style-container .active').dataset.value
-    };
+            // Safe DOM queries
+            const whoEl = document.querySelector('#who-container .active');
+            const whenEl = document.querySelector('#when-container .active');
+            const whatEl = document.querySelector('#what-container .active');
+            const gradeEl = document.querySelector('#grade-container .active');
+            const styleEl = document.querySelector('#style-container .active');
 
-    console.log("SENDING TO GOOGLE SHEETS:", payload);
+            const who = whoEl ? whoEl.dataset.value : null;
+            const whenRaw = whenEl ? whenEl.dataset.value : null;
+            const what = whatEl ? whatEl.dataset.value : null;
+            const grade = gradeEl ? gradeEl.dataset.value : null;
+            const style = styleEl ? styleEl.dataset.value : null;
 
-    // Flash success overlay
-    successOverlay.classList.remove('hidden');
-    setTimeout(() => {
-        successOverlay.classList.add('hidden');
-        // Here you would normally route back to the leaderboard view
-    }, 1200);
+            if (!who) {
+                alert("Please wait for the roster to load, or add a user in the Google Sheet!");
+                submitBtn.innerText = 'SEND IT';
+                return;
+            }
+
+            let finalDate = getFormattedDate(0);
+            if (whenRaw === 'Yesterday') finalDate = getFormattedDate(1);
+            
+            const mathScore = calculateScore(what, grade, style);
+
+            const payload = { climber: who, date: finalDate, discipline: what, grade: grade, style: style, score: mathScore };
+
+            try {
+                await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                document.getElementById('logger-modal').classList.add('hidden');
+                document.getElementById('success-overlay').classList.remove('hidden');
+                
+                setTimeout(() => {
+                    document.getElementById('success-overlay').classList.add('hidden');
+                    submitBtn.innerText = 'SEND IT';
+                    fetchLeaderboard();
+                }, 1500);
+
+            } catch (error) {
+                alert("Error saving log.");
+                submitBtn.innerText = 'SEND IT';
+            }
+        });
+    }
 });
-
-// --- INITIALIZATION ---
-setupSelectables('who-container');
-setupSelectables('when-container');
-setupSelectables('what-container');
-setupSelectables('grade-container'); // Need to run this after dynamic render
-
-// Set initial state
-renderGrades('In Boulder');
