@@ -1,0 +1,196 @@
+:root {
+    --bg-dark: #121212;
+    --surface: #1E1E1E;
+    --surface-light: #2C2C2C;
+    --accent: #00E676; /* Aggressive green for success/active states */
+    --text-main: #FFFFFF;
+    --text-muted: #888888;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    padding-bottom: 100px; /* Space for the bottom FAB */
+}
+
+/* Header */
+.app-header {
+    text-align: center;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--surface);
+    background-color: var(--bg-dark);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.app-header h1 {
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+}
+
+/* Sections */
+.logger-container {
+    padding: 20px 0 20px 20px; /* Left padding only to allow right-scrolling off screen */
+}
+
+.log-section {
+    margin-bottom: 30px;
+}
+
+.section-title {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+}
+
+/* Horizontal Scroll Containers */
+.scroll-container {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-right: 20px; /* Space at end of scroll */
+    scrollbar-width: none; /* Hide scrollbar Firefox */
+}
+
+.scroll-container::-webkit-scrollbar {
+    display: none; /* Hide scrollbar Chrome/Safari */
+}
+
+/* Base Buttons */
+button {
+    border: none;
+    outline: none;
+    cursor: pointer;
+    background-color: var(--surface);
+    color: var(--text-main);
+    transition: all 0.2s ease;
+}
+
+/* Pill Buttons (Text) */
+.pill-btn {
+    padding: 14px 24px;
+    border-radius: 30px;
+    font-size: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 2px solid transparent;
+}
+
+.pill-btn.active {
+    background-color: rgba(0, 230, 118, 0.1);
+    border: 2px solid var(--accent);
+    color: var(--accent);
+}
+
+/* Avatar Buttons */
+.avatar-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    opacity: 0.5;
+}
+
+.avatar-btn.active {
+    opacity: 1;
+}
+
+.avatar-btn img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid transparent;
+}
+
+.avatar-btn.active img {
+    border-color: var(--accent);
+}
+
+.avatar-btn span {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* Grade Pills with Colors */
+.grade-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Bottom Action Button */
+.fab-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 20px;
+    background: linear-gradient(to top, var(--bg-dark) 80%, transparent);
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 18px;
+    border-radius: 16px;
+    background-color: var(--accent);
+    color: #000;
+    font-size: 1.2rem;
+    font-weight: 800;
+    box-shadow: 0 4px 15px rgba(0, 230, 118, 0.3);
+}
+
+.submit-btn:active {
+    transform: scale(0.98);
+}
+
+/* Success Overlay */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--accent);
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: opacity 0.3s ease;
+}
+
+.overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.overlay-content {
+    text-align: center;
+}
+
+.check-icon {
+    font-size: 4rem;
+    display: block;
+    margin-bottom: 10px;
+}
