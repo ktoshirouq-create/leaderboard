@@ -1249,7 +1249,7 @@ function renderSessionCard(session, idx) {
             ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
             : '';
         return `<div class="send-row">
-            <div class="send-meta">${tag}<span style="color:#888">${escapeHTML(s.Style)}</span></div>
+            <div class="send-meta">${tag}</div>
             <div class="send-grade">${escapeHTML(s.Grade)}</div>
         </div>`;
     }).join('');
