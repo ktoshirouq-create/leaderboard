@@ -75,7 +75,6 @@ h1.screen-title {
     font-weight: 500;
 }
 
-/* ===== BOTTOM NAV ===== */
 .bottom-nav {
     position: fixed;
     bottom: 16px;
@@ -114,7 +113,6 @@ h1.screen-title {
     box-shadow: 0 4px 15px rgba(16,185,129,0.4);
 }
 
-/* ===== FAB ===== */
 .fab {
     position: fixed;
     bottom: 90px;
@@ -139,7 +137,6 @@ h1.screen-title {
 }
 .fab:active { transform: scale(0.93); }
 
-/* ===== MODAL ===== */
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -203,7 +200,6 @@ h1.screen-title {
     letter-spacing: -0.5px;
 }
 
-/* ===== TOAST ===== */
 .toast {
     position: fixed;
     top: 20px;
@@ -234,7 +230,6 @@ h1.screen-title {
 
 <div class="container">
 
-    <!-- ============== FEED VIEW ============== -->
     <div class="view active" id="view-feed">
         <h1 class="screen-title">Feed</h1>
         <div id="feed-list">
@@ -242,13 +237,11 @@ h1.screen-title {
         </div>
     </div>
 
-    <!-- ============== BOARDS VIEW ============== -->
     <div class="view" id="view-boards">
         <h1 class="screen-title">Leaderboards</h1>
         <div class="empty-msg">Coming soon.</div>
     </div>
 
-    <!-- ============== PROFILE VIEW ============== -->
     <div class="view" id="view-profile">
         <h1 class="screen-title">Me</h1>
         <div class="empty-msg">Coming soon.</div>
@@ -256,17 +249,14 @@ h1.screen-title {
 
 </div>
 
-<!-- BOTTOM NAV -->
 <div class="bottom-nav">
     <button class="nav-btn active" data-view="feed">Feed</button>
     <button class="nav-btn" data-view="boards">Boards</button>
     <button class="nav-btn" data-view="profile">Me</button>
 </div>
 
-<!-- FAB -->
 <button class="fab" id="fab">+</button>
 
-<!-- LOGGER MODAL (empty for now) -->
 <div class="modal-overlay" id="logger-modal">
     <div class="modal-sheet">
         <button class="modal-close" id="logger-close">×</button>
@@ -276,12 +266,10 @@ h1.screen-title {
     </div>
 </div>
 
-<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
 <script src="shared.js"></script>
 <script>
-/* ============== APP STATE ============== */
 const State = {
     activeView: 'feed',
     activeUser: localStorage.getItem('leaderboard.user') || null,
@@ -290,7 +278,6 @@ const State = {
     locations: []
 };
 
-/* ============== VIEW SWITCHING ============== */
 function showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(`view-${name}`).classList.add('active');
@@ -307,7 +294,6 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     });
 });
 
-/* ============== TOAST ============== */
 function showToast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -315,13 +301,8 @@ function showToast(msg) {
     setTimeout(() => t.classList.remove('show'), 1800);
 }
 
-/* ============== MODAL ============== */
-function openModal(id) {
-    document.getElementById(id).classList.add('active');
-}
-function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
-}
+function openModal(id)  { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
 document.getElementById('fab').addEventListener('click', () => {
     haptic('tap');
@@ -332,7 +313,6 @@ document.getElementById('logger-modal').addEventListener('click', e => {
     if (e.target.id === 'logger-modal') closeModal('logger-modal');
 });
 
-/* ============== DATA FETCH ============== */
 async function fetchData() {
     try {
         const res = await fetch(AppConfig.api);
@@ -348,21 +328,17 @@ async function fetchData() {
     }
 }
 
-/* ============== FEED RENDER (placeholder) ============== */
 function renderFeed() {
     const list = document.getElementById('feed-list');
     if (State.logs.length === 0) {
         list.innerHTML = '<div class="empty-msg">No sends yet. Tap + to be the first.</div>';
         return;
     }
-    // Real session grouping comes next
     list.innerHTML = `<div class="empty-msg">Loaded ${State.logs.length} log(s).<br>Session rendering coming next.</div>`;
 }
 
-/* ============== INIT ============== */
 fetchData();
 
-/* ============== SERVICE WORKER ============== */
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -370,121 +346,5 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
-</body>
-</html><!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Leaderboard</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-
-    <!-- MAIN LEADERBOARD VIEW -->
-    <header class="app-header">
-        <h1>THE LEADERBOARD</h1>
-        <button class="icon-btn" id="add-user-btn" aria-label="Add User">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-    </header>
-
-    <!-- Discipline Switcher (Top) -->
-    <div class="discipline-tabs scroll-container" id="main-discipline-tabs">
-        <button class="pill-btn active" data-value="In Boulder">In Boulder</button>
-        <button class="pill-btn" data-value="Out Boulder">Out Boulder</button>
-        <button class="pill-btn" data-value="In Rope">In Rope</button>
-        <button class="pill-btn" data-value="Out Rope">Out Rope</button>
-    </div>
-
-    <!-- Leaderboard List -->
-    <main class="board-container">
-        <div id="loading-spinner" class="spinner">Loading Board...</div>
-        <div id="leaderboard-list">
-            <!-- JS will inject ranked climbers here -->
-        </div>
-    </main>
-
-    <!-- FLOATING ACTION BUTTON -->
-    <div class="fab-container">
-        <button id="open-logger-btn" class="submit-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="margin-right:8px; vertical-align: middle;"><path d="M12 5v14M5 12h14"/></svg>
-            LOG A SEND
-        </button>
-    </div>
-
-    <!-- ========================================== -->
-    <!-- SLIDE-UP LOGGER MODAL                      -->
-    <!-- ========================================== -->
-    <div id="logger-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Log Send</h2>
-                <button id="close-logger-btn" class="icon-btn">✕</button>
-            </div>
-            
-            <div class="logger-container">
-                <!-- WHO -->
-                <section class="log-section">
-                    <h2 class="section-title">WHO</h2>
-                    <div class="scroll-container" id="who-container">
-                        <!-- JS injects active roster here -->
-                    </div>
-                </section>
-
-                <!-- WHEN -->
-                <section class="log-section">
-                    <h2 class="section-title">WHEN</h2>
-                    <div class="scroll-container" id="when-container">
-                        <button class="pill-btn active" data-value="Today">Today</button>
-                        <button class="pill-btn" data-value="Yesterday">Yesterday</button>
-                        <button class="pill-btn" data-value="Custom">Custom...</button>
-                    </div>
-                </section>
-
-                <!-- WHAT (Discipline) -->
-                <section class="log-section">
-                    <h2 class="section-title">WHAT</h2>
-                    <div class="scroll-container" id="what-container">
-                        <button class="pill-btn active" data-value="In Boulder">In Boulder</button>
-                        <button class="pill-btn" data-value="Out Boulder">Out Boulder</button>
-                        <button class="pill-btn" data-value="In Rope">In Rope</button>
-                        <button class="pill-btn" data-value="Out Rope">Out Rope</button>
-                    </div>
-                </section>
-
-                <!-- HOW HARD -->
-                <section class="log-section">
-                    <h2 class="section-title">GRADE</h2>
-                    <div class="scroll-container" id="grade-container">
-                        <!-- JS injects grades dynamically -->
-                    </div>
-                </section>
-
-                <!-- STYLE -->
-                <section class="log-section">
-                    <h2 class="section-title">STYLE</h2>
-                    <div class="scroll-container" id="style-container">
-                        <button class="pill-btn" data-value="Onsight">Onsight</button>
-                        <button class="pill-btn" data-value="Flash">Flash</button>
-                        <button class="pill-btn active" data-value="Send">Send</button>
-                    </div>
-                </section>
-                
-                <!-- SUBMIT -->
-                <button id="submit-log-btn" class="submit-btn" style="margin-top: 20px;">SEND IT</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- SUCCESS OVERLAY -->
-    <div id="success-overlay" class="overlay hidden">
-        <div class="overlay-content">
-            <span class="check-icon">✓</span>
-            <h2 id="success-text">Logged</h2>
-        </div>
-    </div>
-
-    <script src="app.js"></script>
 </body>
 </html>
