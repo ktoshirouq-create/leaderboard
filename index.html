@@ -1755,10 +1755,16 @@ function renderCapacityBoard() {
     });
     
     if (qualified.length > 0) {
+        const scale = AppConfig.grades[activeBoardDiscipline];
+        const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
         html += qualified.slice(0, 10).map(r => {
             const prog = gradeProgress(r.avgScore, activeBoardDiscipline);
             const fillPct = Math.round((r.avgScore / maxAvg) * 100);
             const pctText = prog.next ? `${prog.pct}% → ${escapeHTML(prog.next)}` : 'maxed';
+            const dotIdx = scale.labels.indexOf(prog.current);
+            const dot = useDot && dotIdx >= 0
+                ? `<span class="grade-dot" style="background:${scale.colors[dotIdx]}"></span>`
+                : '';
             return `
             <div class="lb-row" data-climber="${escapeHTML(r.climber)}">
                 <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
@@ -1767,7 +1773,7 @@ function renderCapacityBoard() {
                     <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
                 </div>
                 <div class="lb-grade">
-                    <div class="lb-grade-val">${escapeHTML(prog.current)}</div>
+                    <div class="lb-grade-val">${dot}${escapeHTML(prog.current)}</div>
                     <div class="lb-grade-pct">${pctText}</div>
                 </div>
             </div>`;
@@ -1781,6 +1787,10 @@ function renderCapacityBoard() {
         html += provisional.map(r => {
             const prog = gradeProgress(r.avgScore, activeBoardDiscipline);
             const fillPct = Math.round((r.avgScore / maxAvg) * 100) || 10;
+            const dotIdx = scale.labels.indexOf(prog.current);
+            const dot = useDot && dotIdx >= 0
+                ? `<span class="grade-dot" style="background:${scale.colors[dotIdx]}; opacity:0.6"></span>`
+                : '';
             return `
             <div class="lb-row provisional" data-climber="${escapeHTML(r.climber)}">
                 <div class="lb-rank">—</div>
@@ -1790,7 +1800,7 @@ function renderCapacityBoard() {
                     <div class="lb-grade-pct">${r.sendCount} / 10 sends</div>
                 </div>
                 <div class="lb-grade">
-                    <div class="lb-grade-val">~${escapeHTML(prog.current)}</div>
+                    <div class="lb-grade-val">${dot}~${escapeHTML(prog.current)}</div>
                 </div>
             </div>`;
         }).join('');
