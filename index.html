@@ -1230,12 +1230,13 @@ async function addClimber(rawName) {
     }
 }
 
-function renderPillList(containerId, names, onPick, addRowId, addInputId, addSaveId) {
+function renderPillList(containerId, names, onPick, addRowId, addInputId, addSaveId, opts = {}) {
+    const allowAdd = opts.allowAdd !== false;  // default: true
     const container = document.getElementById(containerId);
     const pillsHtml = names.map(n =>
         `<button class="pill ${n === State.activeUser ? 'active' : ''}" data-name="${escapeHTML(n)}">${escapeHTML(n)}</button>`
     ).join('');
-    container.innerHTML = pillsHtml + '<button class="pill add-btn" data-add="1">+ Add</button>';
+    container.innerHTML = pillsHtml + (allowAdd ? '<button class="pill add-btn" data-add="1">+ Add</button>' : '');
     container.querySelectorAll('[data-name]').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
@@ -1245,10 +1246,15 @@ function renderPillList(containerId, names, onPick, addRowId, addInputId, addSav
     const addRow = document.getElementById(addRowId);
     const inp    = document.getElementById(addInputId);
     const saveBtn = document.getElementById(addSaveId);
+    if (!allowAdd) {
+        if (addRow) addRow.classList.add('hidden');
+        return;
+    }
     container.querySelector('[data-add]').addEventListener('click', () => {
         haptic('tap');
         addRow.classList.remove('hidden');
         inp.focus();
+    });
     });
     inp.value = '';
     addRow.classList.add('hidden');
@@ -2124,14 +2130,15 @@ document.getElementById('profile-back').addEventListener('click', () => {
 
 document.getElementById('profile-switcher').addEventListener('click', () => {
     haptic('tap');
-    // Reuse the existing switcher modal, but on close re-render the profile
+    // Reuse the switcher modal but disable + Add (roster managed via logger only)
     const names = State.roster.map(r => r.Name).filter(Boolean);
     renderPillList('switcher-pills', names, (name) => {
         setActiveUser(name);
         closeModal('switcher-modal');
-        showProfile(name);  // re-render profile as the new user
-    }, 'add-name-row', 'add-name-input', 'add-name-save');
+        showProfile(name);
+    }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false });
     openModal('switcher-modal');
+});
 });
 /* ============== SPECIAL BOARDS ============== */
 const SPECIAL_WINDOW_DAYS = 30;
