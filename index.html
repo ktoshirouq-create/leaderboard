@@ -1754,9 +1754,10 @@ function renderCapacityBoard() {
         });
     });
     
+    const scale = AppConfig.grades[activeBoardDiscipline];
+    const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
+    
     if (qualified.length > 0) {
-        const scale = AppConfig.grades[activeBoardDiscipline];
-        const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
         html += qualified.slice(0, 10).map(r => {
             const prog = gradeProgress(r.avgScore, activeBoardDiscipline);
             const fillPct = Math.round((r.avgScore / maxAvg) * 100);
