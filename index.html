@@ -221,6 +221,80 @@ h1.screen-title {
 }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 
+/* ===== SWITCHER LINK + PILLS ===== */
+.switcher-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,255,255,0.04);
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 0.78rem;
+    color: #d4d4d4;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 16px;
+    transition: 0.2s;
+    border: 1px solid rgba(255,255,255,0.05);
+    font-family: inherit;
+}
+.switcher-link:active { background: rgba(255,255,255,0.08); }
+.switcher-link strong { color: #fff; }
+
+.modal-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.pill-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+.pill {
+    padding: 11px 18px;
+    background: var(--input-bg);
+    border: 1px solid transparent;
+    border-radius: 11px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    white-space: nowrap;
+    font-family: inherit;
+}
+.pill.active {
+    background: var(--primary-fade);
+    color: var(--primary);
+    border-color: rgba(16,185,129,0.4);
+}
+.pill.add-btn {
+    color: var(--primary);
+    background: transparent;
+    border: 1px dashed rgba(16,185,129,0.3);
+}
+
+/* Inline name input for adding new climber */
+.add-name-input {
+    width: 100%;
+    padding: 12px 14px;
+    margin-top: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+}
+.add-name-input:focus { border-color: rgba(16,185,129,0.5); }
+.hidden { display: none !important; }
 @media (max-width: 380px) {
     .container { padding: 20px 14px 120px 14px; }
 }
@@ -261,8 +335,30 @@ h1.screen-title {
     <div class="modal-sheet">
         <button class="modal-close" id="logger-close">×</button>
         <div class="modal-handle"></div>
+        <div class="switcher-link" id="switcher-trigger">Logging as <strong id="active-user-label">—</strong> ▾</div>
         <div class="modal-title">Log a send</div>
-        <div class="empty-msg">Logger coming next.</div>
+        <div class="empty-msg">Form fields coming next.</div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="switcher-modal">
+    <div class="modal-sheet">
+        <button class="modal-close" id="switcher-close">×</button>
+        <div class="modal-handle"></div>
+        <div class="modal-title">Who's logging?</div>
+        <div class="modal-subtitle">Tap a name. Anyone can add new climbers.</div>
+        <div class="pill-row" id="switcher-pills"></div>
+        <input type="text" class="add-name-input hidden" id="add-name-input" placeholder="New climber's name" maxlength="20">
+    </div>
+</div>
+
+<div class="modal-overlay" id="identity-prompt">
+    <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="modal-title">Who are you?</div>
+        <div class="modal-subtitle">First time logging on this device. Pick yourself, or add yourself if you're new.</div>
+        <div class="pill-row" id="identity-pills"></div>
+        <input type="text" class="add-name-input hidden" id="identity-add-input" placeholder="Your name" maxlength="20">
     </div>
 </div>
 
@@ -301,16 +397,122 @@ function showToast(msg) {
     setTimeout(() => t.classList.remove('show'), 1800);
 }
 
+/* ============== MODAL HELPERS ============== */
 function openModal(id)  { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-document.getElementById('fab').addEventListener('click', () => {
-    haptic('tap');
-    openModal('logger-modal');
-});
 document.getElementById('logger-close').addEventListener('click', () => closeModal('logger-modal'));
 document.getElementById('logger-modal').addEventListener('click', e => {
     if (e.target.id === 'logger-modal') closeModal('logger-modal');
+});
+document.getElementById('switcher-close').addEventListener('click', () => closeModal('switcher-modal'));
+document.getElementById('switcher-modal').addEventListener('click', e => {
+    if (e.target.id === 'switcher-modal') closeModal('switcher-modal');
+});
+
+/* ============== IDENTITY ============== */
+function setActiveUser(name) {
+    State.activeUser = name;
+    localStorage.setItem('leaderboard.user', name);
+    const label = document.getElementById('active-user-label');
+    if (label) label.textContent = name;
+}
+
+// Capitalize first letter only: "jack" → "Jack", "JACK" → "Jack"
+function normalizeName(raw) {
+    const trimmed = String(raw || '').trim();
+    if (!trimmed) return '';
+    return trimmed[0].toUpperCase() + trimmed.slice(1).toLowerCase();
+}
+
+async function addClimber(rawName) {
+    const name = normalizeName(rawName);
+    if (!name) return null;
+    // Local dedupe check
+    const existing = State.roster.map(r => String(r.Name || '').toLowerCase());
+    if (existing.includes(name.toLowerCase())) {
+        showToast(`There's already a ${name}`);
+        return name; // existing climber, just become them
+    }
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'addClimber', name })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error);
+        State.roster.push({ Name: name });
+        haptic('commit');
+        return name;
+    } catch (err) {
+        showToast('Could not add climber');
+        return null;
+    }
+}
+
+function renderPillList(containerId, names, onPick, addInputId) {
+    const container = document.getElementById(containerId);
+    const pillsHtml = names.map(n =>
+        `<button class="pill ${n === State.activeUser ? 'active' : ''}" data-name="${escapeHTML(n)}">${escapeHTML(n)}</button>`
+    ).join('');
+    container.innerHTML = pillsHtml + '<button class="pill add-btn" data-add="1">+ Add</button>';
+    container.querySelectorAll('[data-name]').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            onPick(el.dataset.name);
+        });
+    });
+    container.querySelector('[data-add]').addEventListener('click', () => {
+        haptic('tap');
+        const inp = document.getElementById(addInputId);
+        inp.classList.remove('hidden');
+        inp.focus();
+    });
+    // Wire input commit on Enter
+    const inp = document.getElementById(addInputId);
+    inp.value = '';
+    inp.classList.add('hidden');
+    inp.onkeydown = async (e) => {
+        if (e.key !== 'Enter') return;
+        const name = await addClimber(inp.value);
+        if (name) {
+            onPick(name);
+            inp.classList.add('hidden');
+            inp.value = '';
+        }
+    };
+}
+
+function openSwitcher() {
+    haptic('tap');
+    const names = State.roster.map(r => r.Name).filter(Boolean);
+    renderPillList('switcher-pills', names, (name) => {
+        setActiveUser(name);
+        closeModal('switcher-modal');
+    }, 'add-name-input');
+    openModal('switcher-modal');
+}
+
+function openIdentityPrompt() {
+    const names = State.roster.map(r => r.Name).filter(Boolean);
+    renderPillList('identity-pills', names, (name) => {
+        setActiveUser(name);
+        closeModal('identity-prompt');
+        openModal('logger-modal');
+    }, 'identity-add-input');
+    openModal('identity-prompt');
+}
+
+document.getElementById('switcher-trigger').addEventListener('click', openSwitcher);
+
+document.getElementById('fab').addEventListener('click', () => {
+    haptic('tap');
+    if (!State.activeUser) {
+        openIdentityPrompt();
+    } else {
+        document.getElementById('active-user-label').textContent = State.activeUser;
+        openModal('logger-modal');
+    }
 });
 
 async function fetchData() {
