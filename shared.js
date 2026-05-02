@@ -1,0 +1,127 @@
+// shared.js — config + helpers for The Leaderboard
+// Adapted from personal app's shared.js
+
+const AppConfig = {
+    api: "https://script.google.com/macros/s/AKfycbyMWezKiSWgCFEzvRfQ_vN2qylkA9HCXywFcQhlJiYsaTEWno6durZhSZUByu51eQQ/exec",
+    
+    months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    
+    // 4 disciplines only — order matches likely usage frequency
+    disciplines: ['In Boulder', 'In Rope', 'Out Rope', 'Out Boulder'],
+    
+    // Discipline colors used as 4px border-left on session cards, leaderboard tabs, profile strip
+    disciplineColors: {
+        'In Boulder':  '#f59e0b',  // amber
+        'In Rope':     '#06b6d4',  // cyan
+        'Out Rope':    '#10b981',  // emerald (= primary)
+        'Out Boulder': '#a855f7'   // violet
+    },
+    
+    // Style options per discipline
+    stylesForDiscipline: {
+        'In Boulder':  ['Send', 'Flash'],
+        'In Rope':     ['Send', 'Flash'],
+        'Out Rope':    ['Send', 'Flash', 'Onsight'],
+        'Out Boulder': ['Send', 'Flash']
+    },
+    
+    // Trimmed grade scales (per design doc)
+    grades: {
+        'In Boulder': {
+            labels: ["4","5","6A","6B","6C","7A","7B"],
+            scores: [400,500,600,633,667,700,733],
+            colors: ["#ffffff","#22c55e","#3b82f6","#eab308","#ef4444","#3f3f46","#a855f7"]
+        },
+        'In Rope': {
+            labels: ["4b","4c","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c"],
+            scores: [450,475,500,517,533,550,567,583,600,617,633,650,667,683,700,717,733,750,767],
+            colors: []
+        },
+        'Out Rope': {
+            labels: ["3","4-","4","4+","5-","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c"],
+            scores: [100,200,250,300,400,500,517,533,550,567,583,600,617,633,650,667,683,700,717,733,750,767],
+            colors: []
+        },
+        'Out Boulder': {
+            labels: ["3","4","5","5+","6A","6A+","6B","6B+","6C","6C+","7A","7A+","7B","7B+","7C"],
+            scores: [300,400,500,550,600,617,633,650,667,683,700,717,733,750,767],
+            colors: []
+        }
+    },
+    
+    // Default grade for first-ever log per discipline
+    defaultGradeIndex: {
+        'In Boulder':  2,  // 6A
+        'In Rope':     8,  // 6a
+        'Out Rope':    11, // 6a
+        'Out Boulder': 4   // 6A
+    },
+    
+    // Flash/onsight bonus per discipline
+    flashBonus: {
+        'In Boulder':  17,
+        'Out Boulder': 17,
+        'In Rope':     10,
+        'Out Rope':    10
+    }
+};
+
+// Strip style markers from grade strings (legacy from personal app — leaderboard probably won't need but kept for safety)
+const getBaseGrade = (g) => String(g || "").replace(/[⚡💎🚀🛠️❌🪢🔄\s]/g, '');
+
+// Date string normalizer — uses +12h hack to avoid TZ-related off-by-one
+const getCleanDate = (dStr) => {
+    if (!dStr) {
+        const d = new Date();
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().substring(0, 10);
+    }
+    if (typeof dStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dStr.trim())) return dStr.trim();
+    const d = new Date(dStr);
+    if (!isNaN(d.getTime())) {
+        d.setHours(d.getHours() + 12);
+        return d.toISOString().substring(0, 10);
+    }
+    return String(dStr).substring(0, 10);
+};
+
+// HTML escape for safe rendering of user input
+const escapeHTML = (str) => {
+    if (!str) return "";
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+};
+
+// Short date display: "28 Apr"
+const formatShortDate = (dStr) => {
+    const clean = getCleanDate(dStr);
+    const [y, m, d] = clean.split('-');
+    return `${parseInt(d, 10)} ${AppConfig.months[parseInt(m, 10)-1]}`;
+};
+
+// Get scoring scale for a discipline
+const getScaleConfig = (disc) => AppConfig.grades[disc];
+
+// Compute scored value with flash/onsight bonus applied
+const getScoredValue = (grade, style, discipline) => {
+    const scale = getScaleConfig(discipline);
+    if (!scale) return 0;
+    const idx = scale.labels.indexOf(getBaseGrade(grade));
+    if (idx === -1) return 0;
+    const baseScore = scale.scores[idx];
+    const styleNorm = String(style || '').toLowerCase();
+    const bonus = (styleNorm === 'flash' || styleNorm === 'onsight') ? AppConfig.flashBonus[discipline] : 0;
+    return baseScore + bonus;
+};
+
+// Relative time format for feed cards
+const formatRelativeTime = (timestamp) => {
+    if (!timestamp) return '';
+    const ms = Date.now() - new Date(timestamp).getTime();
+    const hours = Math.floor(ms / 3600000);
+    const days = Math.floor(ms / 86400000);
+    if (hours < 1)  return 'Just now';
+    if (hours < 24) return `${hours}h ago`;
+    if (days === 1) return 'Yesterday';
+    if (days < 7)   return `${days}d ago`;
+    return formatShortDate(timestamp);
+};
