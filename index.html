@@ -325,6 +325,38 @@ h1.screen-title {
     border-radius: 12px;
 }
 
+/* Top-level segmented control */
+.seg-ctrl {
+    display: flex;
+    background: var(--input-bg);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 16px;
+    border: 1px solid rgba(255,255,255,0.03);
+}
+.seg-item {
+    flex: 1;
+    text-align: center;
+    padding: 11px 0;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.25s, background 0.25s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    user-select: none;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+}
+.seg-item.active {
+    color: #fff;
+    background: #262626;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
 /* Discipline tabs above the board */
 .cap-tabs {
     display: flex;
@@ -737,13 +769,25 @@ h1.screen-title {
 
     <div class="view" id="view-boards">
     <h1 class="screen-title">Leaderboards</h1>
-    <div class="cap-tabs" id="cap-tabs"></div>
-    <div class="board-title-row">
-        <span class="board-title" id="board-title">Working Capacity</span>
-        <button class="info-icon" id="capacity-info">i</button>
+
+    <div class="seg-ctrl" id="board-mode-toggle">
+        <button class="seg-item active" data-mode="capacity">Capacity</button>
+        <button class="seg-item" data-mode="boards">Boards</button>
     </div>
-    <div class="board-subtitle">Top 10 climbs in last 60 days</div>
-    <div id="capacity-board"></div>
+
+    <div id="capacity-mode">
+        <div class="cap-tabs" id="cap-tabs"></div>
+        <div class="board-title-row">
+            <span class="board-title">Working Capacity</span>
+            <button class="info-icon" id="capacity-info">i</button>
+        </div>
+        <div class="board-subtitle">Top 10 climbs in last 60 days</div>
+        <div id="capacity-board"></div>
+    </div>
+
+    <div id="boards-mode" style="display: none;">
+        <div class="lb-empty" style="margin-top: 24px;">Special boards coming next.</div>
+    </div>
 </div>
 
     <div class="view" id="view-profile">
@@ -857,6 +901,30 @@ const State = {
     locations: []
 };
 
+let activeBoardMode = localStorage.getItem('leaderboard.lastBoardMode') || 'capacity';
+if (!['capacity', 'boards'].includes(activeBoardMode)) activeBoardMode = 'capacity';
+
+function applyBoardMode() {
+    const cap = document.getElementById('capacity-mode');
+    const brd = document.getElementById('boards-mode');
+    cap.style.display = activeBoardMode === 'capacity' ? 'block' : 'none';
+    brd.style.display = activeBoardMode === 'boards'   ? 'block' : 'none';
+    document.querySelectorAll('#board-mode-toggle .seg-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.mode === activeBoardMode);
+    });
+    if (activeBoardMode === 'capacity') renderCapacityBoard();
+    // boards mode placeholder — Bite 3 will add render here
+}
+
+document.querySelectorAll('#board-mode-toggle .seg-item').forEach(el => {
+    el.addEventListener('click', () => {
+        haptic('tap');
+        activeBoardMode = el.dataset.mode;
+        localStorage.setItem('leaderboard.lastBoardMode', activeBoardMode);
+        applyBoardMode();
+    });
+});
+
 function showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(`view-${name}`).classList.add('active');
@@ -864,7 +932,7 @@ function showView(name) {
     document.querySelector(`.nav-btn[data-view="${name}"]`).classList.add('active');
     State.activeView = name;
     window.scrollTo({ top: 0, behavior: 'instant' });
-    if (name === 'boards') renderCapacityBoard();
+    if (name === 'boards') applyBoardMode();
 }
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
