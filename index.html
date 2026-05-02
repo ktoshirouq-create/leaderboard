@@ -314,6 +314,70 @@ h1.screen-title {
 .lb-row.provisional .lb-name { color: #d4d4d4; }
 .lb-row.provisional .lb-bar-fill { background: #555; opacity: 0.55; }
 .lb-row.provisional .lb-grade-val { color: var(--text-muted); }
+
+/* Hardest Last 30d: discipline-tagged row with detail line */
+.hardest-row {
+    padding: 14px 16px;
+    background: var(--card-bg);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: 0.15s;
+    border: 1px solid rgba(255,255,255,0.03);
+    border-left: 4px solid var(--disc-color, #555);
+}
+.hardest-row[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
+.hardest-row[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
+.hardest-row[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
+.hardest-row[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
+.hardest-row:active { background: #1a1a1a; transform: scale(0.99); }
+.hardest-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.hardest-name {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+}
+.hardest-rank {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    min-width: 22px;
+    text-align: center;
+}
+.hardest-rank.gold   { color: var(--gold); }
+.hardest-rank.silver { color: var(--silver); }
+.hardest-rank.bronze { color: var(--bronze); }
+.hardest-grade {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--primary);
+    white-space: nowrap;
+}
+.hardest-detail {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    margin-left: 36px;
+    font-weight: 600;
+}
+
+/* Boards-mode tab pills (wraps to 2 rows, no scroll) */
+.board-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.board-tabs .pill { font-size: 0.78rem; padding: 10px 14px; }
+
 .lb-empty {
     color: #555;
     font-style: italic;
@@ -786,8 +850,15 @@ h1.screen-title {
     </div>
 
     <div id="boards-mode" style="display: none;">
-        <div class="lb-empty" style="margin-top: 24px;">Special boards coming next.</div>
+    <div class="board-tabs" id="board-tabs">
+        <button class="pill active" data-board="hardest">Hardest 30d</button>
+        <button class="pill" data-board="volume">Most Volume</button>
+        <button class="pill" data-board="addicted">Most Addicted</button>
+        <button class="pill" data-board="outdoor">Outdoor Days</button>
     </div>
+    <div class="board-subtitle" id="board-subtitle">Highest single send, last 30 days</div>
+    <div id="special-board"></div>
+</div>
 </div>
 
     <div class="view" id="view-profile">
@@ -913,7 +984,7 @@ function applyBoardMode() {
         el.classList.toggle('active', el.dataset.mode === activeBoardMode);
     });
     if (activeBoardMode === 'capacity') renderCapacityBoard();
-    // boards mode placeholder — Bite 3 will add render here
+    if (activeBoardMode === 'boards') renderSpecialBoard();
 }
 
 document.querySelectorAll('#board-mode-toggle .seg-item').forEach(el => {
@@ -1381,7 +1452,7 @@ async function submitLog() {
         // Success — strip optimistic flag, re-fetch from server in background to sync timestamp
         delete optimisticRow._optimistic;
         renderFeed();
-        if (State.activeView === 'boards') renderCapacityBoard();
+        if (State.activeView === 'boards') applyBoardMode();
         showToast('✓ Logged');
         // Background refresh (don't await — just let it update silently)
         fetchData();
@@ -1739,6 +1810,206 @@ document.getElementById('capacity-info').addEventListener('click', () => {
         { term: 'Qualifying',
           def: 'Need 10+ sends in a discipline within 60 days to be ranked. Below that, you\'re provisional and ranked separately.' }
     ]);
+});
+
+/* ============== SPECIAL BOARDS ============== */
+const SPECIAL_WINDOW_DAYS = 30;
+let activeSpecialBoard = localStorage.getItem('leaderboard.lastSpecialBoard') || 'hardest';
+if (!['hardest', 'volume', 'addicted', 'outdoor'].includes(activeSpecialBoard)) activeSpecialBoard = 'hardest';
+
+const BOARD_SUBTITLES = {
+    hardest:  'Highest single send, last 30 days',
+    volume:   'Total sends, last 30 days',
+    addicted: 'Distinct climbing days, last 30 days',
+    outdoor:  'Distinct outdoor days, last 30 days'
+};
+
+// Hardest: highest-scoring single send per climber, cross-discipline
+function computeHardest() {
+    const byClimber = new Map();
+    State.logs.forEach(log => {
+        if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
+        const disc = log.Discipline;
+        if (!AppConfig.disciplines.includes(disc)) return;
+        const score = getScoredValue(log.Grade, log.Style, disc);
+        if (score <= 0) return;
+        const climber = log.ClimberName;
+        const existing = byClimber.get(climber);
+        if (!existing || score > existing.score) {
+            byClimber.set(climber, {
+                climber,
+                score,
+                grade: log.Grade,
+                style: log.Style,
+                where: log.Where,
+                discipline: disc
+            });
+        }
+    });
+    return Array.from(byClimber.values()).sort((a, b) => b.score - a.score);
+}
+
+// Volume: total send count per climber, in window
+function computeVolume() {
+    const byClimber = new Map();
+    State.logs.forEach(log => {
+        if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
+        if (!AppConfig.disciplines.includes(log.Discipline)) return;
+        byClimber.set(log.ClimberName, (byClimber.get(log.ClimberName) || 0) + 1);
+    });
+    return Array.from(byClimber.entries())
+        .map(([climber, count]) => ({ climber, count }))
+        .sort((a, b) => b.count - a.count);
+}
+
+// Addicted: distinct climbing days per climber
+function computeAddicted() {
+    const byClimber = new Map();
+    State.logs.forEach(log => {
+        if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
+        if (!AppConfig.disciplines.includes(log.Discipline)) return;
+        const date = getCleanDate(log.Date);
+        const climber = log.ClimberName;
+        if (!byClimber.has(climber)) byClimber.set(climber, new Set());
+        byClimber.get(climber).add(date);
+    });
+    return Array.from(byClimber.entries())
+        .map(([climber, dates]) => ({ climber, count: dates.size }))
+        .sort((a, b) => b.count - a.count);
+}
+
+// Outdoor: distinct days with ≥1 outdoor send
+function computeOutdoor() {
+    const outdoorDiscs = ['Out Rope', 'Out Boulder'];
+    const byClimber = new Map();
+    State.logs.forEach(log => {
+        if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
+        if (!outdoorDiscs.includes(log.Discipline)) return;
+        const date = getCleanDate(log.Date);
+        const climber = log.ClimberName;
+        if (!byClimber.has(climber)) byClimber.set(climber, new Set());
+        byClimber.get(climber).add(date);
+    });
+    return Array.from(byClimber.entries())
+        .map(([climber, dates]) => ({ climber, count: dates.size }))
+        .sort((a, b) => b.count - a.count);
+}
+
+// Tied-rank assigner for count-based boards (uses 'count' field)
+function assignTiedRanksByCount(rows) {
+    let lastCount = null;
+    let lastRank = 0;
+    rows.forEach((r, i) => {
+        if (r.count === lastCount) {
+            r.rank = lastRank;
+        } else {
+            r.rank = i + 1;
+            lastRank = r.rank;
+            lastCount = r.count;
+        }
+    });
+    return rows;
+}
+
+// Tied-rank assigner for score-based hardest board
+function assignTiedRanksByScore(rows) {
+    let lastScore = null;
+    let lastRank = 0;
+    rows.forEach((r, i) => {
+        if (r.score === lastScore) {
+            r.rank = lastRank;
+        } else {
+            r.rank = i + 1;
+            lastRank = r.rank;
+            lastScore = r.score;
+        }
+    });
+    return rows;
+}
+
+function renderHardestBoard() {
+    const rows = assignTiedRanksByScore(computeHardest()).slice(0, 10);
+    const container = document.getElementById('special-board');
+    if (rows.length === 0) {
+        container.innerHTML = '<div class="lb-empty">No sends in the last 30 days.</div>';
+        return;
+    }
+    container.innerHTML = rows.map(r => `
+        <div class="hardest-row" data-disc="${escapeHTML(r.discipline)}" data-climber="${escapeHTML(r.climber)}">
+            <div class="hardest-top">
+                <div class="hardest-name">
+                    <span class="hardest-rank ${rankClass(r.rank)}">${r.rank}</span>
+                    ${escapeHTML(r.climber)}
+                </div>
+                <div class="hardest-grade">${escapeHTML(r.grade)}</div>
+            </div>
+            <div class="hardest-detail">${escapeHTML(r.style)} · ${escapeHTML(r.where)} · ${escapeHTML(r.discipline)}</div>
+        </div>
+    `).join('');
+    container.querySelectorAll('.hardest-row').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            showToast(`${el.dataset.climber} — profile coming soon`);
+        });
+    });
+}
+
+function renderCountBoard(rows, unitLabel) {
+    const container = document.getElementById('special-board');
+    const top = rows.slice(0, 10);
+    if (top.length === 0) {
+        container.innerHTML = '<div class="lb-empty">No data in the last 30 days.</div>';
+        return;
+    }
+    const maxCount = top[0].count || 1;
+    container.innerHTML = top.map(r => {
+        const fillPct = Math.round((r.count / maxCount) * 100);
+        return `
+        <div class="lb-row" data-climber="${escapeHTML(r.climber)}">
+            <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
+            <div class="lb-bar-wrap">
+                <div class="lb-name">${escapeHTML(r.climber)}</div>
+                <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
+            </div>
+            <div class="lb-grade">
+                <div class="lb-grade-val">${r.count} ${escapeHTML(unitLabel)}</div>
+            </div>
+        </div>`;
+    }).join('');
+    container.querySelectorAll('.lb-row').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            showToast(`${el.dataset.climber} — profile coming soon`);
+        });
+    });
+}
+
+function renderSpecialBoard() {
+    document.getElementById('board-subtitle').textContent = BOARD_SUBTITLES[activeSpecialBoard];
+    document.querySelectorAll('#board-tabs .pill').forEach(el => {
+        el.classList.toggle('active', el.dataset.board === activeSpecialBoard);
+    });
+    if (activeSpecialBoard === 'hardest') {
+        renderHardestBoard();
+    } else if (activeSpecialBoard === 'volume') {
+        const rows = assignTiedRanksByCount(computeVolume());
+        renderCountBoard(rows, 'sends');
+    } else if (activeSpecialBoard === 'addicted') {
+        const rows = assignTiedRanksByCount(computeAddicted());
+        renderCountBoard(rows, 'days');
+    } else if (activeSpecialBoard === 'outdoor') {
+        const rows = assignTiedRanksByCount(computeOutdoor());
+        renderCountBoard(rows, 'days');
+    }
+}
+
+document.querySelectorAll('#board-tabs .pill').forEach(el => {
+    el.addEventListener('click', () => {
+        haptic('tap');
+        activeSpecialBoard = el.dataset.board;
+        localStorage.setItem('leaderboard.lastSpecialBoard', activeSpecialBoard);
+        renderSpecialBoard();
+    });
 });
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
