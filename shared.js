@@ -125,3 +125,13 @@ const formatRelativeTime = (timestamp) => {
     if (days < 7)   return `${days}d ago`;
     return formatShortDate(timestamp);
 };
+// Haptic feedback — short pulse on tap, slightly longer on commit
+const haptic = (kind = 'tap') => {
+    if (!navigator.vibrate) return;
+    const patterns = {
+        tap: 10,        // pill, button, tab
+        commit: 25,     // log submit, user switch
+        error: [50, 30, 50]  // failure
+    };
+    navigator.vibrate(patterns[kind] || 10);
+};
