@@ -369,14 +369,20 @@ h1.screen-title {
     font-weight: 600;
 }
 
-/* Boards-mode tab pills (wraps to 2 rows, no scroll) */
+/* Boards-mode tab pills — flex-grow so all 4 fit, wrap when needed */
 .board-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     margin-bottom: 16px;
 }
-.board-tabs .pill { font-size: 0.78rem; padding: 10px 14px; }
+.board-tabs .pill {
+    font-size: 0.72rem;
+    padding: 9px 12px;
+    flex: 1 1 calc(50% - 4px);
+    text-align: center;
+    letter-spacing: 0.2px;
+}
 
 .lb-empty {
     color: #555;
@@ -1934,18 +1940,29 @@ function renderHardestBoard() {
         container.innerHTML = '<div class="lb-empty">No sends in the last 30 days.</div>';
         return;
     }
-    container.innerHTML = rows.map(r => `
+    container.innerHTML = rows.map(r => {
+        const scale = AppConfig.grades[r.discipline];
+        const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
+        const dot = useDot
+            ? (() => {
+                const idx = scale.labels.indexOf(getBaseGrade(r.grade));
+                return idx >= 0
+                    ? `<span class="grade-dot" style="background:${scale.colors[idx]}"></span>`
+                    : '';
+            })()
+            : '';
+        return `
         <div class="hardest-row" data-disc="${escapeHTML(r.discipline)}" data-climber="${escapeHTML(r.climber)}">
             <div class="hardest-top">
                 <div class="hardest-name">
                     <span class="hardest-rank ${rankClass(r.rank)}">${r.rank}</span>
                     ${escapeHTML(r.climber)}
                 </div>
-                <div class="hardest-grade">${escapeHTML(r.grade)}</div>
+                <div class="hardest-grade">${dot}${escapeHTML(r.grade)}</div>
             </div>
             <div class="hardest-detail">${escapeHTML(r.style)} · ${escapeHTML(r.where)} · ${escapeHTML(r.discipline)}</div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
     container.querySelectorAll('.hardest-row').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
