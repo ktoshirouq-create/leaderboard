@@ -312,7 +312,21 @@ h1.screen-title {
     white-space: nowrap;
 }
 .add-name-save:active { transform: scale(0.97); }
-.add-name-save:disabled { background: #262626; color: #555; }
+.add-name-save:disabled { cursor: not-allowed; }
+.add-name-save.saving {
+    background: #262626;
+    color: var(--text-muted);
+    animation: pulse 1.2s ease-in-out infinite;
+}
+.add-name-save.done {
+    background: var(--primary);
+    color: #000;
+    animation: none;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+}
 .hidden { display: none !important; }
 @media (max-width: 380px) {
     .container { padding: 20px 14px 120px 14px; }
@@ -508,15 +522,40 @@ function renderPillList(containerId, names, onPick, addRowId, addInputId, addSav
     });
     inp.value = '';
     addRow.classList.add('hidden');
+    saveBtn.classList.remove('saving', 'done');
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save';
     const commit = async () => {
+        if (saveBtn.disabled) return;
+        if (!inp.value.trim()) return;
+        saveBtn.disabled = true;
+        saveBtn.classList.add('saving');
+        saveBtn.textContent = 'Saving…';
         const name = await addClimber(inp.value);
+        saveBtn.classList.remove('saving');
         if (name) {
-            onPick(name);
-            addRow.classList.add('hidden');
-            inp.value = '';
+            saveBtn.classList.add('done');
+            saveBtn.textContent = '✓ Added';
+            setTimeout(() => {
+                onPick(name);
+                addRow.classList.add('hidden');
+                inp.value = '';
+                saveBtn.classList.remove('done');
+                saveBtn.textContent = 'Save';
+                saveBtn.disabled = false;
+            }, 600);
+        } else {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save';
         }
     };
-    saveBtn.onclick = () => { haptic('tap'); commit(); };
+    const updateSaveState = () => {
+        if (saveBtn.classList.contains('saving') || saveBtn.classList.contains('done')) return;
+        saveBtn.disabled = !inp.value.trim();
+    };
+    updateSaveState();
+    inp.oninput = updateSaveState;
+    saveBtn.onclick = () => { if (saveBtn.disabled) return; haptic('tap'); commit(); };
     inp.onkeydown = (e) => { if (e.key === 'Enter') commit(); };
 }
 
