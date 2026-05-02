@@ -1084,17 +1084,6 @@ h1.screen-title {
         </div>
     </div>
 </div>
-
-<div class="modal-overlay" id="identity-prompt">
-    <div class="modal-sheet">
-        <div class="modal-handle"></div>
-        <div class="modal-title">Who are you?</div>
-        <div class="modal-subtitle">First time logging on this device. Pick yourself, or add yourself if you're new.</div>
-        <div class="pill-row" id="identity-pills"></div>
-        <input type="text" class="add-name-input hidden" id="identity-add-input" placeholder="Your name" maxlength="20">
-    </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <div class="modal-overlay" id="info-modal">
@@ -1254,7 +1243,6 @@ function renderPillList(containerId, names, onPick, addRowId, addInputId, addSav
         haptic('tap');
         addRow.classList.remove('hidden');
         inp.focus();
-    });
     });
     inp.value = '';
     addRow.classList.add('hidden');
@@ -2138,7 +2126,6 @@ document.getElementById('profile-switcher').addEventListener('click', () => {
         showProfile(name);
     }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false });
     openModal('switcher-modal');
-});
 });
 /* ============== SPECIAL BOARDS ============== */
 const SPECIAL_WINDOW_DAYS = 30;
