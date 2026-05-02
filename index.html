@@ -998,6 +998,7 @@ h1.screen-title {
 
     <div class="view" id="view-profile">
     <button class="profile-back" id="profile-back">← Back</button>
+    <div class="switcher-link hidden" id="profile-switcher">Switch user ▾</div>
     <div class="profile-name" id="profile-name">—</div>
     <div class="capacity-strip" id="profile-strip"></div>
     
@@ -2107,9 +2108,11 @@ function showProfile(climber) {
     renderHistogram(climber);
     renderProfileSessions(climber);
     
-    // Hide back button if reached via "Me" tab; show if reached via leaderboard
-    const backBtn = document.getElementById('profile-back');
-    backBtn.style.display = (State.activeView === 'profile' && climber === State.activeUser) ? 'none' : 'inline-flex';
+    // Show "Switch user ▾" link only when viewing own profile.
+    // Show back button only when viewing someone else's profile.
+    const isOwnProfile = (climber === State.activeUser);
+    document.getElementById('profile-back').style.display = isOwnProfile ? 'none' : 'inline-flex';
+    document.getElementById('profile-switcher').classList.toggle('hidden', !isOwnProfile);
     
     showView('profile');
 }
@@ -2117,6 +2120,18 @@ function showProfile(climber) {
 document.getElementById('profile-back').addEventListener('click', () => {
     haptic('tap');
     showView('boards');
+});
+
+document.getElementById('profile-switcher').addEventListener('click', () => {
+    haptic('tap');
+    // Reuse the existing switcher modal, but on close re-render the profile
+    const names = State.roster.map(r => r.Name).filter(Boolean);
+    renderPillList('switcher-pills', names, (name) => {
+        setActiveUser(name);
+        closeModal('switcher-modal');
+        showProfile(name);  // re-render profile as the new user
+    }, 'add-name-row', 'add-name-input', 'add-name-save');
+    openModal('switcher-modal');
 });
 /* ============== SPECIAL BOARDS ============== */
 const SPECIAL_WINDOW_DAYS = 30;
