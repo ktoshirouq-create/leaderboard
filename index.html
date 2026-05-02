@@ -77,12 +77,15 @@ h1.screen-title {
 
 /* ===== SESSION CARDS ===== */
 .session-card {
-    background: linear-gradient(145deg, #1a1e1c, #101412);
+    background: linear-gradient(145deg, rgba(28, 26, 36, 0.85), rgba(18, 16, 24, 0.7));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border-radius: var(--radius);
-    margin-bottom: 16px;
+    margin-bottom: 18px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.4);
     overflow: hidden;
     border-left: 4px solid var(--disc-color, #555);
+    border-top: 1px solid rgba(255,255,255,0.04);
     transition: 0.2s;
     cursor: pointer;
 }
@@ -96,36 +99,54 @@ h1.screen-title {
 .session-card.failed  { opacity: 0.5; border-left-color: var(--danger); }
 
 .session-header {
-    padding: 16px 18px 10px 18px;
+    padding: 18px 20px 14px 20px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    gap: 10px;
+    align-items: flex-start;
+    gap: 12px;
+}
+.s-name-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
 }
 .s-name {
-    font-size: 1.15rem;
+    font-size: 1.5rem;
     font-weight: 800;
     color: #fff;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
 }
-.s-meta {
+.s-time {
+    font-size: 0.78rem;
+    color: #a3a3a3;
+    font-weight: 600;
+}
+.s-where {
     font-size: 0.78rem;
     color: #a3a3a3;
     font-weight: 700;
-    background: rgba(0,0,0,0.4);
-    padding: 6px 12px;
-    border-radius: 16px;
+    background: rgba(0,0,0,0.35);
+    padding: 8px 14px;
+    border-radius: 18px;
     border: 1px solid rgba(255,255,255,0.04);
     white-space: nowrap;
+    flex-shrink: 0;
 }
+
 .s-summary {
-    padding: 0 18px 16px 18px;
+    padding: 14px 20px;
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
-    font-size: 0.88rem;
+    justify-content: center;
+    font-size: 0.95rem;
     font-weight: 700;
     color: #a3a3a3;
+    background: rgba(0,0,0,0.25);
+    border-top: 1px solid rgba(255,255,255,0.03);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
 }
 .s-summary .max-grade { color: #fff; font-weight: 800; }
 .s-summary .dot { color: #555; }
@@ -135,17 +156,20 @@ h1.screen-title {
     background: transparent;
     color: var(--text-muted);
     border: none;
-    padding: 12px;
-    font-size: 0.7rem;
+    padding: 16px;
+    font-size: 0.75rem;
     font-weight: 800;
     text-transform: uppercase;
     cursor: pointer;
-    letter-spacing: 1px;
-    border-top: 1px solid rgba(255,255,255,0.04);
+    letter-spacing: 1.2px;
     transition: 0.15s;
     font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
-.expand-btn:active { color: #fff; background: rgba(255,255,255,0.02); }
+.expand-btn:active { color: #fff; background: rgba(255,255,255,0.03); }
 
 .session-children {
     display: none;
@@ -1271,15 +1295,18 @@ function renderSessionCard(session, idx) {
     return `
     <div class="session-card ${stateClass}" data-disc="${escapeHTML(session.discipline)}" data-idx="${idx}">
         <div class="session-header">
-            <div class="s-name">${escapeHTML(session.climber)}</div>
-            <div class="s-meta">@ ${escapeHTML(session.where)} · ${escapeHTML(timeText)}</div>
+            <div class="s-name-block">
+                <div class="s-name">${escapeHTML(session.climber)}</div>
+                <div class="s-time">${escapeHTML(timeText)}</div>
+            </div>
+            <div class="s-where">@ ${escapeHTML(session.where)}</div>
         </div>
         <div class="s-summary">
             <span>${escapeHTML(summaryParts[0])}</span>
             <span class="dot">·</span>
             <span class="max-grade">${escapeHTML(summaryParts[1] || '')}</span>
         </div>
-        <button class="expand-btn">View ${sendCount} climb${sendCount > 1 ? 's' : ''} <span class="expand-arrow">▾</span></button>
+        <button class="expand-btn"><span class="expand-arrow">▾</span> View ${sendCount} climb${sendCount > 1 ? 's' : ''}</button>
         <div class="session-children">${sendsHtml}</div>
     </div>`;
 }
