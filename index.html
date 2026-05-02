@@ -307,6 +307,42 @@ h1.screen-title {
     border: 1px solid rgba(255,255,255,0.15);
 }
 
+/* Info modal content */
+.info-row {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+.info-row:last-child { border-bottom: none; }
+.info-term {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 4px;
+}
+.info-def {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    font-weight: 500;
+}
+
+/* Custom date input */
+.date-input {
+    width: 100%;
+    padding: 12px 14px;
+    margin-top: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+    color-scheme: dark;
+}
+.date-input:focus { border-color: rgba(16,185,129,0.5); }
+
 .btn-main {
     background: var(--primary);
     color: #000;
@@ -461,10 +497,12 @@ h1.screen-title {
         <div class="pill-row" id="logger-style"></div>
 
         <div class="field-label">Date</div>
-        <div class="pill-row" id="logger-date">
-            <button class="pill active" data-date="today">Today</button>
-            <button class="pill" data-date="yesterday">Yesterday</button>
-        </div>
+<div class="pill-row" id="logger-date">
+    <button class="pill active" data-date="today">Today</button>
+    <button class="pill" data-date="yesterday">Yesterday</button>
+    <button class="pill" data-date="custom">Custom</button>
+</div>
+<input type="date" class="date-input hidden" id="logger-date-custom">
 
         <button class="btn-main" id="submit-log">Log it</button>
     </div>
@@ -508,6 +546,15 @@ h1.screen-title {
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="info-modal">
+    <div class="modal-sheet">
+        <button class="modal-close" id="info-close">×</button>
+        <div class="modal-handle"></div>
+        <div class="modal-title" id="info-title">Info</div>
+        <div id="info-body"></div>
+    </div>
+</div>
 
 <script src="shared.js"></script>
 <script>
@@ -563,11 +610,15 @@ function setActiveUser(name) {
     if (label) label.textContent = name;
 }
 
-// Capitalize first letter only: "jack" → "Jack", "JACK" → "Jack"
+// Trim + capitalize first letter only if user typed all lowercase.
+// Preserves acronyms like "OKS", "UBC", and mixed case like "McDonalds".
 function normalizeName(raw) {
     const trimmed = String(raw || '').trim();
     if (!trimmed) return '';
-    return trimmed[0].toUpperCase() + trimmed.slice(1).toLowerCase();
+    if (trimmed === trimmed.toLowerCase()) {
+        return trimmed[0].toUpperCase() + trimmed.slice(1);
+    }
+    return trimmed;
 }
 
 async function addClimber(rawName) {
@@ -873,14 +924,42 @@ document.querySelectorAll('#logger-date [data-date]').forEach(el => {
         document.querySelectorAll('#logger-date .pill').forEach(x => x.classList.remove('active'));
         el.classList.add('active');
         LoggerState.date = el.dataset.date;
+        const customInput = document.getElementById('logger-date-custom');
+        if (el.dataset.date === 'custom') {
+            customInput.classList.remove('hidden');
+            // Default the custom picker to today, max = today (no future logging)
+            const today = new Date().toISOString().substring(0, 10);
+            if (!customInput.value) customInput.value = today;
+            customInput.max = today;
+            customInput.focus();
+            if (customInput.showPicker) customInput.showPicker();
+        } else {
+            customInput.classList.add('hidden');
+        }
     });
 });
 
-/* ----- Style info popover (placeholder for now) ----- */
+/* ----- Info modal ----- */
+function openInfoModal(title, rows) {
+    document.getElementById('info-title').textContent = title;
+    document.getElementById('info-body').innerHTML = rows.map(r =>
+        `<div class="info-row"><div class="info-term">${escapeHTML(r.term)}</div><div class="info-def">${escapeHTML(r.def)}</div></div>`
+    ).join('');
+    openModal('info-modal');
+}
+document.getElementById('info-close').addEventListener('click', () => closeModal('info-modal'));
+document.getElementById('info-modal').addEventListener('click', e => {
+    if (e.target.id === 'info-modal') closeModal('info-modal');
+});
+
 document.getElementById('style-info').addEventListener('click', (e) => {
     e.stopPropagation();
     haptic('tap');
-    showToast('Send: clean lead. Flash: clean 1st try, with beta. Onsight: clean 1st try, no info.');
+    openInfoModal('Style', [
+        { term: 'Send',    def: 'Clean ascent on lead. Redpoint after any number of attempts counts.' },
+        { term: 'Flash',   def: 'Clean first-try ascent — with prior beta or watching others.' },
+        { term: 'Onsight', def: 'Clean first-try ascent — no prior info, never seen anyone on it.' }
+    ]);
 });
 
 /* ----- Submit (placeholder for pass 3) ----- */
