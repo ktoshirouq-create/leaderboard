@@ -369,6 +369,135 @@ h1.screen-title {
     font-weight: 600;
 }
 
+/* ===== PROFILE ===== */
+.profile-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 12px;
+    padding: 6px 0;
+    background: none;
+    border: none;
+    font-family: inherit;
+}
+.profile-back:active { color: #fff; }
+.profile-name {
+    font-size: 2rem;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -1px;
+    margin-bottom: 18px;
+}
+.capacity-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 24px;
+    padding: 18px;
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    border: 1px solid rgba(255,255,255,0.03);
+}
+.cap-cell { text-align: center; }
+.cap-disc {
+    font-size: 0.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+}
+.cap-disc[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
+.cap-disc[data-disc="In Rope"]     { color: var(--disc-in-rope); }
+.cap-disc[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
+.cap-disc[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
+.cap-grade {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.5px;
+}
+.cap-grade.empty { color: #444; }
+.profile-section-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin: 24px 0 12px 0;
+}
+
+/* Histogram */
+.histogram-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.histogram-tabs .pill {
+    font-size: 0.72rem;
+    padding: 8px 12px;
+    flex: 1 1 calc(25% - 5px);
+    text-align: center;
+}
+.histogram {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 18px 12px 14px 12px;
+    border: 1px solid rgba(255,255,255,0.03);
+    margin-bottom: 8px;
+}
+.histo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 22px;
+    margin-bottom: 4px;
+}
+.histo-label {
+    width: 36px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-align: right;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+}
+.histo-bar-wrap {
+    flex: 1;
+    height: 14px;
+    background: #1a1a1a;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+.histo-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.histo-count {
+    width: 28px;
+    font-size: 0.78rem;
+    color: #fff;
+    font-weight: 800;
+    text-align: left;
+}
+.histo-count.zero { color: #444; }
+.histo-empty {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 24px 12px;
+    font-weight: 500;
+    font-style: italic;
+}
+
 /* Boards-mode tab pills — flex-grow so all 4 fit, wrap when needed */
 .board-tabs {
     display: flex;
@@ -868,9 +997,17 @@ h1.screen-title {
 </div>
 
     <div class="view" id="view-profile">
-        <h1 class="screen-title">Me</h1>
-        <div class="empty-msg">Coming soon.</div>
-    </div>
+    <button class="profile-back" id="profile-back">← Back</button>
+    <div class="profile-name" id="profile-name">—</div>
+    <div class="capacity-strip" id="profile-strip"></div>
+    
+    <div class="profile-section-title">Grade distribution · last 60 days</div>
+    <div class="histogram-tabs" id="histogram-tabs"></div>
+    <div class="histogram" id="histogram"></div>
+    
+    <div class="profile-section-title">Last 30 days</div>
+    <div id="profile-sessions"></div>
+</div>
 
 </div>
 
@@ -1011,6 +1148,14 @@ function showView(name) {
     window.scrollTo({ top: 0, behavior: 'instant' });
     if (name === 'boards') applyBoardMode();
 }
+
+// "Me" nav button → own profile (overrides default showView call)
+document.querySelector('.nav-btn[data-view="profile"]').addEventListener('click', (e) => {
+    if (State.activeUser) {
+        e.stopImmediatePropagation();
+        showProfile(State.activeUser);
+    }
+}, true); // capture phase so it fires before the generic showView listener
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1812,7 +1957,7 @@ function renderCapacityBoard() {
     document.querySelectorAll('#capacity-board .lb-row').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
-            showToast(`${el.dataset.climber} — profile coming soon`);
+            showProfile(el.dataset.climber);
         });
     });
 }
@@ -1828,7 +1973,151 @@ document.getElementById('capacity-info').addEventListener('click', () => {
           def: 'Need 10+ sends in a discipline within 60 days to be ranked. Below that, you\'re provisional and ranked separately.' }
     ]);
 });
+/* ============== PROFILE ============== */
+const PROFILE_HISTO_WINDOW_DAYS = 60;
+let profileClimber = null;
+let profileHistoDiscipline = 'In Boulder';
 
+function getCapacityFor(climber) {
+    const result = {};
+    AppConfig.disciplines.forEach(disc => {
+        const { qualified } = computeCapacity(disc);
+        const found = qualified.find(r => r.climber === climber);
+        if (found) {
+            const prog = gradeProgress(found.avgScore, disc);
+            result[disc] = prog.current;
+        } else {
+            result[disc] = null;
+        }
+    });
+    return result;
+}
+
+function renderCapacityStrip(climber) {
+    const cap = getCapacityFor(climber);
+    document.getElementById('profile-strip').innerHTML = AppConfig.disciplines.map(d => {
+        const grade = cap[d];
+        const scale = AppConfig.grades[d];
+        const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
+        const dotIdx = grade ? scale.labels.indexOf(grade) : -1;
+        const dot = useDot && dotIdx >= 0
+            ? `<span class="grade-dot" style="background:${scale.colors[dotIdx]}"></span>`
+            : '';
+        return `<div class="cap-cell">
+            <div class="cap-disc" data-disc="${d}">${d}</div>
+            <div class="cap-grade ${grade ? '' : 'empty'}">${dot}${escapeHTML(grade || '—')}</div>
+        </div>`;
+    }).join('');
+}
+
+function computeHistogram(climber, discipline) {
+    const scale = AppConfig.grades[discipline];
+    if (!scale) return [];
+    const counts = scale.labels.map(label => ({ label, count: 0, scoreIdx: scale.labels.indexOf(label) }));
+    State.logs.forEach(log => {
+        if (log.ClimberName !== climber) return;
+        if (log.Discipline !== discipline) return;
+        if (!isWithinWindow(log.Date, PROFILE_HISTO_WINDOW_DAYS)) return;
+        const idx = scale.labels.indexOf(getBaseGrade(log.Grade));
+        if (idx >= 0) counts[idx].count++;
+    });
+    return counts;
+}
+
+function renderHistogram(climber) {
+    // Tabs
+    const tabs = AppConfig.disciplines.map(d =>
+        `<button class="pill ${d === profileHistoDiscipline ? 'active' : ''}" data-histo-disc="${d}">${d}</button>`
+    ).join('');
+    document.getElementById('histogram-tabs').innerHTML = tabs;
+    document.querySelectorAll('[data-histo-disc]').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            profileHistoDiscipline = el.dataset.histoDisc;
+            renderHistogram(climber);
+        });
+    });
+    
+    // Bars
+    const data = computeHistogram(climber, profileHistoDiscipline);
+    const totalSends = data.reduce((s, d) => s + d.count, 0);
+    const container = document.getElementById('histogram');
+    if (totalSends === 0) {
+        container.innerHTML = '<div class="histo-empty">No sends in this discipline in 60 days.</div>';
+        return;
+    }
+    const maxCount = Math.max(...data.map(d => d.count));
+    const scale = AppConfig.grades[profileHistoDiscipline];
+    const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
+    const fillColor = `var(--disc-${profileHistoDiscipline.toLowerCase().replace(' ', '-')})`;
+    const discFillMap = {
+        'In Boulder':  'var(--disc-in-boulder)',
+        'In Rope':     'var(--disc-in-rope)',
+        'Out Rope':    'var(--disc-out-rope)',
+        'Out Boulder': 'var(--disc-out-boulder)'
+    };
+    const discFill = discFillMap[profileHistoDiscipline];
+    
+    container.innerHTML = data.map(d => {
+        const pct = maxCount > 0 ? (d.count / maxCount) * 100 : 0;
+        const dot = useDot && d.scoreIdx >= 0
+            ? `<span class="grade-dot" style="background:${scale.colors[d.scoreIdx]}"></span>`
+            : '';
+        return `<div class="histo-row">
+            <div class="histo-label">${dot}${escapeHTML(d.label)}</div>
+            <div class="histo-bar-wrap">
+                <div class="histo-bar" style="width: ${pct}%; background: ${discFill}"></div>
+            </div>
+            <div class="histo-count ${d.count === 0 ? 'zero' : ''}">${d.count}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderProfileSessions(climber) {
+    const climberLogs = State.logs.filter(log =>
+        log.ClimberName === climber && isWithinWindow(log.Date, 30)
+    );
+    const container = document.getElementById('profile-sessions');
+    if (climberLogs.length === 0) {
+        container.innerHTML = '<div class="empty-msg">No sessions in last 30 days.</div>';
+        return;
+    }
+    const sessions = groupIntoSessions(climberLogs);
+    container.innerHTML = sessions.map((s, i) => renderSessionCard(s, i)).join('');
+    container.querySelectorAll('.session-card').forEach(card => {
+        card.addEventListener('click', () => {
+            haptic('tap');
+            card.classList.toggle('expanded');
+        });
+    });
+}
+
+function showProfile(climber) {
+    profileClimber = climber;
+    // Default histogram tab to whatever discipline they have most sends in
+    const counts = AppConfig.disciplines.map(d => ({
+        d,
+        n: State.logs.filter(l => l.ClimberName === climber && l.Discipline === d).length
+    }));
+    counts.sort((a, b) => b.n - a.n);
+    if (counts[0].n > 0) profileHistoDiscipline = counts[0].d;
+    
+    document.getElementById('profile-name').textContent = climber.toUpperCase();
+    renderCapacityStrip(climber);
+    renderHistogram(climber);
+    renderProfileSessions(climber);
+    
+    // Hide back button if reached via "Me" tab; show if reached via leaderboard
+    const backBtn = document.getElementById('profile-back');
+    backBtn.style.display = (State.activeView === 'profile' && climber === State.activeUser) ? 'none' : 'inline-flex';
+    
+    showView('profile');
+}
+
+document.getElementById('profile-back').addEventListener('click', () => {
+    haptic('tap');
+    showView('boards');
+});
 /* ============== SPECIAL BOARDS ============== */
 const SPECIAL_WINDOW_DAYS = 30;
 let activeSpecialBoard = localStorage.getItem('leaderboard.lastSpecialBoard') || 'hardest';
@@ -1977,7 +2266,7 @@ function renderHardestBoard() {
     container.querySelectorAll('.hardest-row').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
-            showToast(`${el.dataset.climber} — profile coming soon`);
+            showProfile(el.dataset.climber);
         });
     });
 }
@@ -2007,7 +2296,7 @@ function renderCountBoard(rows, unitLabel) {
     container.querySelectorAll('.lb-row').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
-            showToast(`${el.dataset.climber} — profile coming soon`);
+            showProfile(el.dataset.climber);
         });
     });
 }
