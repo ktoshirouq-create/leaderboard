@@ -77,17 +77,24 @@ h1.screen-title {
 
 /* ===== SESSION CARDS ===== */
 .session-card {
-    background: linear-gradient(145deg, rgba(28, 26, 36, 0.85), rgba(18, 16, 24, 0.7));
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: #0e0d14;
     border-radius: var(--radius);
     margin-bottom: 18px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     overflow: hidden;
     border-left: 4px solid var(--disc-color, #555);
-    border-top: 1px solid rgba(255,255,255,0.04);
+    border-top: 1px solid rgba(255,255,255,0.05);
     transition: 0.2s;
     cursor: pointer;
+}
+.session-header {
+    background: linear-gradient(145deg, #1d1a26, #14121c);
+}
+.session-card .s-summary {
+    background: rgba(0,0,0,0.45);
+}
+.session-card .expand-btn {
+    background: linear-gradient(145deg, #16141d, #0c0b12);
 }
 .session-card:active { transform: scale(0.99); }
 .session-card[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
@@ -144,9 +151,8 @@ h1.screen-title {
     font-size: 0.95rem;
     font-weight: 700;
     color: #a3a3a3;
-    background: rgba(0,0,0,0.25);
-    border-top: 1px solid rgba(255,255,255,0.03);
-    border-bottom: 1px solid rgba(255,255,255,0.03);
+    border-top: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .s-summary .max-grade { color: #fff; font-weight: 800; }
 .s-summary .dot { color: #555; }
@@ -1264,7 +1270,11 @@ function renderSessionCard(session, idx) {
         ? `1 send · ${escapeHTML(maxGrade)}`
         : `${sendCount} sends · max ${escapeHTML(maxGrade)}`;
     const summaryParts = summaryText.split(' · ');
-    const timeText = formatRelativeTime(session.timestamp);
+    const relTime  = formatRelativeTime(session.timestamp);
+    const dateText = formatShortDate(session.date);
+    // For "Just now" / "Xh ago" / "Yesterday" etc., prepend the date.
+    // For the 7+d fallback (where formatRelativeTime already returns a date), just show the date.
+    const timeText = relTime === dateText ? dateText : `${dateText} · ${relTime}`;
 
     const sortedSends = sortSendsByScore(session.sends, session.discipline);
     const sendsHtml = sortedSends.map(s => {
