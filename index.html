@@ -1,6 +1,373 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#050505">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Leaderboard">
+<title>The Leaderboard</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+    --primary: #10b981;
+    --primary-fade: rgba(16,185,129,0.12);
+    --dark: #050505;
+    --card-bg: #121212;
+    --input-bg: #181818;
+    --border: #1a1a1a;
+    --text: #e5e5e5;
+    --text-muted: #737373;
+    --danger: #ef4444;
+    --gold: #fbbf24;
+    --silver: #cbd5e1;
+    --bronze: #d97706;
+    --radius: 16px;
+    --disc-in-boulder:  #f59e0b;
+    --disc-in-rope:     #06b6d4;
+    --disc-out-rope:    #10b981;
+    --disc-out-boulder: #a855f7;
+}
+
+* { box-sizing: border-box; }
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    margin: 0;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+}
+.container {
+    max-width: 850px;
+    margin: 0 auto;
+    padding: 24px 20px 120px 20px;
+    min-height: 100vh;
+}
+
+h1.screen-title {
+    text-align: center;
+    font-weight: 800;
+    font-size: 1.8rem;
+    margin: 0 0 24px 0;
+    color: #fff;
+    letter-spacing: -0.5px;
+}
+
+.view { display: none; animation: fadeIn 0.25s ease; }
+.view.active { display: block; }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.empty-msg {
+    color: #555;
+    font-style: italic;
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 40px 20px;
+    font-weight: 500;
+}
+
+/* ===== BOTTOM NAV ===== */
+.bottom-nav {
+    position: fixed;
+    bottom: 16px;
+    width: calc(100% - 32px);
+    max-width: 480px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(18,18,18,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 28px;
+    border: 1px solid rgba(255,255,255,0.05);
+    z-index: 100;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+}
+.nav-btn {
+    flex: 1;
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    padding: 12px 8px;
+    border-radius: 22px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: 0.25s;
+    white-space: nowrap;
+    font-family: inherit;
+}
+.nav-btn.active {
+    background: var(--primary);
+    color: #000;
+    box-shadow: 0 4px 15px rgba(16,185,129,0.4);
+}
+
+/* ===== FAB ===== */
+.fab {
+    position: fixed;
+    bottom: 90px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #000;
+    border: none;
+    font-size: 1.8rem;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 10px 30px rgba(16,185,129,0.4), 0 4px 12px rgba(0,0,0,0.5);
+    z-index: 99;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+}
+.fab:active { transform: scale(0.93); }
+
+/* ===== MODAL ===== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+}
+.modal-overlay.active { opacity: 1; pointer-events: all; }
+.modal-sheet {
+    background: var(--card-bg);
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    border-radius: 20px 20px 0 0;
+    padding: 20px;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
+    position: relative;
+}
+.modal-overlay.active .modal-sheet { transform: translateY(0); }
+.modal-handle {
+    width: 40px;
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    margin: 0 auto 16px auto;
+}
+.modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-muted);
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    line-height: 1;
+}
+.modal-close:active { background: rgba(255,255,255,0.1); }
+.modal-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+}
+
+/* ===== TOAST ===== */
+.toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translate(-50%, -20px);
+    opacity: 0;
+    background: rgba(24,24,24,0.96);
+    backdrop-filter: blur(10px);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 24px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    transition: 0.3s;
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+@media (max-width: 380px) {
+    .container { padding: 20px 14px 120px 14px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- ============== FEED VIEW ============== -->
+    <div class="view active" id="view-feed">
+        <h1 class="screen-title">Feed</h1>
+        <div id="feed-list">
+            <div class="empty-msg">Loading…</div>
+        </div>
+    </div>
+
+    <!-- ============== BOARDS VIEW ============== -->
+    <div class="view" id="view-boards">
+        <h1 class="screen-title">Leaderboards</h1>
+        <div class="empty-msg">Coming soon.</div>
+    </div>
+
+    <!-- ============== PROFILE VIEW ============== -->
+    <div class="view" id="view-profile">
+        <h1 class="screen-title">Me</h1>
+        <div class="empty-msg">Coming soon.</div>
+    </div>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+    <button class="nav-btn active" data-view="feed">Feed</button>
+    <button class="nav-btn" data-view="boards">Boards</button>
+    <button class="nav-btn" data-view="profile">Me</button>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="fab">+</button>
+
+<!-- LOGGER MODAL (empty for now) -->
+<div class="modal-overlay" id="logger-modal">
+    <div class="modal-sheet">
+        <button class="modal-close" id="logger-close">×</button>
+        <div class="modal-handle"></div>
+        <div class="modal-title">Log a send</div>
+        <div class="empty-msg">Logger coming next.</div>
+    </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+/* ============== APP STATE ============== */
+const State = {
+    activeView: 'feed',
+    activeUser: localStorage.getItem('leaderboard.user') || null,
+    logs: [],
+    roster: [],
+    locations: []
+};
+
+/* ============== VIEW SWITCHING ============== */
+function showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(`view-${name}`).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.nav-btn[data-view="${name}"]`).classList.add('active');
+    State.activeView = name;
+    window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => showView(btn.dataset.view));
+});
+
+/* ============== TOAST ============== */
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ============== MODAL ============== */
+function openModal(id) {
+    document.getElementById(id).classList.add('active');
+}
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+}
+
+document.getElementById('fab').addEventListener('click', () => openModal('logger-modal'));
+document.getElementById('logger-close').addEventListener('click', () => closeModal('logger-modal'));
+document.getElementById('logger-modal').addEventListener('click', e => {
+    if (e.target.id === 'logger-modal') closeModal('logger-modal');
+});
+
+/* ============== DATA FETCH ============== */
+async function fetchData() {
+    try {
+        const res = await fetch(AppConfig.api);
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Unknown error');
+        State.logs      = json.data.logs || [];
+        State.roster    = json.data.roster || [];
+        State.locations = json.data.locations || [];
+        renderFeed();
+    } catch (err) {
+        document.getElementById('feed-list').innerHTML =
+            `<div class="empty-msg">Couldn't load data.<br><small>${escapeHTML(err.message)}</small></div>`;
+    }
+}
+
+/* ============== FEED RENDER (placeholder) ============== */
+function renderFeed() {
+    const list = document.getElementById('feed-list');
+    if (State.logs.length === 0) {
+        list.innerHTML = '<div class="empty-msg">No sends yet. Tap + to be the first.</div>';
+        return;
+    }
+    // Real session grouping comes next
+    list.innerHTML = `<div class="empty-msg">Loaded ${State.logs.length} log(s).<br>Session rendering coming next.</div>`;
+}
+
+/* ============== INIT ============== */
+fetchData();
+
+/* ============== SERVICE WORKER ============== */
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+}
+</script>
+
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>The Leaderboard</title>
