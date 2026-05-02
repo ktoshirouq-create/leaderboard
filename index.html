@@ -254,6 +254,76 @@ h1.screen-title {
     flex-wrap: wrap;
     margin-bottom: 8px;
 }
+.pill-row.scroll {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+}
+.pill-row.scroll::-webkit-scrollbar { display: none; }
+.pill-row.scroll .pill {
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+}
+
+.field-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin: 18px 0 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 1.3px;
+}
+.info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(16,185,129,0.15);
+    color: var(--primary);
+    font-size: 0.7rem;
+    font-weight: 800;
+    cursor: pointer;
+    font-style: normal;
+    letter-spacing: 0;
+    transition: 0.15s;
+    font-family: inherit;
+}
+.info-icon:active { transform: scale(0.92); }
+
+.grade-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+    border: 1px solid rgba(255,255,255,0.15);
+}
+
+.btn-main {
+    background: var(--primary);
+    color: #000;
+    border: none;
+    padding: 16px;
+    width: 100%;
+    border-radius: 14px;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-top: 24px;
+    transition: all 0.15s;
+    font-family: inherit;
+    letter-spacing: 0.3px;
+}
+.btn-main:active { transform: scale(0.98); }
+.btn-main:disabled { background: #262626; color: #555; cursor: not-allowed; }
 .pill {
     padding: 11px 18px;
     background: var(--input-bg);
@@ -370,7 +440,33 @@ h1.screen-title {
         <div class="modal-handle"></div>
         <div class="switcher-link" id="switcher-trigger">Logging as <strong id="active-user-label">—</strong> ▾</div>
         <div class="modal-title">Log a send</div>
-        <div class="empty-msg">Form fields coming next.</div>
+
+        <div class="field-label">Discipline</div>
+        <div class="pill-row" id="logger-discipline"></div>
+
+        <div class="field-label">Where</div>
+        <div class="pill-row" id="logger-where"></div>
+        <div class="add-name-row hidden" id="where-add-row">
+            <input type="text" class="add-name-input" id="where-add-input" placeholder="Gym or crag name" maxlength="30">
+            <button class="add-name-save" id="where-add-save">Save</button>
+        </div>
+
+        <div class="field-label">Grade</div>
+        <div class="pill-row scroll" id="logger-grade"></div>
+
+        <div class="field-label">
+            Style
+            <button class="info-icon" id="style-info">i</button>
+        </div>
+        <div class="pill-row" id="logger-style"></div>
+
+        <div class="field-label">Date</div>
+        <div class="pill-row" id="logger-date">
+            <button class="pill active" data-date="today">Today</button>
+            <button class="pill" data-date="yesterday">Yesterday</button>
+        </div>
+
+        <button class="btn-main" id="submit-log">Log it</button>
     </div>
 </div>
 
@@ -574,20 +670,245 @@ function openIdentityPrompt() {
     renderPillList('identity-pills', names, (name) => {
         setActiveUser(name);
         closeModal('identity-prompt');
-        openModal('logger-modal');
+        openLogger();
     }, 'identity-add-row', 'identity-add-input', 'identity-add-save');
     openModal('identity-prompt');
 }
 
 document.getElementById('switcher-trigger').addEventListener('click', openSwitcher);
 
+/* ============== LOGGER STATE ============== */
+const LoggerState = {
+    discipline: localStorage.getItem('leaderboard.lastDiscipline') || 'In Boulder',
+    where: null,        // resolved per-discipline below
+    grade: null,        // resolved per-discipline below
+    style: 'Send',
+    date: 'today'       // 'today' | 'yesterday'
+};
+
+function isOutdoor(disc) { return disc === 'Out Rope' || disc === 'Out Boulder'; }
+
+function getLocationsForDiscipline(disc) {
+    const wantType = isOutdoor(disc) ? 'crag' : 'gym';
+    return State.locations
+        .filter(l => l.Type === wantType)
+        .map(l => l.Name)
+        .filter(Boolean);
+}
+
+/* ----- Discipline pills ----- */
+function renderDisciplinePills() {
+    const c = document.getElementById('logger-discipline');
+    c.innerHTML = AppConfig.disciplines.map(d =>
+        `<button class="pill ${d === LoggerState.discipline ? 'active' : ''}" data-disc="${d}">${d}</button>`
+    ).join('');
+    c.querySelectorAll('[data-disc]').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            LoggerState.discipline = el.dataset.disc;
+            localStorage.setItem('leaderboard.lastDiscipline', LoggerState.discipline);
+            // Cascade re-renders: where, grade, style depend on discipline
+            renderDisciplinePills();
+            renderWherePills();
+            renderGradePills();
+            renderStylePills();
+        });
+    });
+}
+
+/* ----- Where pills ----- */
+function renderWherePills() {
+    const c = document.getElementById('logger-where');
+    const stickyKey = `leaderboard.lastWhere.${LoggerState.discipline}`;
+    const sticky = localStorage.getItem(stickyKey);
+    const locations = getLocationsForDiscipline(LoggerState.discipline);
+    if (!locations.includes(LoggerState.where)) {
+        LoggerState.where = locations.includes(sticky) ? sticky : (locations[0] || null);
+    }
+    const pillsHtml = locations.map(loc =>
+        `<button class="pill ${loc === LoggerState.where ? 'active' : ''}" data-where="${escapeHTML(loc)}">${escapeHTML(loc)}</button>`
+    ).join('');
+    c.innerHTML = pillsHtml + '<button class="pill add-btn" data-add-where="1">+ Add</button>';
+    c.querySelectorAll('[data-where]').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            LoggerState.where = el.dataset.where;
+            localStorage.setItem(stickyKey, LoggerState.where);
+            renderWherePills();
+        });
+    });
+    c.querySelector('[data-add-where]').addEventListener('click', () => {
+        haptic('tap');
+        const row = document.getElementById('where-add-row');
+        const inp = document.getElementById('where-add-input');
+        row.classList.remove('hidden');
+        inp.focus();
+    });
+}
+
+/* ----- Add Where flow (mirrors addClimber) ----- */
+async function addLocation(rawName) {
+    const name = normalizeName(rawName);
+    if (!name) return null;
+    const type = isOutdoor(LoggerState.discipline) ? 'crag' : 'gym';
+    const existing = State.locations
+        .filter(l => l.Type === type)
+        .map(l => String(l.Name || '').toLowerCase());
+    if (existing.includes(name.toLowerCase())) {
+        showToast(`${name} already added`);
+        return name;
+    }
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'addLocation', name, type })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Server error');
+        State.locations.push({ Name: name, Type: type });
+        haptic('commit');
+        return name;
+    } catch (err) {
+        showToast('Could not add location');
+        return null;
+    }
+}
+
+(function wireWhereAdd() {
+    const row = document.getElementById('where-add-row');
+    const inp = document.getElementById('where-add-input');
+    const btn = document.getElementById('where-add-save');
+    const updateSaveState = () => {
+        if (btn.classList.contains('saving') || btn.classList.contains('done')) return;
+        btn.disabled = !inp.value.trim();
+    };
+    btn.disabled = true;
+    inp.oninput = updateSaveState;
+    const commit = async () => {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.classList.add('saving');
+        btn.textContent = 'Saving…';
+        const name = await addLocation(inp.value);
+        btn.classList.remove('saving');
+        if (name) {
+            btn.classList.add('done');
+            btn.textContent = '✓ Added';
+            setTimeout(() => {
+                LoggerState.where = name;
+                localStorage.setItem(`leaderboard.lastWhere.${LoggerState.discipline}`, name);
+                row.classList.add('hidden');
+                inp.value = '';
+                btn.classList.remove('done');
+                btn.textContent = 'Save';
+                btn.disabled = true;
+                renderWherePills();
+            }, 600);
+        } else {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        }
+    };
+    btn.onclick = () => { haptic('tap'); commit(); };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') commit(); };
+})();
+
+/* ----- Grade pills ----- */
+function renderGradePills() {
+    const c = document.getElementById('logger-grade');
+    const scale = AppConfig.grades[LoggerState.discipline];
+    const stickyKey = `leaderboard.lastGrade.${LoggerState.discipline}`;
+    const sticky = localStorage.getItem(stickyKey);
+    if (!scale.labels.includes(LoggerState.grade)) {
+        LoggerState.grade = scale.labels.includes(sticky)
+            ? sticky
+            : scale.labels[AppConfig.defaultGradeIndex[LoggerState.discipline]];
+    }
+    const useDots = scale.colors && scale.colors.length === scale.labels.length;
+    c.innerHTML = scale.labels.map((g, i) => {
+        const dot = useDots ? `<span class="grade-dot" style="background:${scale.colors[i]}"></span>` : '';
+        return `<button class="pill ${g === LoggerState.grade ? 'active' : ''}" data-grade="${g}">${dot}${g}</button>`;
+    }).join('');
+    c.querySelectorAll('[data-grade]').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            LoggerState.grade = el.dataset.grade;
+            localStorage.setItem(stickyKey, LoggerState.grade);
+            renderGradePills();
+        });
+    });
+    // Auto-center active pill
+    setTimeout(() => {
+        const active = c.querySelector('.pill.active');
+        if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 50);
+}
+
+/* ----- Style pills ----- */
+function renderStylePills() {
+    const c = document.getElementById('logger-style');
+    const styles = AppConfig.stylesForDiscipline[LoggerState.discipline];
+    const sticky = localStorage.getItem('leaderboard.lastStyle');
+    if (!styles.includes(LoggerState.style)) {
+        LoggerState.style = styles.includes(sticky) ? sticky : 'Send';
+    }
+    c.innerHTML = styles.map(s =>
+        `<button class="pill ${s === LoggerState.style ? 'active' : ''}" data-style="${s}">${s}</button>`
+    ).join('');
+    c.querySelectorAll('[data-style]').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            LoggerState.style = el.dataset.style;
+            localStorage.setItem('leaderboard.lastStyle', LoggerState.style);
+            renderStylePills();
+        });
+    });
+}
+
+/* ----- Date pills ----- */
+document.querySelectorAll('#logger-date [data-date]').forEach(el => {
+    el.addEventListener('click', () => {
+        haptic('tap');
+        document.querySelectorAll('#logger-date .pill').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        LoggerState.date = el.dataset.date;
+    });
+});
+
+/* ----- Style info popover (placeholder for now) ----- */
+document.getElementById('style-info').addEventListener('click', (e) => {
+    e.stopPropagation();
+    haptic('tap');
+    showToast('Send: clean lead. Flash: clean 1st try, with beta. Onsight: clean 1st try, no info.');
+});
+
+/* ----- Submit (placeholder for pass 3) ----- */
+document.getElementById('submit-log').addEventListener('click', () => {
+    haptic('commit');
+    showToast(`(submit not wired yet) ${LoggerState.discipline} ${LoggerState.grade} ${LoggerState.style} @ ${LoggerState.where || '?'}`);
+});
+
+/* ----- Open logger ----- */
+function openLogger() {
+    document.getElementById('active-user-label').textContent = State.activeUser;
+    renderDisciplinePills();
+    renderWherePills();
+    renderGradePills();
+    renderStylePills();
+    // Reset date pills to default Today
+    document.querySelectorAll('#logger-date .pill').forEach(x => x.classList.remove('active'));
+    document.querySelector('#logger-date [data-date="today"]').classList.add('active');
+    LoggerState.date = 'today';
+    openModal('logger-modal');
+}
+
 document.getElementById('fab').addEventListener('click', () => {
     haptic('tap');
     if (!State.activeUser) {
         openIdentityPrompt();
     } else {
-        document.getElementById('active-user-label').textContent = State.activeUser;
-        openModal('logger-modal');
+        openLogger();
     }
 });
 
