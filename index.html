@@ -1245,12 +1245,24 @@ function renderSessionCard(session, idx) {
     const sortedSends = sortSendsByScore(session.sends, session.discipline);
     const sendsHtml = sortedSends.map(s => {
         const styleNorm = String(s.Style || '').toLowerCase();
-        const tag = (styleNorm === 'flash' || styleNorm === 'onsight')
+        const isSpecial = (styleNorm === 'flash' || styleNorm === 'onsight');
+        const tag = isSpecial
             ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
+            : `<span style="color:#666; font-weight:600;">${escapeHTML(s.Style)}</span>`;
+        // Grade dot for disciplines with hold colors (currently only Indoor Boulder)
+        const scale = AppConfig.grades[session.discipline];
+        const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
+        const dot = useDot
+            ? (() => {
+                const idx = scale.labels.indexOf(getBaseGrade(s.Grade));
+                return idx >= 0
+                    ? `<span class="grade-dot" style="background:${scale.colors[idx]}"></span>`
+                    : '';
+            })()
             : '';
         return `<div class="send-row">
             <div class="send-meta">${tag}</div>
-            <div class="send-grade">${escapeHTML(s.Grade)}</div>
+            <div class="send-grade">${dot}${escapeHTML(s.Grade)}</div>
         </div>`;
     }).join('');
 
