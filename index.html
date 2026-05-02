@@ -279,11 +279,16 @@ h1.screen-title {
     border: 1px dashed rgba(16,185,129,0.3);
 }
 
-/* Inline name input for adding new climber */
-.add-name-input {
-    width: 100%;
-    padding: 12px 14px;
+/* Inline name input + save row */
+.add-name-row {
+    display: flex;
+    gap: 8px;
     margin-top: 8px;
+    width: 100%;
+}
+.add-name-input {
+    flex: 1;
+    padding: 12px 14px;
     background: var(--input-bg);
     border: 1px solid var(--border);
     border-radius: 11px;
@@ -294,6 +299,20 @@ h1.screen-title {
     outline: none;
 }
 .add-name-input:focus { border-color: rgba(16,185,129,0.5); }
+.add-name-save {
+    padding: 12px 18px;
+    background: var(--primary);
+    color: #000;
+    border: none;
+    border-radius: 11px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+.add-name-save:active { transform: scale(0.97); }
+.add-name-save:disabled { background: #262626; color: #555; }
 .hidden { display: none !important; }
 @media (max-width: 380px) {
     .container { padding: 20px 14px 120px 14px; }
@@ -348,7 +367,23 @@ h1.screen-title {
         <div class="modal-title">Who's logging?</div>
         <div class="modal-subtitle">Tap a name. Anyone can add new climbers.</div>
         <div class="pill-row" id="switcher-pills"></div>
-        <input type="text" class="add-name-input hidden" id="add-name-input" placeholder="New climber's name" maxlength="20">
+        <div class="add-name-row hidden" id="add-name-row">
+            <input type="text" class="add-name-input" id="add-name-input" placeholder="New climber's name" maxlength="20">
+            <button class="add-name-save" id="add-name-save">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="identity-prompt">
+    <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="modal-title">Who are you?</div>
+        <div class="modal-subtitle">First time logging on this device. Pick yourself, or add yourself if you're new.</div>
+        <div class="pill-row" id="identity-pills"></div>
+        <div class="add-name-row hidden" id="identity-add-row">
+            <input type="text" class="add-name-input" id="identity-add-input" placeholder="Your name" maxlength="20">
+            <button class="add-name-save" id="identity-add-save">Save</button>
+        </div>
     </div>
 </div>
 
@@ -428,19 +463,20 @@ function normalizeName(raw) {
 async function addClimber(rawName) {
     const name = normalizeName(rawName);
     if (!name) return null;
-    // Local dedupe check
     const existing = State.roster.map(r => String(r.Name || '').toLowerCase());
     if (existing.includes(name.toLowerCase())) {
         showToast(`There's already a ${name}`);
-        return name; // existing climber, just become them
+        return name;
     }
     try {
         const res = await fetch(AppConfig.api, {
             method: 'POST',
+            // text/plain avoids CORS preflight — Apps Script reads e.postData.contents regardless
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ action: 'addClimber', name })
         });
         const json = await res.json();
-        if (!json.ok) throw new Error(json.error);
+        if (!json.ok) throw new Error(json.error || 'Server error');
         State.roster.push({ Name: name });
         haptic('commit');
         return name;
@@ -450,7 +486,7 @@ async function addClimber(rawName) {
     }
 }
 
-function renderPillList(containerId, names, onPick, addInputId) {
+function renderPillList(containerId, names, onPick, addRowId, addInputId, addSaveId) {
     const container = document.getElementById(containerId);
     const pillsHtml = names.map(n =>
         `<button class="pill ${n === State.activeUser ? 'active' : ''}" data-name="${escapeHTML(n)}">${escapeHTML(n)}</button>`
@@ -462,25 +498,26 @@ function renderPillList(containerId, names, onPick, addInputId) {
             onPick(el.dataset.name);
         });
     });
+    const addRow = document.getElementById(addRowId);
+    const inp    = document.getElementById(addInputId);
+    const saveBtn = document.getElementById(addSaveId);
     container.querySelector('[data-add]').addEventListener('click', () => {
         haptic('tap');
-        const inp = document.getElementById(addInputId);
-        inp.classList.remove('hidden');
+        addRow.classList.remove('hidden');
         inp.focus();
     });
-    // Wire input commit on Enter
-    const inp = document.getElementById(addInputId);
     inp.value = '';
-    inp.classList.add('hidden');
-    inp.onkeydown = async (e) => {
-        if (e.key !== 'Enter') return;
+    addRow.classList.add('hidden');
+    const commit = async () => {
         const name = await addClimber(inp.value);
         if (name) {
             onPick(name);
-            inp.classList.add('hidden');
+            addRow.classList.add('hidden');
             inp.value = '';
         }
     };
+    saveBtn.onclick = () => { haptic('tap'); commit(); };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') commit(); };
 }
 
 function openSwitcher() {
@@ -489,7 +526,7 @@ function openSwitcher() {
     renderPillList('switcher-pills', names, (name) => {
         setActiveUser(name);
         closeModal('switcher-modal');
-    }, 'add-name-input');
+    }, 'add-name-row', 'add-name-input', 'add-name-save');
     openModal('switcher-modal');
 }
 
@@ -499,7 +536,7 @@ function openIdentityPrompt() {
         setActiveUser(name);
         closeModal('identity-prompt');
         openModal('logger-modal');
-    }, 'identity-add-input');
+    }, 'identity-add-row', 'identity-add-input', 'identity-add-save');
     openModal('identity-prompt');
 }
 
