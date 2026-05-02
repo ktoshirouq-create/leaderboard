@@ -219,6 +219,147 @@ h1.screen-title {
     font-size: 0.95rem;
 }
 
+/* ===== BOARDS SCREEN ===== */
+.board-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: -8px 0 8px 0;
+}
+.board-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+.board-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+.lb-row {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    padding: 14px 16px;
+    background: var(--card-bg);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: 0.15s;
+    border: 1px solid rgba(255,255,255,0.03);
+}
+.lb-row:active { background: #1a1a1a; transform: scale(0.99); }
+.lb-rank {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-align: center;
+}
+.lb-rank.gold   { color: var(--gold); }
+.lb-rank.silver { color: var(--silver); }
+.lb-rank.bronze { color: var(--bronze); }
+.lb-name {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.2px;
+}
+.lb-bar-wrap { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.lb-bar-bg {
+    height: 5px;
+    background: #232323;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.lb-bar-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 3px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lb-grade {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+.lb-grade-val {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--primary);
+    white-space: nowrap;
+}
+.lb-grade-pct {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    white-space: nowrap;
+}
+.lb-section-title {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin: 22px 0 12px 0;
+}
+.lb-section-title.first { margin-top: 4px; }
+.lb-row.provisional .lb-rank { color: #444; font-size: 0.85rem; }
+.lb-row.provisional .lb-name { color: #d4d4d4; }
+.lb-row.provisional .lb-bar-fill { background: #555; opacity: 0.55; }
+.lb-row.provisional .lb-grade-val { color: var(--text-muted); }
+.lb-empty {
+    color: #555;
+    font-style: italic;
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 24px 16px;
+    font-weight: 500;
+    border: 1px dashed rgba(255,255,255,0.06);
+    border-radius: 12px;
+}
+
+/* Discipline tabs above the board */
+.cap-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+    margin-bottom: 8px;
+}
+.cap-tabs::-webkit-scrollbar { display: none; }
+.cap-tab {
+    flex: 0 0 auto;
+    padding: 10px 16px;
+    background: var(--input-bg);
+    border: 1px solid transparent;
+    border-radius: 11px;
+    font-weight: 800;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    font-family: inherit;
+    border-left: 3px solid transparent;
+}
+.cap-tab.active {
+    background: rgba(255,255,255,0.04);
+    color: #fff;
+    border-left-color: var(--cap-color, var(--primary));
+}
+.cap-tab[data-disc="In Boulder"]  { --cap-color: var(--disc-in-boulder); }
+.cap-tab[data-disc="In Rope"]     { --cap-color: var(--disc-in-rope); }
+.cap-tab[data-disc="Out Rope"]    { --cap-color: var(--disc-out-rope); }
+.cap-tab[data-disc="Out Boulder"] { --cap-color: var(--disc-out-boulder); }
+
 .bottom-nav {
     position: fixed;
     bottom: 16px;
@@ -595,9 +736,15 @@ h1.screen-title {
     </div>
 
     <div class="view" id="view-boards">
-        <h1 class="screen-title">Leaderboards</h1>
-        <div class="empty-msg">Coming soon.</div>
+    <h1 class="screen-title">Leaderboards</h1>
+    <div class="cap-tabs" id="cap-tabs"></div>
+    <div class="board-title-row">
+        <span class="board-title" id="board-title">Working Capacity</span>
+        <button class="info-icon" id="capacity-info">i</button>
     </div>
+    <div class="board-subtitle">Top 10 climbs in last 60 days</div>
+    <div id="capacity-board"></div>
+</div>
 
     <div class="view" id="view-profile">
         <h1 class="screen-title">Me</h1>
@@ -717,6 +864,7 @@ function showView(name) {
     document.querySelector(`.nav-btn[data-view="${name}"]`).classList.add('active');
     State.activeView = name;
     window.scrollTo({ top: 0, behavior: 'instant' });
+    if (name === 'boards') renderCapacityBoard();
 }
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1165,6 +1313,7 @@ async function submitLog() {
         // Success — strip optimistic flag, re-fetch from server in background to sync timestamp
         delete optimisticRow._optimistic;
         renderFeed();
+        if (State.activeView === 'boards') renderCapacityBoard();
         showToast('✓ Logged');
         // Background refresh (don't await — just let it update silently)
         fetchData();
@@ -1338,7 +1487,191 @@ function renderFeed() {
 }
 
 fetchData();
+/* ============== CAPACITY BOARD ============== */
+const CAPACITY_THRESHOLD = 10;
+const CAPACITY_WINDOW_DAYS = 60;
 
+let activeBoardDiscipline = localStorage.getItem('leaderboard.lastBoardDisc') || 'In Boulder';
+if (!AppConfig.disciplines.includes(activeBoardDiscipline)) activeBoardDiscipline = 'In Boulder';
+
+function gradeForScore(score, discipline) {
+    const scale = AppConfig.grades[discipline];
+    if (!scale) return '?';
+    let bestIdx = 0;
+    for (let i = 0; i < scale.scores.length; i++) {
+        if (scale.scores[i] <= score) bestIdx = i;
+    }
+    return scale.labels[bestIdx];
+}
+
+function gradeProgress(score, discipline) {
+    const scale = AppConfig.grades[discipline];
+    if (!scale) return { current: '?', next: null, pct: 0 };
+    let curIdx = 0;
+    for (let i = 0; i < scale.scores.length; i++) {
+        if (scale.scores[i] <= score) curIdx = i;
+    }
+    const curScore = scale.scores[curIdx];
+    const nextIdx = curIdx + 1;
+    if (nextIdx >= scale.scores.length) {
+        return { current: scale.labels[curIdx], next: null, pct: 100 };
+    }
+    const nextScore = scale.scores[nextIdx];
+    const pct = Math.round(((score - curScore) / (nextScore - curScore)) * 100);
+    return {
+        current: scale.labels[curIdx],
+        next: scale.labels[nextIdx],
+        pct: Math.max(0, Math.min(100, pct))
+    };
+}
+
+function isWithinWindow(dateStr, days) {
+    if (!dateStr) return false;
+    const d = new Date(getCleanDate(dateStr));
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    return d >= cutoff;
+}
+
+function computeCapacity(discipline) {
+    const byClimber = new Map();
+    State.logs.forEach(log => {
+        if (log.Discipline !== discipline) return;
+        if (!isWithinWindow(log.Date, CAPACITY_WINDOW_DAYS)) return;
+        const score = getScoredValue(log.Grade, log.Style, discipline);
+        if (score <= 0) return;
+        const climber = log.ClimberName;
+        if (!byClimber.has(climber)) byClimber.set(climber, []);
+        byClimber.get(climber).push(score);
+    });
+    
+    const qualified = [];
+    const provisional = [];
+    
+    byClimber.forEach((scores, climber) => {
+        const sortedDesc = [...scores].sort((a, b) => b - a);
+        if (scores.length >= CAPACITY_THRESHOLD) {
+            const top10 = sortedDesc.slice(0, CAPACITY_THRESHOLD);
+            const avgScore = top10.reduce((s, x) => s + x, 0) / top10.length;
+            qualified.push({ climber, avgScore, sendCount: scores.length });
+        } else {
+            const avgScore = sortedDesc.reduce((s, x) => s + x, 0) / sortedDesc.length;
+            provisional.push({ climber, avgScore, sendCount: scores.length });
+        }
+    });
+    
+    qualified.sort((a, b) => b.avgScore - a.avgScore);
+    provisional.sort((a, b) => b.sendCount - a.sendCount);
+    
+    return { qualified, provisional };
+}
+
+function assignTiedRanks(rows) {
+    let lastScore = null;
+    let lastRank = 0;
+    rows.forEach((r, i) => {
+        if (r.avgScore === lastScore) {
+            r.rank = lastRank;
+        } else {
+            r.rank = i + 1;
+            lastRank = r.rank;
+            lastScore = r.avgScore;
+        }
+    });
+    return rows;
+}
+
+function rankClass(rank) {
+    if (rank === 1) return 'gold';
+    if (rank === 2) return 'silver';
+    if (rank === 3) return 'bronze';
+    return '';
+}
+
+function renderCapacityBoard() {
+    const { qualified, provisional } = computeCapacity(activeBoardDiscipline);
+    assignTiedRanks(qualified);
+    
+    const maxAvg = qualified[0]?.avgScore || 1;
+    
+    let html = '';
+    
+    const tabs = AppConfig.disciplines.map(d =>
+        `<button class="cap-tab ${d === activeBoardDiscipline ? 'active' : ''}" data-disc="${d}">${d}</button>`
+    ).join('');
+    document.getElementById('cap-tabs').innerHTML = tabs;
+    document.querySelectorAll('.cap-tab').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            activeBoardDiscipline = el.dataset.disc;
+            localStorage.setItem('leaderboard.lastBoardDisc', activeBoardDiscipline);
+            renderCapacityBoard();
+        });
+    });
+    
+    if (qualified.length > 0) {
+        html += qualified.slice(0, 10).map(r => {
+            const prog = gradeProgress(r.avgScore, activeBoardDiscipline);
+            const fillPct = Math.round((r.avgScore / maxAvg) * 100);
+            const pctText = prog.next ? `${prog.pct}% → ${escapeHTML(prog.next)}` : 'maxed';
+            return `
+            <div class="lb-row" data-climber="${escapeHTML(r.climber)}">
+                <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
+                <div class="lb-bar-wrap">
+                    <div class="lb-name">${escapeHTML(r.climber)}</div>
+                    <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
+                </div>
+                <div class="lb-grade">
+                    <div class="lb-grade-val">${escapeHTML(prog.current)}</div>
+                    <div class="lb-grade-pct">${pctText}</div>
+                </div>
+            </div>`;
+        }).join('');
+    } else {
+        html += '<div class="lb-empty">No one\'s qualified yet. Log 10 sends in this discipline.</div>';
+    }
+    
+    if (provisional.length > 0) {
+        html += '<div class="lb-section-title">Provisional</div>';
+        html += provisional.map(r => {
+            const prog = gradeProgress(r.avgScore, activeBoardDiscipline);
+            const fillPct = Math.round((r.avgScore / maxAvg) * 100) || 10;
+            return `
+            <div class="lb-row provisional" data-climber="${escapeHTML(r.climber)}">
+                <div class="lb-rank">—</div>
+                <div class="lb-bar-wrap">
+                    <div class="lb-name">${escapeHTML(r.climber)}</div>
+                    <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
+                    <div class="lb-grade-pct">${r.sendCount} / 10 sends</div>
+                </div>
+                <div class="lb-grade">
+                    <div class="lb-grade-val">~${escapeHTML(prog.current)}</div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    
+    document.getElementById('capacity-board').innerHTML = html;
+    
+    document.querySelectorAll('#capacity-board .lb-row').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            showToast(`${el.dataset.climber} — profile coming soon`);
+        });
+    });
+}
+
+document.getElementById('capacity-info').addEventListener('click', () => {
+    haptic('tap');
+    openInfoModal('Working Capacity', [
+        { term: 'What it measures',
+          def: 'Average score of your top 10 sends in the last 60 days. Where you actually live as a climber, not your peak.' },
+        { term: 'Bonuses',
+          def: 'Flash: +10 (rope) or +17 (boulder). Onsight: +10. Plain redpoint sends get no bonus.' },
+        { term: 'Qualifying',
+          def: 'Need 10+ sends in a discipline within 60 days to be ranked. Below that, you\'re provisional and ranked separately.' }
+    ]);
+});
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').catch(() => {});
