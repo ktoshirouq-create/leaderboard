@@ -556,19 +556,17 @@ h1.screen-title {
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 
-/* Discipline tabs above the board */
+/* Discipline tabs above the board (wrap to 2 rows on narrow screens, like board-tabs) */
 .cap-tabs {
     display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 6px;
-    scrollbar-width: none;
-    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
 }
-.cap-tabs::-webkit-scrollbar { display: none; }
 .cap-tab {
-    flex: 0 0 auto;
-    padding: 10px 16px;
+    flex: 1 1 calc(50% - 4px);
+    padding: 10px 12px;
+    text-align: center;
     background: var(--input-bg);
     border: 1px solid transparent;
     border-radius: 11px;
@@ -890,6 +888,12 @@ h1.screen-title {
     white-space: nowrap;
     font-family: inherit;
 }
+.pill:active { transform: scale(0.94); }
+.lb-row:active, .hardest-row:active { transform: scale(0.98); }
+.nav-btn:active { transform: scale(0.92); }
+.seg-item:active { transform: scale(0.95); }
+.cap-tab:active { transform: scale(0.95); }
+.info-icon:active { transform: scale(0.85); }
 .pill.active {
     background: var(--primary-fade);
     color: var(--primary);
@@ -1162,8 +1166,37 @@ function showToast(msg) {
 }
 
 /* ============== MODAL HELPERS ============== */
-function openModal(id)  { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+const modalStack = []; // tracks which modals are open, newest last
+
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el.classList.contains('active')) return;
+    el.classList.add('active');
+    modalStack.push(id);
+    // Push a history entry so the back button can pop it
+    history.pushState({ modal: id }, '');
+}
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (!el.classList.contains('active')) return;
+    el.classList.remove('active');
+    const idx = modalStack.lastIndexOf(id);
+    if (idx >= 0) modalStack.splice(idx, 1);
+}
+
+// Back button: close topmost modal if any are open
+window.addEventListener('popstate', () => {
+    if (modalStack.length > 0) {
+        const topId = modalStack[modalStack.length - 1];
+        const el = document.getElementById(topId);
+        if (el) {
+            el.classList.remove('active');
+            modalStack.pop();
+        }
+        // Push a sentinel back so the next back press doesn't exit immediately
+        history.pushState({ sentinel: true }, '');
+    }
+});
 
 document.getElementById('logger-close').addEventListener('click', () => closeModal('logger-modal'));
 document.getElementById('logger-modal').addEventListener('click', e => {
