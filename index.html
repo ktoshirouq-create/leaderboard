@@ -1189,11 +1189,14 @@ function closeModal(id) {
     const el = document.getElementById(id);
     if (!el.classList.contains('active')) return;
     el.classList.remove('active');
-    // Reset any drag state so next open is clean
+    // Reset drag state — but defer the transform clear so the close
+    // animation runs from current position rather than snapping.
     const sheet = el.querySelector('.modal-sheet');
     if (sheet) {
-        sheet.style.transform = '';
-        sheet.classList.remove('dragging', 'snap-back');
+        sheet.classList.remove('dragging');
+        sheet.classList.remove('snap-back');
+        // Clear transform after the close transition has consumed it
+        setTimeout(() => { sheet.style.transform = ''; }, 350);
     }
     const idx = modalStack.lastIndexOf(id);
     if (idx >= 0) modalStack.splice(idx, 1);
@@ -1283,10 +1286,15 @@ function attachSwipeToClose(overlayId) {
         }
     };
     
-    sheet.addEventListener('touchstart', onStart, { passive: true });
-    sheet.addEventListener('touchmove',  onMove,  { passive: true });
-    sheet.addEventListener('touchend',   onEnd);
-    sheet.addEventListener('touchcancel', onEnd);
+    // Capture phase = we see the touch before child buttons do.
+    // Without this, tapping a pill can swallow the touchstart and the
+    // sheet never starts following the finger, even though the move/end
+    // events still fire — making it look like the sheet "jumps" closed.
+    sheet.addEventListener('touchstart', onStart, { passive: true, capture: true });
+    sheet.addEventListener('touchmove',  onMove,  { passive: true, capture: true });
+    sheet.addEventListener('touchend',   onEnd, { capture: true });
+    sheet.addEventListener('touchcancel', onEnd, { capture: true });
+}
 }
 
 // Wire all modals
