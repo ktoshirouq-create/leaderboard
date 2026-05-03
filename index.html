@@ -1295,7 +1295,6 @@ function attachSwipeToClose(overlayId) {
     sheet.addEventListener('touchend',   onEnd, { capture: true });
     sheet.addEventListener('touchcancel', onEnd, { capture: true });
 }
-}
 
 // Wire all modals
 ['logger-modal', 'switcher-modal', 'identity-prompt', 'info-modal'].forEach(attachSwipeToClose);
