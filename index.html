@@ -1212,36 +1212,58 @@ function attachSwipeToClose(overlayId) {
     const sheet = overlay.querySelector('.modal-sheet');
     if (!sheet) return;
     
+    let startX = 0;
     let startY = 0;
     let lastY  = 0;
     let lastT  = 0;
     let velocity = 0;
     let isDragging = false;
+    let lockedDirection = null; // null | 'vertical' | 'horizontal'
     
     const onStart = (e) => {
-        if (sheet.scrollTop > 0) return; // ignore if user is scrolling content
+        if (sheet.scrollTop > 0) return; // sheet has been scrolled — let scroll happen
         const touch = e.touches ? e.touches[0] : e;
-        const rectTop = sheet.getBoundingClientRect().top;
-        const yInSheet = touch.clientY - rectTop;
-        if (yInSheet < 0 || yInSheet > SWIPE_DRAG_ZONE_PX) return;
-        isDragging = true;
+        startX = touch.clientX;
         startY = touch.clientY;
         lastY  = startY;
         lastT  = performance.now();
-        sheet.classList.add('dragging');
+        isDragging = true;
+        lockedDirection = null;  // decide on first move
         sheet.classList.remove('snap-back');
     };
     
     const onMove = (e) => {
         if (!isDragging) return;
         const touch = e.touches ? e.touches[0] : e;
-        const dy = Math.max(0, touch.clientY - startY); // only allow downward
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+        
+        // Direction lock on first meaningful move (>8px)
+        if (lockedDirection === null) {
+            if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; // not moved enough yet
+            if (Math.abs(dx) > Math.abs(dy)) {
+                lockedDirection = 'horizontal'; // probably a pill scroll, abort
+                isDragging = false;
+                return;
+            }
+            if (dy < 0) {
+                lockedDirection = 'horizontal'; // upward — not a dismiss gesture
+                isDragging = false;
+                return;
+            }
+            lockedDirection = 'vertical';
+            sheet.classList.add('dragging');
+        }
+        
+        if (lockedDirection !== 'vertical') return;
+        
+        const dragDist = Math.max(0, dy);
         const now = performance.now();
         const dt = now - lastT;
         if (dt > 0) velocity = (touch.clientY - lastY) / dt;
         lastY = touch.clientY;
         lastT = now;
-        sheet.style.transform = `translateY(${dy}px)`;
+        sheet.style.transform = `translateY(${dragDist}px)`;
     };
     
     const onEnd = () => {
