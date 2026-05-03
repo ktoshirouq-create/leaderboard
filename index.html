@@ -724,6 +724,45 @@ h1.screen-title {
     letter-spacing: -0.5px;
 }
 
+/* Pull-to-refresh indicator */
+.ptr-indicator {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -100%);
+    background: rgba(24,24,24,0.96);
+    backdrop-filter: blur(10px);
+    color: var(--text-muted);
+    padding: 10px 18px;
+    border-radius: 0 0 16px 16px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    border: 1px solid var(--border);
+    border-top: none;
+    z-index: 90;
+    pointer-events: none;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ptr-indicator.show { transform: translate(-50%, 0); }
+.ptr-indicator.refreshing .ptr-spinner {
+    animation: ptr-spin 0.8s linear infinite;
+}
+.ptr-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #333;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+}
+@keyframes ptr-spin {
+    to { transform: rotate(360deg); }
+}
+
 .toast {
     position: fixed;
     top: 20px;
@@ -1099,6 +1138,10 @@ h1.screen-title {
     </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="ptr-indicator" id="ptr-indicator">
+    <span class="ptr-spinner"></span>
+    <span id="ptr-label">Pull to refresh</span>
+</div>
 
 <div class="modal-overlay" id="info-modal">
     <div class="modal-sheet">
@@ -2485,6 +2528,100 @@ document.querySelectorAll('#board-tabs .pill').forEach(el => {
         renderSpecialBoard();
     });
 });
+/* ============== REFRESH ============== */
+let lastRefreshAt = Date.now();
+let isRefreshing  = false;
+
+async function refreshData(silent = false) {
+    if (isRefreshing) return;
+    isRefreshing = true;
+    const indicator = document.getElementById('ptr-indicator');
+    const label     = document.getElementById('ptr-label');
+    if (!silent) {
+        indicator.classList.add('show', 'refreshing');
+        label.textContent = 'Refreshing…';
+    }
+    try {
+        await fetchData();
+        // Re-render whatever view is currently active
+        if (State.activeView === 'boards') applyBoardMode();
+        if (State.activeView === 'profile' && profileClimber) {
+            renderCapacityStrip(profileClimber);
+            renderHistogram(profileClimber);
+            renderProfileSessions(profileClimber);
+        }
+        lastRefreshAt = Date.now();
+    } catch (err) {
+        if (!silent) {
+            label.textContent = 'Could not refresh';
+            setTimeout(() => indicator.classList.remove('show'), 1200);
+        }
+    } finally {
+        isRefreshing = false;
+        if (!silent) {
+            setTimeout(() => {
+                indicator.classList.remove('show', 'refreshing');
+                label.textContent = 'Pull to refresh';
+            }, 400);
+        }
+    }
+}
+
+/* Pull-to-refresh on feed: drag down at top of page → refresh.
+   Threshold-based: pull > 80px and release → refresh. */
+const PTR_TRIGGER_PX = 80;
+let ptrStartY = 0;
+let ptrIsTracking = false;
+
+window.addEventListener('touchstart', (e) => {
+    // Only track at top of page, in feed view, when no modal is open
+    if (window.scrollY > 0) return;
+    if (modalStack.length > 0) return;
+    if (State.activeView !== 'feed') return;
+    ptrStartY = e.touches[0].clientY;
+    ptrIsTracking = true;
+}, { passive: true });
+
+window.addEventListener('touchmove', (e) => {
+    if (!ptrIsTracking) return;
+    const dy = e.touches[0].clientY - ptrStartY;
+    if (dy <= 0) return; // upward — let normal scroll happen
+    const indicator = document.getElementById('ptr-indicator');
+    const label     = document.getElementById('ptr-label');
+    if (dy > PTR_TRIGGER_PX) {
+        indicator.classList.add('show');
+        label.textContent = 'Release to refresh';
+    } else if (dy > 20) {
+        indicator.classList.add('show');
+        label.textContent = 'Pull to refresh';
+    } else {
+        indicator.classList.remove('show');
+    }
+}, { passive: true });
+
+window.addEventListener('touchend', () => {
+    if (!ptrIsTracking) return;
+    ptrIsTracking = false;
+    const indicator = document.getElementById('ptr-indicator');
+    const label     = document.getElementById('ptr-label');
+    if (label.textContent === 'Release to refresh') {
+        haptic('tap');
+        refreshData(false);
+    } else {
+        indicator.classList.remove('show');
+    }
+});
+
+/* Auto-refresh on focus regain (after 2+ minutes idle).
+   This catches the case where the user backgrounds the app, opens it again,
+   and wants to see fresh data without manually pulling. */
+const AUTO_REFRESH_MIN_INTERVAL_MS = 2 * 60 * 1000;
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastRefreshAt < AUTO_REFRESH_MIN_INTERVAL_MS) return;
+    refreshData(true);  // silent — don't show indicator on auto-refresh
+});
+
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').catch(() => {});
