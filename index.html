@@ -688,6 +688,14 @@ h1.screen-title {
     background: #333;
     border-radius: 2px;
     margin: 0 auto 16px auto;
+    cursor: grab;
+}
+.modal-handle:active { cursor: grabbing; }
+.modal-sheet.dragging {
+    transition: none;  /* disable transition while finger is down */
+}
+.modal-sheet.snap-back {
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .modal-close {
     position: absolute;
@@ -1175,16 +1183,92 @@ function openModal(id) {
     if (el.classList.contains('active')) return;
     el.classList.add('active');
     modalStack.push(id);
-    // Push a history entry so the back button can pop it
     history.pushState({ modal: id }, '');
 }
 function closeModal(id) {
     const el = document.getElementById(id);
     if (!el.classList.contains('active')) return;
     el.classList.remove('active');
+    // Reset any drag state so next open is clean
+    const sheet = el.querySelector('.modal-sheet');
+    if (sheet) {
+        sheet.style.transform = '';
+        sheet.classList.remove('dragging', 'snap-back');
+    }
     const idx = modalStack.lastIndexOf(id);
     if (idx >= 0) modalStack.splice(idx, 1);
 }
+
+/* ============== SWIPE-DOWN TO DISMISS ============== */
+// Drag-to-dismiss: touch in top ~60px of any .modal-sheet, drag down,
+// release past threshold to close.
+const SWIPE_DRAG_ZONE_PX  = 80;   // top of sheet that starts the drag
+const SWIPE_DISMISS_PX    = 100;  // distance dragged before close fires
+const SWIPE_DISMISS_VEL   = 0.5;  // px/ms — fast flick threshold
+
+function attachSwipeToClose(overlayId) {
+    const overlay = document.getElementById(overlayId);
+    if (!overlay) return;
+    const sheet = overlay.querySelector('.modal-sheet');
+    if (!sheet) return;
+    
+    let startY = 0;
+    let lastY  = 0;
+    let lastT  = 0;
+    let velocity = 0;
+    let isDragging = false;
+    
+    const onStart = (e) => {
+        if (sheet.scrollTop > 0) return; // ignore if user is scrolling content
+        const touch = e.touches ? e.touches[0] : e;
+        const rectTop = sheet.getBoundingClientRect().top;
+        const yInSheet = touch.clientY - rectTop;
+        if (yInSheet < 0 || yInSheet > SWIPE_DRAG_ZONE_PX) return;
+        isDragging = true;
+        startY = touch.clientY;
+        lastY  = startY;
+        lastT  = performance.now();
+        sheet.classList.add('dragging');
+        sheet.classList.remove('snap-back');
+    };
+    
+    const onMove = (e) => {
+        if (!isDragging) return;
+        const touch = e.touches ? e.touches[0] : e;
+        const dy = Math.max(0, touch.clientY - startY); // only allow downward
+        const now = performance.now();
+        const dt = now - lastT;
+        if (dt > 0) velocity = (touch.clientY - lastY) / dt;
+        lastY = touch.clientY;
+        lastT = now;
+        sheet.style.transform = `translateY(${dy}px)`;
+    };
+    
+    const onEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        sheet.classList.remove('dragging');
+        const dy = lastY - startY;
+        const flick = velocity > SWIPE_DISMISS_VEL;
+        if (dy > SWIPE_DISMISS_PX || flick) {
+            // Dismiss — close modal
+            closeModal(overlayId);
+            haptic('tap');
+        } else {
+            // Snap back
+            sheet.classList.add('snap-back');
+            sheet.style.transform = '';
+        }
+    };
+    
+    sheet.addEventListener('touchstart', onStart, { passive: true });
+    sheet.addEventListener('touchmove',  onMove,  { passive: true });
+    sheet.addEventListener('touchend',   onEnd);
+    sheet.addEventListener('touchcancel', onEnd);
+}
+
+// Wire all modals
+['logger-modal', 'switcher-modal', 'identity-prompt', 'info-modal'].forEach(attachSwipeToClose);
 
 // Back button: close topmost modal if any are open
 window.addEventListener('popstate', () => {
