@@ -448,20 +448,20 @@ h1.screen-title {
 .histogram {
     background: var(--card-bg);
     border-radius: var(--radius);
-    padding: 18px 12px 14px 12px;
+    padding: 12px 12px 8px 12px;
     border: 1px solid rgba(255,255,255,0.03);
     margin-bottom: 8px;
 }
 .histo-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    height: 22px;
-    margin-bottom: 4px;
+    gap: 8px;
+    height: 14px;
+    margin-bottom: 2px;
 }
 .histo-label {
     width: 36px;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     color: var(--text-muted);
     font-weight: 700;
     text-align: right;
@@ -472,33 +472,25 @@ h1.screen-title {
 }
 .histo-bar-wrap {
     flex: 1;
-    height: 14px;
+    height: 8px;
     background: #1a1a1a;
-    border-radius: 4px;
+    border-radius: 3px;
     overflow: hidden;
     position: relative;
 }
 .histo-bar {
     height: 100%;
-    border-radius: 4px;
+    border-radius: 3px;
     transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .histo-count {
-    width: 28px;
-    font-size: 0.78rem;
+    width: 24px;
+    font-size: 0.7rem;
     color: #fff;
     font-weight: 800;
     text-align: left;
 }
 .histo-count.zero { color: #444; }
-.histo-empty {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    text-align: center;
-    padding: 24px 12px;
-    font-weight: 500;
-    font-style: italic;
-}
 
 /* Boards-mode tab pills — flex-grow so all 4 fit, wrap when needed */
 .board-tabs {
@@ -1244,6 +1236,17 @@ h1.screen-title {
     </div>
 </div>
 
+<div class="modal-overlay" id="rename-modal">
+    <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="modal-title">Rename location</div>
+        <div class="modal-subtitle" id="rename-subtitle">—</div>
+        <input type="text" class="add-name-input" id="rename-input" maxlength="30" style="margin-bottom:12px">
+        <button class="btn-main" id="rename-save">Save</button>
+        <button class="action-sheet-btn cancel" id="rename-cancel">Cancel</button>
+    </div>
+</div>
+
 <script src="shared.js"></script>
 <script>
 const State = {
@@ -1433,7 +1436,8 @@ function attachSwipeToClose(overlayId) {
 }
 
 // Wire all modals
-['logger-modal', 'switcher-modal', 'identity-prompt', 'info-modal'].forEach(attachSwipeToClose);
+['logger-modal', 'switcher-modal', 'identity-prompt', 'info-modal',  
+ 'action-sheet-modal', 'confirm-modal', 'rename-modal'].forEach(attachSwipeToClose);
 
 // Back button: close topmost modal if any are open
 window.addEventListener('popstate', () => {
@@ -1473,6 +1477,13 @@ document.getElementById('action-sheet-modal').addEventListener('click', e => {
 });
 document.getElementById('confirm-modal').addEventListener('click', e => {
     if (e.target.id === 'confirm-modal') closeModal('confirm-modal');
+});
+document.getElementById('rename-modal').addEventListener('click', e => {
+    if (e.target.id === 'rename-modal') {
+        closeModal('rename-modal');
+        document.getElementById('action-edit').textContent = 'Edit climb';
+        document.getElementById('action-delete').textContent = 'Delete climb';
+    }
 });
 
 /* ============== IDENTITY ============== */
@@ -2175,14 +2186,38 @@ function openLocationActionSheet(locationName) {
 }
 
 function openRenameLocation(locationName) {
-    const newName = prompt('Rename location:', locationName);
-    if (!newName || newName.trim() === '' || newName === locationName) {
-        // Restore action sheet button labels
+    document.getElementById('rename-subtitle').textContent = `Currently: ${locationName}`;
+    const inp = document.getElementById('rename-input');
+    inp.value = locationName;
+    
+    const cleanup = () => {
         document.getElementById('action-edit').textContent = 'Edit climb';
         document.getElementById('action-delete').textContent = 'Delete climb';
-        return;
-    }
-    performRenameLocation(locationName, newName.trim());
+    };
+    
+    const save = () => {
+        const newName = inp.value.trim();
+        if (!newName || newName === locationName) {
+            closeModal('rename-modal');
+            cleanup();
+            return;
+        }
+        haptic('tap');
+        closeModal('rename-modal');
+        performRenameLocation(locationName, newName);
+        cleanup();
+    };
+    
+    document.getElementById('rename-save').onclick = save;
+    document.getElementById('rename-cancel').onclick = () => {
+        haptic('tap');
+        closeModal('rename-modal');
+        cleanup();
+    };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+    
+    openModal('rename-modal');
+    setTimeout(() => { inp.focus(); inp.select(); }, 50);
 }
 
 async function performRenameLocation(oldName, newName) {
