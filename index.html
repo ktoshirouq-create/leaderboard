@@ -954,6 +954,75 @@ h1.screen-title {
     border: 1px dashed rgba(16,185,129,0.3);
 }
 
+/* ===== ACTION SHEET ===== */
+.action-sheet-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+}
+.action-sheet-btn {
+    width: 100%;
+    padding: 16px;
+    background: var(--input-bg);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 12px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: 0.15s;
+}
+.action-sheet-btn:active { transform: scale(0.98); background: #1f1f1f; }
+.action-sheet-btn.danger { color: var(--danger); }
+.action-sheet-btn.cancel {
+    margin-top: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    border-color: transparent;
+    text-align: center;
+    font-weight: 600;
+}
+.action-sheet-summary {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    font-weight: 600;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.action-sheet-summary .grade {
+    color: #fff;
+    font-weight: 800;
+}
+
+/* Long-press visual feedback */
+.send-row.pressing {
+    background: rgba(16,185,129,0.06);
+    border-radius: 6px;
+}
+
+/* Edit mode banner inside logger */
+.edit-mode-banner {
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.3);
+    color: #fbbf24;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* Inline name input + save row */
 .add-name-row {
     display: flex;
@@ -1078,7 +1147,8 @@ h1.screen-title {
         <button class="modal-close" id="logger-close">×</button>
         <div class="modal-handle"></div>
         <div class="switcher-link" id="switcher-trigger">Logging as <strong id="active-user-label">—</strong> ▾</div>
-        <div class="modal-title">Log a send</div>
+        <div class="modal-title" id="logger-title">Log a send</div>
+<div class="edit-mode-banner hidden" id="edit-mode-banner">Editing existing climb</div>
 
         <div class="field-label">Discipline</div>
         <div class="pill-row" id="logger-discipline"></div>
@@ -1149,6 +1219,28 @@ h1.screen-title {
         <div class="modal-handle"></div>
         <div class="modal-title" id="info-title">Info</div>
         <div id="info-body"></div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="action-sheet-modal">
+    <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="action-sheet-summary" id="action-sheet-summary"></div>
+        <div class="action-sheet-list">
+            <button class="action-sheet-btn" id="action-edit">Edit climb</button>
+            <button class="action-sheet-btn danger" id="action-delete">Delete climb</button>
+            <button class="action-sheet-btn cancel" id="action-cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="confirm-modal">
+    <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="modal-title">Delete climb?</div>
+        <div class="modal-subtitle" id="confirm-subtitle">This can't be undone.</div>
+        <button class="action-sheet-btn danger" id="confirm-yes">Yes, delete</button>
+        <button class="action-sheet-btn cancel" id="confirm-no">Cancel</button>
     </div>
 </div>
 
@@ -1321,6 +1413,7 @@ function attachSwipeToClose(overlayId) {
         if (dy > SWIPE_DISMISS_PX || flick) {
             // Dismiss — close modal
             closeModal(overlayId);
+            if (overlayId === 'logger-modal' && editingLogId) exitEditMode();
             haptic('tap');
         } else {
             // Snap back
@@ -1356,9 +1449,15 @@ window.addEventListener('popstate', () => {
     }
 });
 
-document.getElementById('logger-close').addEventListener('click', () => closeModal('logger-modal'));
+document.getElementById('logger-close').addEventListener('click', () => {
+    closeModal('logger-modal');
+    if (editingLogId) exitEditMode();
+});
 document.getElementById('logger-modal').addEventListener('click', e => {
-    if (e.target.id === 'logger-modal') closeModal('logger-modal');
+    if (e.target.id === 'logger-modal') {
+        closeModal('logger-modal');
+        if (editingLogId) exitEditMode();
+    }
 });
 document.getElementById('switcher-close').addEventListener('click', () => closeModal('switcher-modal'));
 document.getElementById('switcher-modal').addEventListener('click', e => {
@@ -1742,7 +1841,6 @@ function getSelectedDateISO() {
 }
 
 async function submitLog() {
-    const submitBtn = document.getElementById('submit-log');
     if (!LoggerState.where) {
         showToast('Pick a gym or crag first');
         return;
@@ -1751,6 +1849,65 @@ async function submitLog() {
         showToast('Missing field');
         return;
     }
+    
+    // EDIT MODE — modify existing log in place
+    if (editingLogId) {
+        const editId = editingLogId;
+        const newDate = getSelectedDateISO();
+        const idx = State.logs.findIndex(l => l.LogId === editId);
+        if (idx === -1) {
+            showToast('Log not found');
+            return;
+        }
+        // Snapshot original values for restore on failure
+        const original = { ...State.logs[idx] };
+        // Optimistic update
+        State.logs[idx] = {
+            ...original,
+            Discipline: LoggerState.discipline,
+            Where:      LoggerState.where,
+            Grade:      LoggerState.grade,
+            Style:      LoggerState.style,
+            Date:       newDate
+        };
+        closeModal('logger-modal');
+        exitEditMode();
+        renderFeed();
+        if (State.activeView === 'boards') applyBoardMode();
+        if (State.activeView === 'profile' && profileClimber) {
+            renderCapacityStrip(profileClimber);
+            renderHistogram(profileClimber);
+            renderProfileSessions(profileClimber);
+        }
+        haptic('commit');
+        try {
+            const res = await fetch(AppConfig.api, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'editLog',
+                    logId: editId,
+                    climber: State.activeUser,
+                    discipline: LoggerState.discipline,
+                    where:      LoggerState.where,
+                    grade:      LoggerState.grade,
+                    style:      LoggerState.style,
+                    date:       newDate
+                })
+            });
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || 'Server error');
+            showToast('✓ Updated');
+        } catch (err) {
+            State.logs[idx] = original;  // restore
+            renderFeed();
+            haptic('error');
+            showToast('Could not save changes');
+        }
+        return;
+    }
+    
+    // CREATE MODE — original flow
     const payload = {
         action: 'logSend',
         climber:    State.activeUser,
@@ -1761,8 +1918,8 @@ async function submitLog() {
         date:       getSelectedDateISO()
     };
 
-    // Optimistic insert: build a fake row and prepend to State.logs immediately
     const optimisticRow = {
+        LogId:        'optimistic-' + Date.now(),
         Timestamp:    new Date().toISOString(),
         ClimberName:  payload.climber,
         Discipline:   payload.discipline,
@@ -1777,7 +1934,6 @@ async function submitLog() {
     renderFeed();
     haptic('commit');
 
-    // Fire the write
     try {
         const res = await fetch(AppConfig.api, {
             method: 'POST',
@@ -1786,12 +1942,12 @@ async function submitLog() {
         });
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Server error');
-        // Success — strip optimistic flag, re-fetch from server in background to sync timestamp
+        // Update optimistic row with real LogId from server
+        if (json.logId) optimisticRow.LogId = json.logId;
         delete optimisticRow._optimistic;
         renderFeed();
         if (State.activeView === 'boards') applyBoardMode();
         showToast('✓ Logged');
-        // Background refresh (don't await — just let it update silently)
         fetchData();
     } catch (err) {
         optimisticRow._failed = true;
@@ -1888,7 +2044,168 @@ function maxGradeOfSession(session) {
     return sorted[0]?.Grade || '?';
 }
 
-function renderSessionCard(session, idx) {
+/* ============== LONG-PRESS + EDIT/DELETE STATE ============== */
+const LONG_PRESS_MS = 500;
+let longPressTimer = null;
+let pressingEl = null;
+let editingLogId = null;  // when set, the logger is in edit mode
+
+function attachLongPressToSendRow(rowEl, log) {
+    // Only activate on own logs (trust-the-crew model)
+    if (log.ClimberName !== State.activeUser) return;
+    rowEl.style.cursor = 'context-menu';
+    
+    const start = (e) => {
+        pressingEl = rowEl;
+        rowEl.classList.add('pressing');
+        longPressTimer = setTimeout(() => {
+            haptic('commit');
+            rowEl.classList.remove('pressing');
+            openActionSheet(log);
+        }, LONG_PRESS_MS);
+    };
+    const cancel = () => {
+        clearTimeout(longPressTimer);
+        if (pressingEl) pressingEl.classList.remove('pressing');
+        pressingEl = null;
+    };
+    
+    rowEl.addEventListener('touchstart', start, { passive: true });
+    rowEl.addEventListener('touchmove', cancel, { passive: true });
+    rowEl.addEventListener('touchend', cancel);
+    rowEl.addEventListener('touchcancel', cancel);
+    // Desktop fallback
+    rowEl.addEventListener('mousedown', start);
+    rowEl.addEventListener('mouseup', cancel);
+    rowEl.addEventListener('mouseleave', cancel);
+}
+
+function openActionSheet(log) {
+    const summary = document.getElementById('action-sheet-summary');
+    summary.innerHTML = `<span class="grade">${escapeHTML(log.Grade)}</span>
+                         <span>· ${escapeHTML(log.Style)} · ${escapeHTML(log.Where)}</span>`;
+    document.getElementById('action-edit').onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+        openLoggerInEditMode(log);
+    };
+    document.getElementById('action-delete').onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+        openConfirmDelete(log);
+    };
+    document.getElementById('action-cancel').onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+    };
+    openModal('action-sheet-modal');
+}
+
+function openConfirmDelete(log) {
+    document.getElementById('confirm-subtitle').textContent =
+        `${log.Grade} · ${log.Style} · ${log.Where}. This can't be undone.`;
+    document.getElementById('confirm-yes').onclick = () => {
+        haptic('tap');
+        closeModal('confirm-modal');
+        performDelete(log);
+    };
+    document.getElementById('confirm-no').onclick = () => {
+        haptic('tap');
+        closeModal('confirm-modal');
+    };
+    openModal('confirm-modal');
+}
+
+async function performDelete(log) {
+    // Optimistic remove from State.logs
+    const idx = State.logs.findIndex(l => l.LogId === log.LogId);
+    if (idx === -1) return;
+    const [removed] = State.logs.splice(idx, 1);
+    
+    // Re-render whatever's visible
+    renderFeed();
+    if (State.activeView === 'boards') applyBoardMode();
+    if (State.activeView === 'profile' && profileClimber) {
+        renderCapacityStrip(profileClimber);
+        renderHistogram(profileClimber);
+        renderProfileSessions(profileClimber);
+    }
+    
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'deleteLog',
+                logId: log.LogId,
+                climber: State.activeUser
+            })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Server error');
+        showToast('✓ Deleted');
+    } catch (err) {
+        // Restore on failure
+        State.logs.splice(idx, 0, removed);
+        renderFeed();
+        if (State.activeView === 'boards') applyBoardMode();
+        if (State.activeView === 'profile' && profileClimber) {
+            renderCapacityStrip(profileClimber);
+            renderHistogram(profileClimber);
+            renderProfileSessions(profileClimber);
+        }
+        haptic('error');
+        showToast('Could not delete');
+    }
+}
+
+function openLoggerInEditMode(log) {
+    editingLogId = log.LogId;
+    // Pre-fill LoggerState from the log
+    LoggerState.discipline = log.Discipline;
+    LoggerState.where      = log.Where;
+    LoggerState.grade      = log.Grade;
+    LoggerState.style      = log.Style;
+    // Stash sticky locals so we don't pollute the user's "last used" state
+    document.getElementById('logger-title').textContent = 'Edit climb';
+    document.getElementById('edit-mode-banner').classList.remove('hidden');
+    document.getElementById('submit-log').textContent = 'Save changes';
+    
+    // Set up date pills based on log date vs today
+    const logDate = getCleanDate(log.Date);
+    const today = getCleanDate(new Date());
+    const yest  = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return getCleanDate(d); })();
+    document.querySelectorAll('#logger-date .pill').forEach(x => x.classList.remove('active'));
+    if (logDate === today) {
+        document.querySelector('#logger-date [data-date="today"]').classList.add('active');
+        LoggerState.date = 'today';
+        document.getElementById('logger-date-custom').classList.add('hidden');
+    } else if (logDate === yest) {
+        document.querySelector('#logger-date [data-date="yesterday"]').classList.add('active');
+        LoggerState.date = 'yesterday';
+        document.getElementById('logger-date-custom').classList.add('hidden');
+    } else {
+        document.querySelector('#logger-date [data-date="custom"]').classList.add('active');
+        LoggerState.date = 'custom';
+        const customInput = document.getElementById('logger-date-custom');
+        customInput.classList.remove('hidden');
+        customInput.value = logDate;
+    }
+    
+    document.getElementById('active-user-label').textContent = State.activeUser;
+    renderDisciplinePills();
+    renderWherePills();
+    renderGradePills();
+    renderStylePills();
+    openModal('logger-modal');
+}
+
+function exitEditMode() {
+    editingLogId = null;
+    document.getElementById('logger-title').textContent = 'Log a send';
+    document.getElementById('edit-mode-banner').classList.add('hidden');
+    document.getElementById('submit-log').textContent = 'Log it';
+}
     const sendCount = session.sends.length;
     const maxGrade  = maxGradeOfSession(session);
     const summaryText = sendCount === 1
@@ -1954,14 +2271,20 @@ function renderFeed() {
     }
     const sessions = groupIntoSessions(State.logs);
     list.innerHTML = sessions.map((s, i) => renderSessionCard(s, i)).join('');
-    list.querySelectorAll('.session-card').forEach(card => {
+    list.querySelectorAll('.session-card').forEach((card, cardIdx) => {
         card.addEventListener('click', () => {
             haptic('tap');
             card.classList.toggle('expanded');
         });
+        // Long-press on individual send rows for own logs
+        const session = sessions[cardIdx];
+        const sortedSends = sortSendsByScore(session.sends, session.discipline);
+        card.querySelectorAll('.send-row').forEach((rowEl, sendIdx) => {
+            const log = sortedSends[sendIdx];
+            attachLongPressToSendRow(rowEl, log);
+        });
     });
 }
-
 fetchData();
 /* ============== CAPACITY BOARD ============== */
 const CAPACITY_THRESHOLD = 10;
@@ -2270,10 +2593,16 @@ function renderProfileSessions(climber) {
     }
     const sessions = groupIntoSessions(climberLogs);
     container.innerHTML = sessions.map((s, i) => renderSessionCard(s, i)).join('');
-    container.querySelectorAll('.session-card').forEach(card => {
+    container.querySelectorAll('.session-card').forEach((card, cardIdx) => {
         card.addEventListener('click', () => {
             haptic('tap');
             card.classList.toggle('expanded');
+        });
+        const session = sessions[cardIdx];
+        const sortedSends = sortSendsByScore(session.sends, session.discipline);
+        card.querySelectorAll('.send-row').forEach((rowEl, sendIdx) => {
+            const log = sortedSends[sendIdx];
+            attachLongPressToSendRow(rowEl, log);
         });
     });
 }
