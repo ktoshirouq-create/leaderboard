@@ -1464,7 +1464,12 @@ document.getElementById('switcher-modal').addEventListener('click', e => {
     if (e.target.id === 'switcher-modal') closeModal('switcher-modal');
 });
 document.getElementById('action-sheet-modal').addEventListener('click', e => {
-    if (e.target.id === 'action-sheet-modal') closeModal('action-sheet-modal');
+    if (e.target.id === 'action-sheet-modal') {
+        closeModal('action-sheet-modal');
+        // Restore default labels in case it was opened for a location
+        document.getElementById('action-edit').textContent = 'Edit climb';
+        document.getElementById('action-delete').textContent = 'Delete climb';
+    }
 });
 document.getElementById('confirm-modal').addEventListener('click', e => {
     if (e.target.id === 'confirm-modal') closeModal('confirm-modal');
@@ -1638,7 +1643,14 @@ function isOutdoor(disc) { return disc === 'Out Rope' || disc === 'Out Boulder';
 function getLocationsForDiscipline(disc) {
     const wantType = isOutdoor(disc) ? 'crag' : 'gym';
     return State.locations
-        .filter(l => l.Type === wantType)
+        .filter(l => {
+            if (l.Type !== wantType) return false;
+            // Disciplines is comma-separated; if missing, fall back to type-only matching
+            // (graceful degradation for any locations not yet tagged)
+            const discList = String(l.Disciplines || '').split(',').map(s => s.trim()).filter(Boolean);
+            if (discList.length === 0) return true;  // untagged: show in all matching types
+            return discList.includes(disc);
+        })
         .map(l => l.Name)
         .filter(Boolean);
 }
@@ -1683,6 +1695,7 @@ function renderWherePills() {
             localStorage.setItem(stickyKey, LoggerState.where);
             renderWherePills();
         });
+        attachLongPressToWherePill(el, el.dataset.where);
     });
     c.querySelector('[data-add-where]').addEventListener('click', () => {
         haptic('tap');
@@ -1698,22 +1711,57 @@ async function addLocation(rawName) {
     const name = normalizeName(rawName);
     if (!name) return null;
     const type = isOutdoor(LoggerState.discipline) ? 'crag' : 'gym';
-    const existing = State.locations
-        .filter(l => l.Type === type)
-        .map(l => String(l.Name || '').toLowerCase());
-    if (existing.includes(name.toLowerCase())) {
-        showToast(`${name} already added`);
-        return name;
+    const disciplines = [LoggerState.discipline]; // tag with current discipline
+    
+    // Check existing — but allow same name if it exists for a different discipline
+    const existingMatch = State.locations.find(l =>
+        l.Type === type &&
+        String(l.Name || '').toLowerCase() === name.toLowerCase()
+    );
+    if (existingMatch) {
+        // Already exists with this type. If it doesn't include this discipline, expand it.
+        const currentDiscs = String(existingMatch.Disciplines || '').split(',').map(s => s.trim()).filter(Boolean);
+        if (currentDiscs.includes(LoggerState.discipline)) {
+            showToast(`${name} already added`);
+            return existingMatch.Name;
+        }
+        // Expand existing location to include this discipline
+        const newDiscs = [...currentDiscs, LoggerState.discipline];
+        try {
+            const res = await fetch(AppConfig.api, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'editLocation',
+                    oldName: existingMatch.Name,
+                    disciplines: newDiscs
+                })
+            });
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || 'Server error');
+            existingMatch.Disciplines = newDiscs.join(',');
+            haptic('commit');
+            return existingMatch.Name;
+        } catch (err) {
+            showToast('Could not update location');
+            return null;
+        }
     }
+    
     try {
         const res = await fetch(AppConfig.api, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'addLocation', name, type })
+            body: JSON.stringify({
+                action: 'addLocation',
+                name,
+                type,
+                disciplines
+            })
         });
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Server error');
-        State.locations.push({ Name: name, Type: type });
+        State.locations.push({ Name: name, Type: type, Disciplines: disciplines.join(',') });
         haptic('commit');
         return name;
     } catch (err) {
@@ -2078,7 +2126,150 @@ const LONG_PRESS_MS = 500;
 let longPressTimer = null;
 let pressingEl = null;
 let editingLogId = null;  // when set, the logger is in edit mode
+function attachLongPressToWherePill(pillEl, locationName) {
+    let timer = null;
+    const start = (e) => {
+        pillEl.classList.add('pressing');
+        timer = setTimeout(() => {
+            haptic('commit');
+            pillEl.classList.remove('pressing');
+            openLocationActionSheet(locationName);
+        }, LONG_PRESS_MS);
+    };
+    const cancel = () => {
+        clearTimeout(timer);
+        pillEl.classList.remove('pressing');
+    };
+    pillEl.addEventListener('touchstart', start, { passive: true });
+    pillEl.addEventListener('touchmove', cancel, { passive: true });
+    pillEl.addEventListener('touchend', cancel);
+    pillEl.addEventListener('touchcancel', cancel);
+    pillEl.addEventListener('mousedown', start);
+    pillEl.addEventListener('mouseup', cancel);
+    pillEl.addEventListener('mouseleave', cancel);
+}
 
+function openLocationActionSheet(locationName) {
+    const summary = document.getElementById('action-sheet-summary');
+    summary.innerHTML = `<span class="grade">${escapeHTML(locationName)}</span>`;
+    document.getElementById('action-edit').textContent = 'Rename';
+    document.getElementById('action-delete').textContent = 'Delete location';
+    document.getElementById('action-edit').onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+        openRenameLocation(locationName);
+    };
+    document.getElementById('action-delete').onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+        openConfirmDeleteLocation(locationName);
+    };
+    document.getElementById('action-cancel').onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+        // Restore default labels for log action sheet
+        document.getElementById('action-edit').textContent = 'Edit climb';
+        document.getElementById('action-delete').textContent = 'Delete climb';
+    };
+    openModal('action-sheet-modal');
+}
+
+function openRenameLocation(locationName) {
+    const newName = prompt('Rename location:', locationName);
+    if (!newName || newName.trim() === '' || newName === locationName) {
+        // Restore action sheet button labels
+        document.getElementById('action-edit').textContent = 'Edit climb';
+        document.getElementById('action-delete').textContent = 'Delete climb';
+        return;
+    }
+    performRenameLocation(locationName, newName.trim());
+}
+
+async function performRenameLocation(oldName, newName) {
+    // Optimistic update — change in State.locations and any logs that reference it
+    const loc = State.locations.find(l => l.Name === oldName);
+    if (!loc) return;
+    const originalLocName = loc.Name;
+    loc.Name = newName;
+    State.logs.forEach(log => { if (log.Where === oldName) log.Where = newName; });
+    renderFeed();
+    renderWherePills();
+    
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'editLocation',
+                oldName: originalLocName,
+                name: newName
+            })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Server error');
+        showToast('✓ Renamed');
+        // Restore action sheet labels
+        document.getElementById('action-edit').textContent = 'Edit climb';
+        document.getElementById('action-delete').textContent = 'Delete climb';
+        // Note: log Where values are NOT updated server-side here. They show the new name
+        // in the UI optimistically but the sheet still has old name. Acceptable for now —
+        // typo-fix is the main use case, not large-scale renaming.
+    } catch (err) {
+        // Restore on failure
+        loc.Name = originalLocName;
+        State.logs.forEach(log => { if (log.Where === newName) log.Where = oldName; });
+        renderFeed();
+        renderWherePills();
+        haptic('error');
+        showToast('Could not rename');
+    }
+}
+
+function openConfirmDeleteLocation(locationName) {
+    document.getElementById('confirm-subtitle').textContent =
+        `Delete "${locationName}"? Existing climbs at this location will keep the name.`;
+    document.getElementById('confirm-yes').onclick = () => {
+        haptic('tap');
+        closeModal('confirm-modal');
+        performDeleteLocation(locationName);
+    };
+    document.getElementById('confirm-no').onclick = () => {
+        haptic('tap');
+        closeModal('confirm-modal');
+        // Restore action sheet labels
+        document.getElementById('action-edit').textContent = 'Edit climb';
+        document.getElementById('action-delete').textContent = 'Delete climb';
+    };
+    openModal('confirm-modal');
+}
+
+async function performDeleteLocation(locationName) {
+    const idx = State.locations.findIndex(l => l.Name === locationName);
+    if (idx === -1) return;
+    const [removed] = State.locations.splice(idx, 1);
+    renderWherePills();
+    
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'deleteLocation',
+                name: locationName
+            })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Server error');
+        showToast('✓ Deleted');
+        document.getElementById('action-edit').textContent = 'Edit climb';
+        document.getElementById('action-delete').textContent = 'Delete climb';
+    } catch (err) {
+        State.locations.splice(idx, 0, removed);
+        renderWherePills();
+        haptic('error');
+        showToast('Could not delete');
+    }
+}
 function attachLongPressToSendRow(rowEl, log) {
     // Only activate on own logs (trust-the-crew model)
     if (log.ClimberName !== State.activeUser) return;
