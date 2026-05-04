@@ -394,7 +394,7 @@ h1.screen-title {
     letter-spacing: -1px;
     margin-bottom: 18px;
 }
-.capacity-strip {
+.bests-strip {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
@@ -404,25 +404,25 @@ h1.screen-title {
     border-radius: var(--radius);
     border: 1px solid rgba(255,255,255,0.03);
 }
-.cap-cell { text-align: center; }
-.cap-disc {
+.best-cell { text-align: center; }
+.best-disc {
     font-size: 0.6rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.6px;
     margin-bottom: 6px;
 }
-.cap-disc[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
-.cap-disc[data-disc="In Rope"]     { color: var(--disc-in-rope); }
-.cap-disc[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
-.cap-disc[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
-.cap-grade {
+.best-disc[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
+.best-disc[data-disc="In Rope"]     { color: var(--disc-in-rope); }
+.best-disc[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
+.best-disc[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
+.best-grade {
     font-size: 1.3rem;
     font-weight: 800;
     color: #fff;
     letter-spacing: -0.5px;
 }
-.cap-grade.empty { color: #444; }
+.best-grade.empty { color: #444; }
 .profile-section-title {
     font-size: 0.7rem;
     font-weight: 800;
@@ -1122,7 +1122,7 @@ h1.screen-title {
     <button class="profile-back" id="profile-back">← Back</button>
     <div class="switcher-link hidden" id="profile-switcher">Switch user ▾</div>
     <div class="profile-name" id="profile-name">—</div>
-    <div class="capacity-strip" id="profile-strip"></div>
+    <div class="bests-strip" id="profile-bests"></div>
     
     <div class="profile-section-title">Grade distribution · last 60 days</div>
     <div class="histogram-tabs" id="histogram-tabs"></div>
@@ -1609,7 +1609,7 @@ function openSwitcher() {
         renderFeed();
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
-            renderCapacityStrip(profileClimber);
+            renderBestsStrip(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
@@ -1952,7 +1952,7 @@ async function submitLog() {
         renderFeed();
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
-            renderCapacityStrip(profileClimber);
+            renderBestsStrip(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
@@ -2349,7 +2349,7 @@ async function performDelete(log) {
     renderFeed();
     if (State.activeView === 'boards') applyBoardMode();
     if (State.activeView === 'profile' && profileClimber) {
-        renderCapacityStrip(profileClimber);
+        renderBestsStrip(profileClimber);
         renderHistogram(profileClimber);
         renderProfileSessions(profileClimber);
     }
@@ -2373,7 +2373,7 @@ async function performDelete(log) {
         renderFeed();
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
-            renderCapacityStrip(profileClimber);
+            renderBestsStrip(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
@@ -2716,7 +2716,7 @@ let profileClimber = null;
 let profileHistoDiscipline = 'In Boulder';
 
 // Returns hardest send grade per discipline for the climber, in last 60 days
-function getCapacityFor(climber) {
+function getBestsFor(climber) {
     const result = {};
     AppConfig.disciplines.forEach(disc => {
         const scale = AppConfig.grades[disc];
@@ -2734,19 +2734,19 @@ function getCapacityFor(climber) {
     return result;
 }
 
-function renderCapacityStrip(climber) {
-    const cap = getCapacityFor(climber);
-    document.getElementById('profile-strip').innerHTML = AppConfig.disciplines.map(d => {
-        const grade = cap[d];
+function renderBestsStrip(climber) {
+    const bests = getBestsFor(climber);
+    document.getElementById('profile-bests').innerHTML = AppConfig.disciplines.map(d => {
+        const grade = bests[d];
         const scale = AppConfig.grades[d];
         const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
         const dotIdx = grade ? scale.labels.indexOf(grade) : -1;
         const dot = useDot && dotIdx >= 0
             ? `<span class="grade-dot" style="background:${scale.colors[dotIdx]}"></span>`
             : '';
-        return `<div class="cap-cell">
-            <div class="cap-disc" data-disc="${d}">${d}</div>
-            <div class="cap-grade ${grade ? '' : 'empty'}">${dot}${escapeHTML(grade || '—')}</div>
+        return `<div class="best-cell">
+            <div class="best-disc" data-disc="${d}">${d}</div>
+            <div class="best-grade ${grade ? '' : 'empty'}">${dot}${escapeHTML(grade || '—')}</div>
         </div>`;
     }).join('');
 }
@@ -2850,7 +2850,7 @@ function showProfile(climber) {
     if (counts[0].n > 0) profileHistoDiscipline = counts[0].d;
     
     document.getElementById('profile-name').textContent = climber.toUpperCase();
-    renderCapacityStrip(climber);
+    renderBestsStrip(climber);
     renderHistogram(climber);
     renderProfileSessions(climber);
     
@@ -3110,7 +3110,7 @@ async function refreshData(silent = false) {
         // Re-render whatever view is currently active
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
-            renderCapacityStrip(profileClimber);
+            renderBestsStrip(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
