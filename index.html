@@ -2206,6 +2206,8 @@ function exitEditMode() {
     document.getElementById('edit-mode-banner').classList.add('hidden');
     document.getElementById('submit-log').textContent = 'Log it';
 }
+
+function renderSessionCard(session, idx) {
     const sendCount = session.sends.length;
     const maxGrade  = maxGradeOfSession(session);
     const summaryText = sendCount === 1
