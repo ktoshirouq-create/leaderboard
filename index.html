@@ -497,6 +497,67 @@ h1.screen-title {
 }
 .histo-count.zero { color: #444; }
 
+/* Logbook style — minimal flat rows for own profile */
+.logbook-day {
+    margin-bottom: 16px;
+}
+.logbook-date {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 6px;
+    padding-left: 4px;
+}
+.logbook-row {
+    display: grid;
+    grid-template-columns: 70px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--card-bg);
+    border-radius: 8px;
+    margin-bottom: 4px;
+    border-left: 3px solid var(--disc-color, #555);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: 0.15s;
+}
+.logbook-row:active { background: #1a1a1a; transform: scale(0.99); }
+.logbook-row[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
+.logbook-row[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
+.logbook-row[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
+.logbook-row[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
+.logbook-row.pressing { background: rgba(16,185,129,0.06); }
+.lb-grade-cell {
+    color: #fff;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.lb-where-cell {
+    color: #a3a3a3;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lb-tag-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.lb-disc-abbr {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 /* Boards-mode tab pills — flex-grow so all 4 fit, wrap when needed */
 .board-tabs {
     display: flex;
@@ -1303,6 +1364,46 @@ document.querySelector('.nav-btn[data-view="profile"]').addEventListener('click'
         showProfile(State.activeUser);
     }
 }, true); // capture phase so it fires before the generic showView listener
+
+// Long-press the Me nav button → open user switcher (faster than going to profile first)
+(function () {
+    const meBtn = document.getElementById('nav-me-btn');
+    if (!meBtn) return;
+    let timer = null;
+    let suppressClick = false;
+    const start = (e) => {
+        timer = setTimeout(() => {
+            haptic('commit');
+            suppressClick = true;
+            // Open the same switcher modal the profile uses (no + Add option)
+            const names = State.roster.map(r => r.Name).filter(Boolean);
+            renderPillList('switcher-pills', names, (name) => {
+                setActiveUser(name);
+                closeModal('switcher-modal');
+                renderFeed();
+                if (State.activeView === 'profile') showProfile(name);
+                if (State.activeView === 'boards') applyBoardMode();
+            }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false });
+            openModal('switcher-modal');
+        }, LONG_PRESS_MS);
+    };
+    const cancel = () => clearTimeout(timer);
+    meBtn.addEventListener('touchstart', start, { passive: true });
+    meBtn.addEventListener('touchmove', cancel, { passive: true });
+    meBtn.addEventListener('touchend', cancel);
+    meBtn.addEventListener('touchcancel', cancel);
+    meBtn.addEventListener('mousedown', start);
+    meBtn.addEventListener('mouseup', cancel);
+    meBtn.addEventListener('mouseleave', cancel);
+    // Suppress the click that follows a long-press so we don't navigate to profile
+    meBtn.addEventListener('click', (e) => {
+        if (suppressClick) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            suppressClick = false;
+        }
+    }, true);
+})();
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2892,27 +2993,64 @@ function renderHistogram(climber) {
 }
 
 function renderProfileSessions(climber) {
-    const climberLogs = State.logs.filter(log =>
-        log.ClimberName === climber && isWithinWindow(log.Date, 30)
-    );
+    const climberLogs = State.logs
+        .filter(log => log.ClimberName === climber && isWithinWindow(log.Date, 30))
+        .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
     const container = document.getElementById('profile-sessions');
     if (climberLogs.length === 0) {
         container.innerHTML = '<div class="empty-msg">No sessions in last 30 days.</div>';
         return;
     }
-    const sessions = groupIntoSessions(climberLogs);
-    container.innerHTML = sessions.map((s, i) => renderSessionCard(s, i)).join('');
-    container.querySelectorAll('.session-card').forEach((card, cardIdx) => {
-        card.addEventListener('click', () => {
-            haptic('tap');
-            card.classList.toggle('expanded');
-        });
-        const session = sessions[cardIdx];
-        const sortedSends = sortSendsByScore(session.sends, session.discipline);
-        card.querySelectorAll('.send-row').forEach((rowEl, sendIdx) => {
-            const log = sortedSends[sendIdx];
-            attachLongPressToSendRow(rowEl, log);
-        });
+    
+    // Group by date for date headers, but render each climb as a flat row
+    const byDate = new Map();
+    climberLogs.forEach(log => {
+        const d = getCleanDate(log.Date);
+        if (!byDate.has(d)) byDate.set(d, []);
+        byDate.get(d).push(log);
+    });
+    
+    const html = Array.from(byDate.entries())
+        .sort((a, b) => new Date(b[0]) - new Date(a[0]))
+        .map(([date, logs]) => {
+            const dateStr = formatShortDate(date);
+            const rowsHtml = logs.map(log => {
+                const styleNorm = String(log.Style || '').toLowerCase();
+                const isSpecial = (styleNorm === 'flash' || styleNorm === 'onsight');
+                const tag = isSpecial
+                    ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(log.Style)}</span>`
+                    : '';
+                const scale = AppConfig.grades[log.Discipline];
+                const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
+                const dotIdx = useDot ? scale.labels.indexOf(getBaseGrade(log.Grade)) : -1;
+                const dot = dotIdx >= 0
+                    ? `<span class="grade-dot" style="background:${scale.colors[dotIdx]}"></span>`
+                    : '';
+                const discAbbr = {
+                    'In Boulder':  'Bldr',
+                    'In Rope':     'Rope',
+                    'Out Rope':    'Rope·O',
+                    'Out Boulder': 'Bldr·O'
+                }[log.Discipline] || log.Discipline;
+                return `<div class="logbook-row" data-log-id="${escapeHTML(log.LogId || '')}" data-disc="${escapeHTML(log.Discipline)}">
+                    <div class="lb-grade-cell">${dot}${escapeHTML(log.Grade)}</div>
+                    <div class="lb-where-cell">${escapeHTML(log.Where)}</div>
+                    <div class="lb-tag-cell">${tag}<span class="lb-disc-abbr">${escapeHTML(discAbbr)}</span></div>
+                </div>`;
+            }).join('');
+            return `<div class="logbook-day">
+                <div class="logbook-date">${escapeHTML(dateStr)}</div>
+                ${rowsHtml}
+            </div>`;
+        }).join('');
+    
+    container.innerHTML = html;
+    
+    // Long-press for own logs (edit/delete)
+    container.querySelectorAll('.logbook-row').forEach(rowEl => {
+        const logId = rowEl.dataset.logId;
+        const log = climberLogs.find(l => l.LogId === logId);
+        if (log) attachLongPressToSendRow(rowEl, log);
     });
 }
 
