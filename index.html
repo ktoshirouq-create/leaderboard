@@ -1579,6 +1579,14 @@ function openSwitcher() {
     renderPillList('switcher-pills', names, (name) => {
         setActiveUser(name);
         closeModal('switcher-modal');
+        // Re-render so long-press handlers attach to the new active user's logs
+        renderFeed();
+        if (State.activeView === 'boards') applyBoardMode();
+        if (State.activeView === 'profile' && profileClimber) {
+            renderCapacityStrip(profileClimber);
+            renderHistogram(profileClimber);
+            renderProfileSessions(profileClimber);
+        }
     }, 'add-name-row', 'add-name-input', 'add-name-save');
     openModal('switcher-modal');
 }
@@ -2155,7 +2163,10 @@ async function performDelete(log) {
             renderProfileSessions(profileClimber);
         }
         haptic('error');
-        showToast('Could not delete');
+        const msg = String(err.message || '').toLowerCase().includes('not your')
+            ? "Can't delete someone else's climb"
+            : 'Could not delete';
+        showToast(msg);
     }
 }
 
