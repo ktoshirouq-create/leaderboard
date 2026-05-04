@@ -1167,7 +1167,7 @@ h1.screen-title {
     <button class="pill" data-date="yesterday">Yesterday</button>
     <button class="pill" data-date="custom">Custom</button>
 </div>
-<input type="date" class="date-input hidden" id="logger-date-custom">
+<input type="date" class="date-input hidden" id="logger-date-custom" max="2099-12-31">
 
         <button class="btn-main" id="submit-log">Log it</button>
     </div>
@@ -1569,7 +1569,12 @@ function renderPillList(containerId, names, onPick, addRowId, addInputId, addSav
     container.querySelector('[data-add]').addEventListener('click', () => {
         haptic('tap');
         addRow.classList.remove('hidden');
-        inp.focus();
+        // Android quirk: programmatic .focus() doesn't always raise the keyboard.
+        // Longer timeout + .click() as fallback works on more devices.
+        setTimeout(() => {
+            inp.focus();
+            inp.click();
+        }, 100);
     });
     inp.value = '';
     addRow.classList.add('hidden');
@@ -1713,7 +1718,10 @@ function renderWherePills() {
         const row = document.getElementById('where-add-row');
         const inp = document.getElementById('where-add-input');
         row.classList.remove('hidden');
-        inp.focus();
+        setTimeout(() => {
+            inp.focus();
+            inp.click();
+        }, 100);
     });
 }
 
@@ -1919,9 +1927,12 @@ document.getElementById('style-info').addEventListener('click', (e) => {
 
 /* ----- Submit ----- */
 function getSelectedDateISO() {
+    const today = getCleanDate(new Date());
     if (LoggerState.date === 'custom') {
         const v = document.getElementById('logger-date-custom').value;
-        return v || getCleanDate(new Date());
+        if (!v) return today;
+        // Hard cap: never allow future dates regardless of what the picker accepted
+        return v > today ? today : v;
     }
     const d = new Date();
     if (LoggerState.date === 'yesterday') d.setDate(d.getDate() - 1);
@@ -1996,6 +2007,8 @@ async function submitLog() {
     }
     
     // CREATE MODE — original flow
+    const submittedDate = getSelectedDateISO();
+    localStorage.setItem('leaderboard.lastLogDate', submittedDate);
     const payload = {
         action: 'logSend',
         climber:    State.activeUser,
@@ -2003,7 +2016,7 @@ async function submitLog() {
         where:      LoggerState.where,
         grade:      LoggerState.grade,
         style:      LoggerState.style,
-        date:       getSelectedDateISO()
+        date:       submittedDate
     };
 
     const optimisticRow = {
@@ -2054,10 +2067,34 @@ function openLogger() {
     renderWherePills();
     renderGradePills();
     renderStylePills();
-    // Reset date pills to default Today
+    
+    // Date pill: read sticky last-used. If "today" or "yesterday", keep that pill.
+    // If it was a custom date that has since become stale (no longer today/yesterday), 
+    // promote to Custom pill with the date pre-filled.
+    const stickyDate = localStorage.getItem('leaderboard.lastLogDate'); // ISO string of last submitted date
+    const today = getCleanDate(new Date());
+    const yest = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return getCleanDate(d); })();
+    
     document.querySelectorAll('#logger-date .pill').forEach(x => x.classList.remove('active'));
-    document.querySelector('#logger-date [data-date="today"]').classList.add('active');
-    LoggerState.date = 'today';
+    const customInput = document.getElementById('logger-date-custom');
+    customInput.max = today;  // re-set max each open in case day changed
+    
+    if (!stickyDate || stickyDate === today) {
+        document.querySelector('#logger-date [data-date="today"]').classList.add('active');
+        LoggerState.date = 'today';
+        customInput.classList.add('hidden');
+    } else if (stickyDate === yest) {
+        document.querySelector('#logger-date [data-date="yesterday"]').classList.add('active');
+        LoggerState.date = 'yesterday';
+        customInput.classList.add('hidden');
+    } else {
+        // Stale custom date — keep it but show as Custom
+        document.querySelector('#logger-date [data-date="custom"]').classList.add('active');
+        LoggerState.date = 'custom';
+        customInput.value = stickyDate;
+        customInput.classList.remove('hidden');
+    }
+    
     openModal('logger-modal');
 }
 
