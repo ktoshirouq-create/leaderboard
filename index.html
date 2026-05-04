@@ -79,36 +79,35 @@ h1.screen-title {
 
 /* ===== SESSION CARDS ===== */
 .session-card {
-    background: #0e0d14;
+    /* Discipline color is set as --disc-color via data-disc attr below.
+       Card background uses a tinted radial gradient that fades the discipline
+       hue from the left border outward, creating the "warm card" feeling. */
+    position: relative;
+    background:
+        radial-gradient(circle at 0% 0%, var(--disc-tint, transparent) 0%, transparent 60%),
+        linear-gradient(145deg, #161422, #0d0c14);
     border-radius: var(--radius);
-    margin-bottom: 18px;
+    margin-bottom: 16px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     overflow: hidden;
     border-left: 4px solid var(--disc-color, #555);
-    border-top: 1px solid rgba(255,255,255,0.05);
+    border-top: 1px solid rgba(255,255,255,0.04);
     transition: 0.2s;
     cursor: pointer;
 }
-.session-header {
-    background: linear-gradient(145deg, #1d1a26, #14121c);
-}
-.session-card .s-summary {
-    background: rgba(0,0,0,0.45);
-}
-.session-card .expand-btn {
-    background: linear-gradient(145deg, #16141d, #0c0b12);
-}
 .session-card:active { transform: scale(0.99); }
-.session-card[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
-.session-card[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
-.session-card[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
-.session-card[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
+
+/* Per-discipline solid + tint colors. Tint is the same hue at 8% opacity. */
+.session-card[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder);  --disc-tint: rgba(245,158,11,0.10); }
+.session-card[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope);     --disc-tint: rgba(6,182,212,0.10); }
+.session-card[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope);    --disc-tint: rgba(16,185,129,0.10); }
+.session-card[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); --disc-tint: rgba(168,85,247,0.10); }
 
 .session-card.syncing { opacity: 0.7; }
 .session-card.failed  { opacity: 0.5; border-left-color: var(--danger); }
 
 .session-header {
-    padding: 18px 20px 14px 20px;
+    padding: 20px 20px 14px 20px;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -121,63 +120,69 @@ h1.screen-title {
     min-width: 0;
 }
 .s-name {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     font-weight: 800;
     color: #fff;
-    letter-spacing: -0.5px;
-    line-height: 1.1;
+    letter-spacing: -0.6px;
+    line-height: 1.05;
 }
 .s-time {
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     color: #a3a3a3;
     font-weight: 600;
+    margin-top: 2px;
 }
 .s-where {
     font-size: 0.78rem;
-    color: #a3a3a3;
+    color: #d4d4d4;
     font-weight: 700;
-    background: rgba(0,0,0,0.35);
+    background: rgba(0,0,0,0.4);
     padding: 8px 14px;
     border-radius: 18px;
-    border: 1px solid rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.05);
     white-space: nowrap;
     flex-shrink: 0;
 }
 
+/* Stat strip — centered, larger, breathing room. Grade highlighted in disc color. */
 .s-summary {
-    padding: 14px 20px;
+    padding: 16px 20px;
     display: flex;
-    gap: 12px;
+    gap: 14px;
     align-items: center;
     justify-content: center;
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-weight: 700;
-    color: #a3a3a3;
-    border-top: 1px solid rgba(255,255,255,0.04);
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: #d4d4d4;
 }
-.s-summary .max-grade { color: #fff; font-weight: 800; }
-.s-summary .dot { color: #555; }
+.s-summary .max-grade {
+    color: var(--disc-color);
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}
+.s-summary .dot { color: #444; font-weight: 400; }
 
+/* Expand footer: full-width feel, subtle separator from stat strip */
 .expand-btn {
     width: 100%;
-    background: transparent;
+    background: rgba(0,0,0,0.25);
     color: var(--text-muted);
     border: none;
-    padding: 16px;
-    font-size: 0.75rem;
+    padding: 14px;
+    font-size: 0.72rem;
     font-weight: 800;
     text-transform: uppercase;
     cursor: pointer;
-    letter-spacing: 1.2px;
+    letter-spacing: 1.4px;
     transition: 0.15s;
     font-family: inherit;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    border-top: 1px solid rgba(255,255,255,0.04);
 }
-.expand-btn:active { color: #fff; background: rgba(255,255,255,0.03); }
+.expand-btn:active { color: #fff; background: rgba(0,0,0,0.4); }
 
 .session-children {
     display: none;
