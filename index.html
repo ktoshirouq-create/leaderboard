@@ -2715,17 +2715,21 @@ const PROFILE_HISTO_WINDOW_DAYS = 60;
 let profileClimber = null;
 let profileHistoDiscipline = 'In Boulder';
 
+// Returns hardest send grade per discipline for the climber, in last 60 days
 function getCapacityFor(climber) {
     const result = {};
     AppConfig.disciplines.forEach(disc => {
-        const { qualified } = computeCapacity(disc);
-        const found = qualified.find(r => r.climber === climber);
-        if (found) {
-            const prog = gradeProgress(found.avgScore, disc);
-            result[disc] = prog.current;
-        } else {
-            result[disc] = null;
-        }
+        const scale = AppConfig.grades[disc];
+        if (!scale) { result[disc] = null; return; }
+        let bestScoreIdx = -1;
+        State.logs.forEach(log => {
+            if (log.ClimberName !== climber) return;
+            if (log.Discipline !== disc) return;
+            if (!isWithinWindow(log.Date, 60)) return;
+            const idx = scale.labels.indexOf(getBaseGrade(log.Grade));
+            if (idx > bestScoreIdx) bestScoreIdx = idx;
+        });
+        result[disc] = bestScoreIdx >= 0 ? scale.labels[bestScoreIdx] : null;
     });
     return result;
 }
