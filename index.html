@@ -2304,6 +2304,9 @@ function openActionSheet(log) {
     const summary = document.getElementById('action-sheet-summary');
     summary.innerHTML = `<span class="grade">${escapeHTML(log.Grade)}</span>
                          <span>· ${escapeHTML(log.Style)} · ${escapeHTML(log.Where)}</span>`;
+    // Always set climb labels on open — guards against location flow having renamed them
+    document.getElementById('action-edit').textContent = 'Edit climb';
+    document.getElementById('action-delete').textContent = 'Delete climb';
     document.getElementById('action-edit').onclick = () => {
         haptic('tap');
         closeModal('action-sheet-modal');
