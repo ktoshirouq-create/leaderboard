@@ -1137,7 +1137,7 @@ h1.screen-title {
 <div class="bottom-nav">
     <button class="nav-btn active" data-view="feed">Feed</button>
     <button class="nav-btn" data-view="boards">Boards</button>
-    <button class="nav-btn" data-view="profile">Me</button>
+    <button class="nav-btn" data-view="profile" id="nav-me-btn">Me</button>
 </div>
 
 <button class="fab" id="fab">+</button>
@@ -1463,6 +1463,12 @@ document.getElementById('switcher-close').addEventListener('click', () => closeM
 document.getElementById('switcher-modal').addEventListener('click', e => {
     if (e.target.id === 'switcher-modal') closeModal('switcher-modal');
 });
+document.getElementById('action-sheet-modal').addEventListener('click', e => {
+    if (e.target.id === 'action-sheet-modal') closeModal('action-sheet-modal');
+});
+document.getElementById('confirm-modal').addEventListener('click', e => {
+    if (e.target.id === 'confirm-modal') closeModal('confirm-modal');
+});
 
 /* ============== IDENTITY ============== */
 function setActiveUser(name) {
@@ -1470,6 +1476,21 @@ function setActiveUser(name) {
     localStorage.setItem('leaderboard.user', name);
     const label = document.getElementById('active-user-label');
     if (label) label.textContent = name;
+    updateNavLabel();
+}
+
+function updateNavLabel() {
+    const navBtn = document.getElementById('nav-me-btn');
+    if (!navBtn) return;
+    if (State.activeUser) {
+        // Show first name only if it's long. Cap at 8 chars to fit nav width.
+        const display = State.activeUser.length > 8
+            ? State.activeUser.slice(0, 7) + '…'
+            : State.activeUser;
+        navBtn.textContent = display;
+    } else {
+        navBtn.textContent = 'Me';
+    }
 }
 
 // Trim + capitalize first letter only if user typed all lowercase.
@@ -2657,6 +2678,9 @@ document.getElementById('profile-switcher').addEventListener('click', () => {
         setActiveUser(name);
         closeModal('switcher-modal');
         showProfile(name);
+        // Re-render feed so long-press handlers reflect the new user
+        renderFeed();
+        updateNavLabel();
     }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false });
     openModal('switcher-modal');
 });
@@ -2963,6 +2987,9 @@ document.addEventListener('visibilitychange', () => {
     if (Date.now() - lastRefreshAt < AUTO_REFRESH_MIN_INTERVAL_MS) return;
     refreshData(true);  // silent — don't show indicator on auto-refresh
 });
+
+// Set initial nav label from stored user (if any)
+updateNavLabel();
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
