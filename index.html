@@ -409,7 +409,19 @@ h1.screen-title {
     border-radius: var(--radius);
     border: 1px solid rgba(255,255,255,0.03);
 }
-.best-cell { text-align: center; }
+.best-cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    text-align: center;
+    min-height: 4.2em;
+}
+.best-disc {
+    min-height: 2.4em;  /* reserves space for 1-2 line labels */
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
 .best-disc {
     font-size: 0.6rem;
     font-weight: 800;
@@ -3074,18 +3086,30 @@ function renderProfileSessions(climber) {
 
 function showProfile(climber) {
     profileClimber = climber;
-    // Default histogram tab to whatever discipline they have most sends in
-    const counts = AppConfig.disciplines.map(d => ({
-        d,
-        n: State.logs.filter(l => l.ClimberName === climber && l.Discipline === d).length
-    }));
-    counts.sort((a, b) => b.n - a.n);
-    if (counts[0].n > 0) profileHistoDiscipline = counts[0].d;
+    showView('profile');
+    
+    if (!climber) {
+        document.getElementById('profile-name').textContent = '—';
+        document.getElementById('profile-bests').innerHTML = '';
+        document.getElementById('profile-histo-tabs').innerHTML = '';
+        document.getElementById('profile-histo').innerHTML = '';
+        document.getElementById('profile-sessions').innerHTML = `
+            <div class="empty-msg" style="padding: 32px 16px; line-height: 1.5;">
+                Pick your name first to see your profile.<br>
+                <button class="btn-main" style="margin-top: 16px; max-width: 200px;" id="profile-pick-name">Pick name</button>
+            </div>`;
+        document.getElementById('profile-pick-name')?.addEventListener('click', () => {
+            haptic('tap');
+            openIdentityPrompt();
+        });
+        return;
+    }
     
     document.getElementById('profile-name').textContent = climber.toUpperCase();
     renderBestsStrip(climber);
     renderHistogram(climber);
     renderProfileSessions(climber);
+}
     
     // Show "Switch user ▾" link only when viewing own profile.
     // Show back button only when viewing someone else's profile.
