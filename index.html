@@ -1043,6 +1043,12 @@ h1.screen-title {
     font-style: italic;
     line-height: 1.4;
 }
+.grade-conv-note .disclaimer {
+    display: block;
+    font-size: 0.68rem;
+    opacity: 0.7;
+    margin-top: 2px;
+}
 .grade-conv-table {
     background: var(--input-bg);
     border-radius: 12px;
@@ -2248,7 +2254,7 @@ function openGradeConversionModal() {
     }).join('');
     
     const tableHtml = `
-        <div class="grade-conv-note">Tap a French grade to select it. Approximate — charts vary.</div>
+        <div class="grade-conv-note">Tap a French grade to select it<span class="disclaimer">Approximate — charts vary</span></div>
         <div class="grade-conv-table">
             <div class="grade-conv-headers">
                 <div>Norway</div>
