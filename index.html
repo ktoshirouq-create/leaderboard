@@ -158,7 +158,7 @@ h1.screen-title {
 .s-summary {
     padding: 18px 20px 20px 20px;
     display: flex;
-    gap: 14px;
+    gap: 8px;
     align-items: baseline;
     justify-content: center;
     font-size: 1rem;
@@ -166,10 +166,18 @@ h1.screen-title {
     color: #a3a3a3;
 }
 .s-summary .max-grade {
-    color: #fff;
+    /* "max" prefix stays muted in the line; the grade itself gets discipline color */
+    color: #a3a3a3;
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0;
+}
+.s-summary .max-grade .grade-value {
+    color: var(--disc-color);
     font-weight: 800;
-    letter-spacing: -0.6px;
     font-size: 1.6rem;
+    letter-spacing: -0.6px;
+    margin-left: 6px;
 }
 .s-summary .dot { color: #333; font-weight: 400; }
 
@@ -204,16 +212,27 @@ h1.screen-title {
 .session-card.expanded .expand-arrow { transform: rotate(180deg); }
 .expand-arrow { display: inline-block; transition: transform 0.2s; }
 
+.send-row-group {
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    padding: 6px 0;
+}
+.send-row-group:last-child { border-bottom: none; }
 .send-row {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 12px;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
+    padding: 6px 0;
     font-size: 0.88rem;
 }
-.send-row:last-child { border-bottom: none; }
+.send-route-name {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.2px;
+    margin-bottom: 2px;
+    line-height: 1.2;
+}
 .send-meta {
     color: #a3a3a3;
     font-weight: 600;
@@ -2649,10 +2668,11 @@ function exitEditMode() {
 function renderSessionCard(session, idx) {
     const sendCount = session.sends.length;
     const maxGrade  = maxGradeOfSession(session);
-    const summaryText = sendCount === 1
-        ? `1 send · ${escapeHTML(maxGrade)}`
-        : `${sendCount} sends · max ${escapeHTML(maxGrade)}`;
-    const summaryParts = summaryText.split(' · ');
+    // Build summary parts. For multi-send sessions, split "max" from the grade
+    // so we can style them independently (max = muted prefix, grade = big colored).
+    const summaryParts = sendCount === 1
+        ? ['1 send', `<span class="grade-value">${escapeHTML(maxGrade)}</span>`]
+        : [`${sendCount} sends`, `max <span class="grade-value">${escapeHTML(maxGrade)}</span>`];
     const relTime  = formatRelativeTime(session.timestamp);
     const dateText = formatShortDate(session.date);
     // For "Just now" / "Xh ago" / "Yesterday" etc., prepend the date.
@@ -2677,10 +2697,15 @@ function renderSessionCard(session, idx) {
                     : '';
             })()
             : '';
-        return `<div class="send-row">
+        // Route name appears as a header-style line above the style + grade.
+        // Only renders if a route name is present (won't apply to indoor sends or future sends without one)
+        const routeRow = s.RouteName
+            ? `<div class="send-route-name">${escapeHTML(s.RouteName)}</div>`
+            : '';
+        return `<div class="send-row-group">${routeRow}<div class="send-row">
             <div class="send-meta">${tag}</div>
             <div class="send-grade">${dot}${escapeHTML(s.Grade)}</div>
-        </div>`;
+        </div></div>`;
     }).join('');
 
     const stateClass = session._failed ? 'failed' : (session._optimistic ? 'syncing' : '');
@@ -2697,7 +2722,7 @@ function renderSessionCard(session, idx) {
         <div class="s-summary">
             <span>${escapeHTML(summaryParts[0])}</span>
             <span class="dot">·</span>
-            <span class="max-grade">${escapeHTML(summaryParts[1] || '')}</span>
+            <span class="max-grade">${summaryParts[1] || ''}</span>
         </div>
         <button class="expand-btn"><span class="expand-arrow">▾</span> View ${sendCount} climb${sendCount > 1 ? 's' : ''}</button>
         <div class="session-children">${sendsHtml}</div>
