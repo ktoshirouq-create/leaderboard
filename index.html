@@ -2203,6 +2203,38 @@ const GRADE_CONVERSIONS = [
     { french: '7c',   norway: '8+' }
 ];
 
+function openGradeConversionModal() {
+    const currentGrade = LoggerState.grade;
+    const tableHtml = `
+        <div class="grade-conv-note">Approximate. Charts vary by ±half a grade.</div>
+        <div class="grade-conv-table">
+            <div class="grade-conv-headers">
+                <div>French</div>
+                <div>Norway</div>
+            </div>
+            ${GRADE_CONVERSIONS.map(c => `
+                <div class="grade-conv-row ${c.french === currentGrade ? 'active' : ''}">
+                    <div class="grade-conv-french">${c.french}</div>
+                    <div class="grade-conv-norway">${c.norway}</div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    document.getElementById('info-title').textContent = 'Grade conversion';
+    document.getElementById('info-body').innerHTML = tableHtml;
+    openModal('info-modal');
+    setTimeout(() => {
+        const active = document.querySelector('.grade-conv-row.active');
+        if (active) active.scrollIntoView({ behavior: 'instant', block: 'center' });
+    }, 50);
+}
+
+document.getElementById('grade-info').addEventListener('click', (e) => {
+    e.stopPropagation();
+    haptic('tap');
+    openGradeConversionModal();
+});
+
 /* ----- Submit ----- */
 function getSelectedDateISO() {
     const today = getCleanDate(new Date());
