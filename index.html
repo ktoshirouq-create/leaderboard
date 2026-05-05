@@ -212,27 +212,16 @@ h1.screen-title {
 .session-card.expanded .expand-arrow { transform: rotate(180deg); }
 .expand-arrow { display: inline-block; transition: transform 0.2s; }
 
-.send-row-group {
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-    padding: 6px 0;
-}
-.send-row-group:last-child { border-bottom: none; }
 .send-row {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 12px;
     align-items: center;
-    padding: 6px 0;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
     font-size: 0.88rem;
 }
-.send-route-name {
-    font-size: 0.92rem;
-    font-weight: 800;
-    color: #fff;
-    letter-spacing: -0.2px;
-    margin-bottom: 2px;
-    line-height: 1.2;
-}
+.send-row:last-child { border-bottom: none; }
 .send-meta {
     color: #a3a3a3;
     font-weight: 600;
@@ -600,6 +589,50 @@ h1.screen-title {
 }
 .pt-style.flash   { color: #fbbf24; }
 .pt-style.onsight { color: #c084fc; }
+
+.send-route-inline {
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.95rem;
+    margin-right: 10px;
+    letter-spacing: -0.1px;
+}
+.pt-expand {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+    display: inline-block;
+}
+.profile-table-row.expanded .pt-expand {
+    transform: rotate(180deg);
+}
+.profile-table-detail {
+    display: none;
+    grid-template-columns: 60px 1fr;
+    gap: 10px;
+    padding: 8px 14px 10px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-left: 3px solid var(--disc-color, #555);
+    font-size: 0.8rem;
+    background: rgba(255,255,255,0.02);
+}
+.profile-table-detail.expanded { display: grid; }
+.profile-table-detail[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
+.profile-table-detail[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
+.profile-table-detail[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
+.profile-table-detail[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
+.pt-detail-label {
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    align-self: center;
+}
+.pt-detail-value {
+    color: #fff;
+    font-weight: 700;
+}
 
 /* Boards-mode tab pills — flex-grow so all 4 fit, wrap when needed */
 .board-tabs {
@@ -1262,6 +1295,9 @@ h1.screen-title {
             <button class="add-name-save" id="where-add-save">Save</button>
         </div>
 
+        <div class="field-label hidden" id="route-name-label">Route name <span style="color: var(--text-muted); font-weight: 600; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
+        <input type="text" class="add-name-input hidden" id="logger-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom: 0; width: 100%;">
+
         <div class="field-label">Grade</div>
         <div class="pill-row scroll" id="logger-grade"></div>
 
@@ -1806,6 +1842,13 @@ const LoggerState = {
 
 function isOutdoor(disc) { return disc === 'Out Rope' || disc === 'Out Boulder'; }
 
+function updateRouteNameVisibility() {
+    const isOut = isOutdoor(LoggerState.discipline);
+    document.getElementById('route-name-label').classList.toggle('hidden', !isOut);
+    document.getElementById('logger-route-name').classList.toggle('hidden', !isOut);
+    if (!isOut) document.getElementById('logger-route-name').value = '';
+}
+
 function getLocationsForDiscipline(disc) {
     const wantType = isOutdoor(disc) ? 'crag' : 'gym';
     return State.locations
@@ -1837,6 +1880,7 @@ function renderDisciplinePills() {
             renderWherePills();
             renderGradePills();
             renderStylePills();
+            updateRouteNameVisibility();
         });
     });
 }
@@ -2110,6 +2154,7 @@ async function submitLog() {
         }
         // Snapshot original values for restore on failure
         const original = { ...State.logs[idx] };
+        const editRouteName = document.getElementById('logger-route-name').value.trim();
         // Optimistic update
         State.logs[idx] = {
             ...original,
@@ -2117,7 +2162,8 @@ async function submitLog() {
             Where:      LoggerState.where,
             Grade:      LoggerState.grade,
             Style:      LoggerState.style,
-            Date:       newDate
+            Date:       newDate,
+            RouteName:  editRouteName
         };
         closeModal('logger-modal');
         exitEditMode();
@@ -2141,7 +2187,8 @@ async function submitLog() {
                     where:      LoggerState.where,
                     grade:      LoggerState.grade,
                     style:      LoggerState.style,
-                    date:       newDate
+                    date:       newDate,
+                    routeName:  editRouteName
                 })
             });
             const json = await res.json();
@@ -2159,6 +2206,7 @@ async function submitLog() {
     // CREATE MODE — original flow
     const submittedDate = getSelectedDateISO();
     localStorage.setItem('leaderboard.lastLogDate', submittedDate);
+    const routeName = document.getElementById('logger-route-name').value.trim();
     const payload = {
         action: 'logSend',
         climber:    State.activeUser,
@@ -2166,7 +2214,8 @@ async function submitLog() {
         where:      LoggerState.where,
         grade:      LoggerState.grade,
         style:      LoggerState.style,
-        date:       submittedDate
+        date:       submittedDate,
+        routeName:  routeName
     };
 
     const optimisticRow = {
@@ -2178,6 +2227,7 @@ async function submitLog() {
         Grade:        payload.grade,
         Style:        payload.style,
         Date:         payload.date,
+        RouteName:    payload.routeName,
         _optimistic:  true
     };
     State.logs.unshift(optimisticRow);
@@ -2244,6 +2294,9 @@ function openLogger() {
         customInput.value = stickyDate;
         customInput.classList.remove('hidden');
     }
+    
+    document.getElementById('logger-route-name').value = '';
+    updateRouteNameVisibility();
     
     openModal('logger-modal');
 }
@@ -2655,6 +2708,8 @@ function openLoggerInEditMode(log) {
     renderWherePills();
     renderGradePills();
     renderStylePills();
+    document.getElementById('logger-route-name').value = log.RouteName || '';
+    updateRouteNameVisibility();
     openModal('logger-modal');
 }
 
@@ -2697,15 +2752,16 @@ function renderSessionCard(session, idx) {
                     : '';
             })()
             : '';
-        // Route name appears as a header-style line above the style + grade.
-        // Only renders if a route name is present (won't apply to indoor sends or future sends without one)
-        const routeRow = s.RouteName
+                const routeRow = s.RouteName
             ? `<div class="send-route-name">${escapeHTML(s.RouteName)}</div>`
             : '';
-        return `<div class="send-row-group">${routeRow}<div class="send-row">
-            <div class="send-meta">${tag}</div>
+        const routeNamePart = s.RouteName
+            ? `<span class="send-route-inline">${escapeHTML(s.RouteName)}</span>`
+            : '';
+        return `<div class="send-row">
+            <div class="send-meta">${routeNamePart}${tag}</div>
             <div class="send-grade">${dot}${escapeHTML(s.Grade)}</div>
-        </div></div>`;
+        </div>`;
     }).join('');
 
     const stateClass = session._failed ? 'failed' : (session._optimistic ? 'syncing' : '');
@@ -3112,12 +3168,20 @@ function renderProfileSessions(climber) {
         const dot = dotColor
             ? `<span class="grade-dot" style="background:${dotColor}"></span>`
             : '';
-        return `<div class="profile-table-row" data-log-id="${escapeHTML(log.LogId || '')}" data-disc="${escapeHTML(log.Discipline)}">
+        const hasDetail = !!log.RouteName;
+        const expandIcon = hasDetail ? ' <span class="pt-expand">▾</span>' : '';
+        const detailRow = hasDetail
+            ? `<div class="profile-table-detail" data-disc="${escapeHTML(log.Discipline)}">
+                 <span class="pt-detail-label">Route</span>
+                 <span class="pt-detail-value">${escapeHTML(log.RouteName)}</span>
+               </div>`
+            : '';
+        return `<div class="profile-table-row ${hasDetail ? 'has-detail' : ''}" data-log-id="${escapeHTML(log.LogId || '')}" data-disc="${escapeHTML(log.Discipline)}">
             <div class="pt-date">${escapeHTML(dateStr)}</div>
-            <div class="pt-route">${dot}${escapeHTML(log.Where)}</div>
+            <div class="pt-route">${dot}${escapeHTML(log.Where)}${expandIcon}</div>
             <div class="pt-grade">${escapeHTML(log.Grade)}</div>
             <div class="pt-style ${styleClass}">${escapeHTML(log.Style)}</div>
-        </div>`;
+        </div>${detailRow}`;
     }).join('');
     
     container.innerHTML = headersHtml + rowsHtml;
@@ -3126,6 +3190,18 @@ function renderProfileSessions(climber) {
         const logId = rowEl.dataset.logId;
         const log = climberLogs.find(l => l.LogId === logId);
         if (log) attachLongPressToSendRow(rowEl, log);
+        
+        // Click toggles detail row (if present)
+        if (rowEl.classList.contains('has-detail')) {
+            rowEl.addEventListener('click', () => {
+                haptic('tap');
+                rowEl.classList.toggle('expanded');
+                const detail = rowEl.nextElementSibling;
+                if (detail && detail.classList.contains('profile-table-detail')) {
+                    detail.classList.toggle('expanded');
+                }
+            });
+        }
     });
 }
 
