@@ -125,12 +125,18 @@ h1.screen-title {
     color: #fff;
     letter-spacing: -0.6px;
     line-height: 1.05;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .s-time {
     font-size: 0.8rem;
     color: #a3a3a3;
     font-weight: 600;
     margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .s-where {
     font-size: 0.78rem;
@@ -141,26 +147,30 @@ h1.screen-title {
     border-radius: 18px;
     border: 1px solid rgba(255,255,255,0.05);
     white-space: nowrap;
-    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 55%;
+    flex-shrink: 1;
 }
 
 /* Stat strip — centered, larger, breathing room. Grade highlighted in disc color. */
 .s-summary {
-    padding: 16px 20px;
+    padding: 18px 20px 20px 20px;
     display: flex;
     gap: 14px;
-    align-items: center;
+    align-items: baseline;
     justify-content: center;
     font-size: 1rem;
     font-weight: 700;
-    color: #d4d4d4;
+    color: #a3a3a3;
 }
 .s-summary .max-grade {
     color: var(--disc-color);
     font-weight: 800;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.6px;
+    font-size: 1.6rem;
 }
-.s-summary .dot { color: #444; font-weight: 400; }
+.s-summary .dot { color: #333; font-weight: 400; }
 
 /* Expand footer: full-width feel, subtle separator from stat strip */
 .expand-btn {
