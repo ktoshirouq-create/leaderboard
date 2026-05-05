@@ -1050,8 +1050,9 @@ h1.screen-title {
 }
 .grade-conv-headers {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 10px 18px;
+    grid-template-columns: 70px 1fr;
+    gap: 12px;
+    padding: 10px 16px;
     font-size: 0.62rem;
     font-weight: 800;
     color: var(--text-muted);
@@ -1062,23 +1063,41 @@ h1.screen-title {
 }
 .grade-conv-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 11px 18px;
-    font-size: 0.95rem;
-    font-weight: 700;
+    grid-template-columns: 70px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 16px;
     border-bottom: 1px solid rgba(255,255,255,0.03);
-    transition: background 0.15s;
 }
 .grade-conv-row:last-child { border-bottom: none; }
-.grade-conv-french { color: #fff; }
-.grade-conv-norway { color: var(--text-muted); }
-.grade-conv-row.active {
-    background: rgba(16,185,129,0.15);
-    border-left: 3px solid var(--primary);
-    padding-left: 15px;
+.grade-conv-norway {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #fff;
 }
-.grade-conv-row.active .grade-conv-french,
-.grade-conv-row.active .grade-conv-norway { color: var(--primary); }
+.grade-conv-french-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.grade-conv-pill {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #d4d4d4;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: 0.15s;
+}
+.grade-conv-pill:active { transform: scale(0.94); }
+.grade-conv-pill.active {
+    background: var(--primary-fade);
+    color: var(--primary);
+    border-color: rgba(16,185,129,0.4);
+}
 
 /* Custom date input */
 .date-input {
@@ -2205,27 +2224,59 @@ const GRADE_CONVERSIONS = [
 
 function openGradeConversionModal() {
     const currentGrade = LoggerState.grade;
+    const currentScale = AppConfig.grades[LoggerState.discipline];
+    
+    // Filter to grades valid in current discipline (so In Rope doesn't show 4-/4/4+ etc)
+    const validFrench = new Set(currentScale ? currentScale.labels : []);
+    const filtered = GRADE_CONVERSIONS.filter(c => validFrench.has(c.french));
+    
+    // Group French grades under each Norway grade, preserving order
+    const byNorway = new Map();
+    filtered.forEach(c => {
+        if (!byNorway.has(c.norway)) byNorway.set(c.norway, []);
+        byNorway.get(c.norway).push(c.french);
+    });
+    
+    const rowsHtml = Array.from(byNorway.entries()).map(([norway, frenchList]) => {
+        const pillsHtml = frenchList.map(f =>
+            `<button class="grade-conv-pill ${f === currentGrade ? 'active' : ''}" data-french="${escapeHTML(f)}">${escapeHTML(f)}</button>`
+        ).join('');
+        return `<div class="grade-conv-row">
+            <div class="grade-conv-norway">${escapeHTML(norway)}</div>
+            <div class="grade-conv-french-list">${pillsHtml}</div>
+        </div>`;
+    }).join('');
+    
     const tableHtml = `
-        <div class="grade-conv-note">Approximate. Charts vary by ±half a grade.</div>
+        <div class="grade-conv-note">Tap a French grade to select it. Approximate — charts vary.</div>
         <div class="grade-conv-table">
             <div class="grade-conv-headers">
-                <div>French</div>
                 <div>Norway</div>
+                <div>French</div>
             </div>
-            ${GRADE_CONVERSIONS.map(c => `
-                <div class="grade-conv-row ${c.french === currentGrade ? 'active' : ''}">
-                    <div class="grade-conv-french">${c.french}</div>
-                    <div class="grade-conv-norway">${c.norway}</div>
-                </div>
-            `).join('')}
+            ${rowsHtml}
         </div>
     `;
     document.getElementById('info-title').textContent = 'Grade conversion';
     document.getElementById('info-body').innerHTML = tableHtml;
     openModal('info-modal');
+    
+    // Wire pill clicks: select that French grade and close modal
+    document.querySelectorAll('.grade-conv-pill').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            const newGrade = el.dataset.french;
+            LoggerState.grade = newGrade;
+            localStorage.setItem(`leaderboard.lastGrade.${LoggerState.discipline}`, newGrade);
+            closeModal('info-modal');
+            renderGradePills();
+        });
+    });
+    
+    // Scroll the row with the currently-active grade into view
     setTimeout(() => {
-        const active = document.querySelector('.grade-conv-row.active');
-        if (active) active.scrollIntoView({ behavior: 'instant', block: 'center' });
+        const active = document.querySelector('.grade-conv-pill.active');
+        if (active) active.closest('.grade-conv-row').scrollIntoView({ behavior: 'instant', block: 'center' });
     }, 50);
 }
 
