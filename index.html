@@ -33,6 +33,7 @@
     --disc-in-rope:     #06b6d4;
     --disc-out-rope:    #10b981;
     --disc-out-boulder: #a855f7;
+    --disc-trad:        #f43f5e;
 }
 
 * { box-sizing: border-box; }
@@ -101,7 +102,8 @@ h1.screen-title {
 .session-card[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder);  --disc-tint: rgba(245,158,11,0.10); }
 .session-card[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope);     --disc-tint: rgba(6,182,212,0.10); }
 .session-card[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope);    --disc-tint: rgba(16,185,129,0.10); }
-.session-card[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); --disc-tint: rgba(168,85,247,0.10); }
+.session-card[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); --disc-tint: rgba(168,85,247,0.10); } 
+.session-card[data-disc="Trad"]        { --disc-color: var(--disc-trad);        --disc-tint: rgba(244,63,94,0.10); }
 
 .session-card.syncing { opacity: 0.7; }
 .session-card.failed  { opacity: 0.5; border-left-color: var(--danger); }
@@ -356,6 +358,7 @@ h1.screen-title {
 .hardest-row[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
 .hardest-row[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
 .hardest-row[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
+.hardest-row[data-disc="Trad"]        { --disc-color: var(--disc-trad); }
 .hardest-row:active { background: #1a1a1a; transform: scale(0.99); }
 .hardest-top {
     display: flex;
@@ -420,10 +423,10 @@ h1.screen-title {
 }
 .bests-strip {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
     margin-bottom: 24px;
-    padding: 18px;
+    padding: 16px 12px;
     background: var(--card-bg);
     border-radius: var(--radius);
     border: 1px solid rgba(255,255,255,0.03);
@@ -452,6 +455,7 @@ h1.screen-title {
 .best-disc[data-disc="In Rope"]     { color: var(--disc-in-rope); }
 .best-disc[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
 .best-disc[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
+.best-disc[data-disc="Trad"]        { color: var(--disc-trad); }
 .best-grade {
     font-size: 1.3rem;
     font-weight: 800;
@@ -559,6 +563,7 @@ h1.screen-title {
 .profile-table-row[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
 .profile-table-row[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
 .profile-table-row[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
+.profile-table-row[data-disc="Trad"]        { --disc-color: var(--disc-trad); }
 .pt-date {
     font-size: 0.78rem;
     color: var(--text-muted);
@@ -624,6 +629,7 @@ h1.screen-title {
 .profile-table-detail[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
 .profile-table-detail[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
 .profile-table-detail[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
+.profile-table-detail[data-disc="Trad"]        { --disc-color: var(--disc-trad); }
 .pt-detail-label {
     color: var(--text-muted);
     font-weight: 700;
@@ -728,6 +734,7 @@ h1.screen-title {
 .cap-tab[data-disc="In Rope"]     { --cap-color: var(--disc-in-rope); }
 .cap-tab[data-disc="Out Rope"]    { --cap-color: var(--disc-out-rope); }
 .cap-tab[data-disc="Out Boulder"] { --cap-color: var(--disc-out-boulder); }
+.cap-tab[data-disc="Trad"]        { --cap-color: var(--disc-trad); }
 
 .bottom-nav {
     position: fixed;
@@ -1844,7 +1851,7 @@ const LoggerState = {
     date: 'today'       // 'today' | 'yesterday'
 };
 
-function isOutdoor(disc) { return disc === 'Out Rope' || disc === 'Out Boulder'; }
+function isOutdoor(disc) { return disc === 'Out Rope' || disc === 'Out Boulder' || disc === 'Trad'; }
 
 function updateRouteNameVisibility() {
     const isOut = isOutdoor(LoggerState.discipline);
@@ -3108,7 +3115,8 @@ function renderHistogram(climber) {
         'In Boulder':  'var(--disc-in-boulder)',
         'In Rope':     'var(--disc-in-rope)',
         'Out Rope':    'var(--disc-out-rope)',
-        'Out Boulder': 'var(--disc-out-boulder)'
+        'Out Boulder': 'var(--disc-out-boulder)',
+        'Trad':        'var(--disc-trad)'
     };
     const discFill = discFillMap[profileHistoDiscipline];
     
@@ -3166,7 +3174,8 @@ function renderProfileSessions(climber) {
                 'In Boulder':  '#f59e0b',
                 'In Rope':     '#06b6d4',
                 'Out Rope':    '#10b981',
-                'Out Boulder': '#a855f7'
+                'Out Boulder': '#a855f7',
+                'Trad':        '#f43f5e'
             })[log.Discipline];
         }
         const dot = dotColor
@@ -3330,7 +3339,7 @@ function computeAddicted() {
 
 // Outdoor: distinct days with ≥1 outdoor send
 function computeOutdoor() {
-    const outdoorDiscs = ['Out Rope', 'Out Boulder'];
+    const outdoorDiscs = ['Out Rope', 'Out Boulder', 'Trad'];
     const byClimber = new Map();
     State.logs.forEach(log => {
         if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
