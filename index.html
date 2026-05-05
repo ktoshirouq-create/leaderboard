@@ -2232,9 +2232,12 @@ async function fetchData() {
         const res = await fetch(AppConfig.api);
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Unknown error');
-        State.logs      = json.data.logs || [];
-        State.roster    = json.data.roster || [];
-        State.locations = json.data.locations || [];
+        // Filter out malformed/empty rows from the sheet — they cause ghost cards
+        State.logs = (json.data.logs || []).filter(log =>
+            log && log.ClimberName && log.Discipline && log.Where && log.Grade && log.Date
+        );
+        State.roster    = (json.data.roster || []).filter(r => r && r.Name);
+        State.locations = (json.data.locations || []).filter(l => l && l.Name);
         renderFeed();
     } catch (err) {
         document.getElementById('feed-list').innerHTML =
