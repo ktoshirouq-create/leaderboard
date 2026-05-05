@@ -2963,10 +2963,13 @@ function computeHistogram(climber, discipline) {
     
     if (maxIdx === -1) return [];  // no sends → render empty state
     
-    // Pyramid window: hardest grade down to 5 below (or scale floor)
+    // Pyramid window: hardest grade down to 5 below (or scale floor),
+    // then drop any grades with 0 sends — shows only what's actually climbed
     const PYRAMID_DEPTH = 5;
     const minIdx = Math.max(0, maxIdx - PYRAMID_DEPTH);
-    return counts.slice(minIdx, maxIdx + 1).reverse();  // hardest on top
+    return counts.slice(minIdx, maxIdx + 1)
+        .filter(d => d.count > 0)
+        .reverse();  // hardest on top
 }
 
 function renderHistogram(climber) {
