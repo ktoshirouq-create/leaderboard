@@ -146,11 +146,12 @@ h1.screen-title {
     padding: 8px 14px;
     border-radius: 18px;
     border: 1px solid rgba(255,255,255,0.05);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 55%;
+    line-height: 1.3;
+    text-align: right;
     flex-shrink: 1;
+    max-width: 60%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Stat strip — centered, larger, breathing room. Grade highlighted in disc color. */
@@ -165,7 +166,7 @@ h1.screen-title {
     color: #a3a3a3;
 }
 .s-summary .max-grade {
-    color: var(--disc-color);
+    color: #fff;
     font-weight: 800;
     letter-spacing: -0.6px;
     font-size: 1.6rem;
@@ -2261,11 +2262,13 @@ function groupIntoSessions(logs) {
     const map = new Map();
     logs.forEach(log => {
         const date = getCleanDate(log.Date);
-        const key = `${log.ClimberName}|${log.Where}|${date}|${log.Discipline}`;
+        // Group by climber + date + discipline. Locations within a session
+        // are tracked separately so a multi-crag day shows as one card.
+        const key = `${log.ClimberName}|${date}|${log.Discipline}`;
         if (!map.has(key)) {
             map.set(key, {
                 climber:    log.ClimberName,
-                where:      log.Where,
+                wheres:     [],          // list of distinct locations in this session
                 date:       date,
                 discipline: log.Discipline,
                 timestamp:  log.Timestamp,
@@ -2276,6 +2279,9 @@ function groupIntoSessions(logs) {
         }
         const session = map.get(key);
         session.sends.push(log);
+        if (!session.wheres.includes(log.Where)) {
+            session.wheres.push(log.Where);
+        }
         // Track newest timestamp for "X ago" display
         if (new Date(log.Timestamp) > new Date(session.timestamp)) {
             session.timestamp = log.Timestamp;
@@ -2283,6 +2289,8 @@ function groupIntoSessions(logs) {
         if (log._optimistic) session._optimistic = true;
         if (log._failed)     session._failed     = true;
     });
+    // Set primary `where` for backwards compatibility (first location in the list)
+    map.forEach(session => { session.where = session.wheres[0]; });
     // Sort sessions by newest send first
     return Array.from(map.values())
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -2684,7 +2692,7 @@ function renderSessionCard(session, idx) {
                 <div class="s-name">${escapeHTML(session.climber)}</div>
                 <div class="s-time">${escapeHTML(timeText)}</div>
             </div>
-            <div class="s-where">@ ${escapeHTML(session.where)}</div>
+            <div class="s-where">${session.wheres.map(w => '@ ' + escapeHTML(w)).join('  ')}</div>
         </div>
         <div class="s-summary">
             <span>${escapeHTML(summaryParts[0])}</span>
