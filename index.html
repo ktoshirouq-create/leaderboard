@@ -1180,9 +1180,10 @@ h1.screen-title {
     <button class="profile-back" id="profile-back">← Back</button>
     <div class="switcher-link hidden" id="profile-switcher">Switch user ▾</div>
     <div class="profile-name" id="profile-name">—</div>
-    <div class="bests-strip" id="profile-bests"></div>
+<div class="profile-section-title" style="margin-top: 0;">Hardest · last 60 days</div>
+<div class="bests-strip" id="profile-bests"></div>
     
-    <div class="profile-section-title">Grade distribution · last 60 days</div>
+    <div class="profile-section-title">Grade pyramid · last 60 days</div>
     <div class="histogram-tabs" id="histogram-tabs"></div>
     <div class="histogram" id="histogram"></div>
     
@@ -2932,15 +2933,27 @@ function renderBestsStrip(climber) {
 function computeHistogram(climber, discipline) {
     const scale = AppConfig.grades[discipline];
     if (!scale) return [];
+    
+    // Tally all sends in window, by grade index
     const counts = scale.labels.map(label => ({ label, count: 0, scoreIdx: scale.labels.indexOf(label) }));
+    let maxIdx = -1;
     State.logs.forEach(log => {
         if (log.ClimberName !== climber) return;
         if (log.Discipline !== discipline) return;
         if (!isWithinWindow(log.Date, PROFILE_HISTO_WINDOW_DAYS)) return;
         const idx = scale.labels.indexOf(getBaseGrade(log.Grade));
-        if (idx >= 0) counts[idx].count++;
+        if (idx >= 0) {
+            counts[idx].count++;
+            if (idx > maxIdx) maxIdx = idx;
+        }
     });
-    return counts;
+    
+    if (maxIdx === -1) return [];  // no sends → render empty state
+    
+    // Pyramid window: hardest grade down to 5 below (or scale floor)
+    const PYRAMID_DEPTH = 5;
+    const minIdx = Math.max(0, maxIdx - PYRAMID_DEPTH);
+    return counts.slice(minIdx, maxIdx + 1).reverse();  // hardest on top
 }
 
 function renderHistogram(climber) {
@@ -2982,10 +2995,15 @@ function renderHistogram(climber) {
         const dot = useDot && d.scoreIdx >= 0
             ? `<span class="grade-dot" style="background:${scale.colors[d.scoreIdx]}"></span>`
             : '';
+        // For disciplines with hold colors (Indoor Boulder), color the bar to match the grade.
+        // Other disciplines use the discipline's accent color.
+        const barColor = (useDot && d.scoreIdx >= 0)
+            ? scale.colors[d.scoreIdx]
+            : discFill;
         return `<div class="histo-row">
             <div class="histo-label">${dot}${escapeHTML(d.label)}</div>
             <div class="histo-bar-wrap">
-                <div class="histo-bar" style="width: ${pct}%; background: ${discFill}"></div>
+                <div class="histo-bar" style="width: ${pct}%; background: ${barColor}"></div>
             </div>
             <div class="histo-count ${d.count === 0 ? 'zero' : ''}">${d.count}</div>
         </div>`;
