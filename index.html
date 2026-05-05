@@ -509,66 +509,67 @@ h1.screen-title {
 }
 .histo-count.zero { color: #444; }
 
-/* Logbook style — minimal flat rows for own profile */
-.logbook-day {
-    margin-bottom: 16px;
-}
-.logbook-date {
-    font-size: 0.7rem;
-    font-weight: 800;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-    margin-bottom: 6px;
-    padding-left: 4px;
-}
-.logbook-row {
+/* Clean table style for profile sessions */
+.profile-table-headers,
+.profile-table-row {
     display: grid;
-    grid-template-columns: 70px 1fr auto;
-    gap: 12px;
+    grid-template-columns: 60px 1fr 50px 60px;
+    gap: 10px;
     align-items: center;
-    padding: 10px 14px;
-    background: var(--card-bg);
-    border-radius: 8px;
-    margin-bottom: 4px;
-    border-left: 3px solid var(--disc-color, #555);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: 0.15s;
+    padding: 12px 14px;
 }
-.logbook-row:active { background: #1a1a1a; transform: scale(0.99); }
-.logbook-row[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
-.logbook-row[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
-.logbook-row[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
-.logbook-row[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
-.logbook-row.pressing { background: rgba(16,185,129,0.06); }
-.lb-grade-cell {
-    color: #fff;
+.profile-table-headers {
+    font-size: 0.62rem;
+    color: var(--text-muted);
     font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 2px;
+}
+.profile-table-row {
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-left: 3px solid var(--disc-color, #555);
+    cursor: pointer;
+    transition: 0.12s;
+    font-size: 0.85rem;
+}
+.profile-table-row:active { background: rgba(255,255,255,0.02); transform: scale(0.998); }
+.profile-table-row.pressing { background: rgba(16,185,129,0.06); }
+.profile-table-row[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
+.profile-table-row[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
+.profile-table-row[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
+.profile-table-row[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
+.pt-date {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.pt-route {
+    font-size: 0.88rem;
+    color: #fff;
+    font-weight: 700;
     display: flex;
     align-items: center;
-    gap: 4px;
-}
-.lb-where-cell {
-    color: #a3a3a3;
-    font-weight: 600;
+    gap: 6px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.lb-tag-cell {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: flex-end;
+.pt-grade {
+    font-size: 0.9rem;
+    color: #fff;
+    font-weight: 800;
+    text-align: left;
 }
-.lb-disc-abbr {
-    font-size: 0.65rem;
+.pt-style {
+    font-size: 0.74rem;
     color: var(--text-muted);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-weight: 600;
+    text-align: left;
 }
+.pt-style.flash   { color: #fbbf24; }
+.pt-style.onsight { color: #c084fc; }
 
 /* Boards-mode tab pills — flex-grow so all 4 fit, wrap when needed */
 .board-tabs {
@@ -3032,52 +3033,47 @@ function renderProfileSessions(climber) {
         return;
     }
     
-    // Group by date for date headers, but render each climb as a flat row
-    const byDate = new Map();
-    climberLogs.forEach(log => {
-        const d = getCleanDate(log.Date);
-        if (!byDate.has(d)) byDate.set(d, []);
-        byDate.get(d).push(log);
-    });
+    const headersHtml = `
+        <div class="profile-table-headers">
+            <div>Date</div>
+            <div>Route / Gym</div>
+            <div>Grade</div>
+            <div>Style</div>
+        </div>`;
     
-    const html = Array.from(byDate.entries())
-        .sort((a, b) => new Date(b[0]) - new Date(a[0]))
-        .map(([date, logs]) => {
-            const dateStr = formatShortDate(date);
-            const rowsHtml = logs.map(log => {
-                const styleNorm = String(log.Style || '').toLowerCase();
-                const isSpecial = (styleNorm === 'flash' || styleNorm === 'onsight');
-                const tag = isSpecial
-                    ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(log.Style)}</span>`
-                    : '';
-                const scale = AppConfig.grades[log.Discipline];
-                const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
-                const dotIdx = useDot ? scale.labels.indexOf(getBaseGrade(log.Grade)) : -1;
-                const dot = dotIdx >= 0
-                    ? `<span class="grade-dot" style="background:${scale.colors[dotIdx]}"></span>`
-                    : '';
-                const discAbbr = {
-                    'In Boulder':  'Bldr',
-                    'In Rope':     'Rope',
-                    'Out Rope':    'Rope·O',
-                    'Out Boulder': 'Bldr·O'
-                }[log.Discipline] || log.Discipline;
-                return `<div class="logbook-row" data-log-id="${escapeHTML(log.LogId || '')}" data-disc="${escapeHTML(log.Discipline)}">
-                    <div class="lb-grade-cell">${dot}${escapeHTML(log.Grade)}</div>
-                    <div class="lb-where-cell">${escapeHTML(log.Where)}</div>
-                    <div class="lb-tag-cell">${tag}<span class="lb-disc-abbr">${escapeHTML(discAbbr)}</span></div>
-                </div>`;
-            }).join('');
-            return `<div class="logbook-day">
-                <div class="logbook-date">${escapeHTML(dateStr)}</div>
-                ${rowsHtml}
-            </div>`;
-        }).join('');
+    const rowsHtml = climberLogs.map(log => {
+        const dateStr = formatShortDate(getCleanDate(log.Date));
+        const styleNorm = String(log.Style || '').toLowerCase();
+        const styleClass = (styleNorm === 'flash' || styleNorm === 'onsight') ? styleNorm : '';
+        const scale = AppConfig.grades[log.Discipline];
+        const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
+        const dotIdx = useDot ? scale.labels.indexOf(getBaseGrade(log.Grade)) : -1;
+        // Use discipline color dot for non-Indoor-Boulder, hold color for Indoor Boulder
+        let dotColor = null;
+        if (log.Discipline === 'In Boulder' && dotIdx >= 0) {
+            dotColor = scale.colors[dotIdx];
+        } else {
+            dotColor = ({
+                'In Boulder':  '#f59e0b',
+                'In Rope':     '#06b6d4',
+                'Out Rope':    '#10b981',
+                'Out Boulder': '#a855f7'
+            })[log.Discipline];
+        }
+        const dot = dotColor
+            ? `<span class="grade-dot" style="background:${dotColor}"></span>`
+            : '';
+        return `<div class="profile-table-row" data-log-id="${escapeHTML(log.LogId || '')}" data-disc="${escapeHTML(log.Discipline)}">
+            <div class="pt-date">${escapeHTML(dateStr)}</div>
+            <div class="pt-route">${dot}${escapeHTML(log.Where)}</div>
+            <div class="pt-grade">${escapeHTML(log.Grade)}</div>
+            <div class="pt-style ${styleClass}">${escapeHTML(log.Style)}</div>
+        </div>`;
+    }).join('');
     
-    container.innerHTML = html;
+    container.innerHTML = headersHtml + rowsHtml;
     
-    // Long-press for own logs (edit/delete)
-    container.querySelectorAll('.logbook-row').forEach(rowEl => {
+    container.querySelectorAll('.profile-table-row').forEach(rowEl => {
         const logId = rowEl.dataset.logId;
         const log = climberLogs.find(l => l.LogId === logId);
         if (log) attachLongPressToSendRow(rowEl, log);
