@@ -7,8 +7,8 @@ const AppConfig = {
     months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
     days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
     
-    // 4 disciplines only — order matches likely usage frequency
-    disciplines: ['In Boulder', 'In Rope', 'Out Rope', 'Out Boulder'],
+    // 5 disciplines only — order matches likely usage frequency
+    disciplines: ['In Boulder', 'In Rope', 'Out Rope', 'Out Boulder', 'Trad'],
     
     // Discipline colors used as 4px border-left on session cards, leaderboard tabs, profile strip
     disciplineColors: {
@@ -16,6 +16,7 @@ const AppConfig = {
         'In Rope':     '#06b6d4',  // cyan
         'Out Rope':    '#10b981',  // emerald (= primary)
         'Out Boulder': '#a855f7'   // violet
+        'Trad':        '#f43f5e'   // rose
     },
     
     // Style options per discipline
@@ -24,6 +25,7 @@ const AppConfig = {
         'In Rope':     ['Send', 'Flash'],
         'Out Rope':    ['Send', 'Flash', 'Onsight'],
         'Out Boulder': ['Send', 'Flash']
+        'Trad':        ['Send', 'Flash', 'Onsight']
     },
     
     // Trimmed grade scales (per design doc)
@@ -49,13 +51,19 @@ const AppConfig = {
             colors: []
         }
     },
-    
+     'Trad': {
+            labels: ["3","4-","4","4+","5-","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c"],
+            scores: [100,200,250,300,400,500,517,533,550,567,583,600,617,633,650,667,683,700,717,733,750,767],
+            colors: []
+        }
+    },
     // Default grade for first-ever log per discipline
     defaultGradeIndex: {
         'In Boulder':  2,  // 6A
         'In Rope':     8,  // 6a
         'Out Rope':    11, // 6a
         'Out Boulder': 4   // 6A
+        'Trad':        11  // 6a (same as Out Rope scale)
     },
     
     // Flash/onsight bonus per discipline
@@ -64,6 +72,7 @@ const AppConfig = {
         'Out Boulder': 17,
         'In Rope':     10,
         'Out Rope':    10
+        'Trad':        10
     }
 };
 
