@@ -3109,7 +3109,6 @@ function showProfile(climber) {
     renderBestsStrip(climber);
     renderHistogram(climber);
     renderProfileSessions(climber);
-}
     
     // Show "Switch user ▾" link only when viewing own profile.
     // Show back button only when viewing someone else's profile.
@@ -3117,8 +3116,7 @@ function showProfile(climber) {
     document.getElementById('profile-back').style.display = isOwnProfile ? 'none' : 'inline-flex';
     document.getElementById('profile-switcher').classList.toggle('hidden', !isOwnProfile);
     
-    showView('profile');
-}
+   }
 
 document.getElementById('profile-back').addEventListener('click', () => {
     haptic('tap');
