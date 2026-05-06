@@ -1324,7 +1324,7 @@ h1.screen-title {
 
     <div id="boards-mode" style="display: none;">
     <div class="board-tabs" id="board-tabs">
-        <button class="pill active" data-board="hardest">Hardest 30d</button>
+        <button class="pill active" data-board="hardest">Hardest</button>
         <button class="pill" data-board="volume">Most Volume</button>
         <button class="pill" data-board="addicted">Most Addicted</button>
         <button class="pill" data-board="outdoor">Outdoor Days</button>
@@ -1634,6 +1634,11 @@ function attachSwipeToClose(overlayId) {
     const onStart = (e) => {
         if (sheet.scrollTop > 0) return; // sheet has been scrolled — let scroll happen
         const touch = e.touches ? e.touches[0] : e;
+        // Only start drag if touch began in the top "handle zone" — prevents accidental
+        // dismissal when interacting with pills, grade selector, form fields, etc.
+        const sheetRect = sheet.getBoundingClientRect();
+        const yInSheet = touch.clientY - sheetRect.top;
+        if (yInSheet > SWIPE_DRAG_ZONE_PX) return;
         startX = touch.clientX;
         startY = touch.clientY;
         lastY  = startY;
@@ -2196,6 +2201,16 @@ function openInfoModal(title, rows) {
 document.getElementById('info-close').addEventListener('click', () => closeModal('info-modal'));
 document.getElementById('info-modal').addEventListener('click', e => {
     if (e.target.id === 'info-modal') closeModal('info-modal');
+});
+
+document.getElementById('style-info').addEventListener('click', (e) => {
+    e.stopPropagation();
+    haptic('tap');
+    openInfoModal('Style', [
+        { term: 'Send',    def: 'Clean ascent on lead. Redpoint after any number of attempts counts.' },
+        { term: 'Flash',   def: 'Clean first-try ascent on lead, with prior beta or watching others.' },
+        { term: 'Onsight', def: 'Clean first-try ascent on lead — no prior info, never seen anyone on it.' }
+    ]);
 });
 
 /* ----- Grade conversion (French ↔ Norway, rope only) ----- */
