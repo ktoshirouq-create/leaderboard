@@ -1317,6 +1317,49 @@ h1.screen-title {
     0%, 100% { opacity: 1; }
     50%      { opacity: 0.5; }
 }
+
+/* Skeleton — shown only on first open with no cache */
+.session-card.skeleton {
+    border-left-color: rgba(255,255,255,0.04);
+    background: #131019;
+    cursor: default;
+    pointer-events: none;
+}
+.skel-line, .skel-pill, .skel-summary {
+    background: linear-gradient(90deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%);
+    background-size: 200% 100%;
+    border-radius: 4px;
+    animation: skel-shimmer 1.4s ease-in-out infinite;
+}
+.skel-name { width: 55%; height: 1.4rem; margin-bottom: 6px; }
+.skel-time { width: 40%; height: 0.75rem; }
+.skel-pill { width: 90px; height: 28px; border-radius: 18px; flex-shrink: 0; }
+.skel-summary { width: 50%; height: 1.4rem; margin: 0 auto; }
+@keyframes skel-shimmer {
+    0%, 100% { background-position: 100% 0; }
+    50%      { background-position: -100% 0; }
+}
+
+/* Load more button */
+.load-more-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--input-bg);
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 12px;
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin: 12px 0 24px 0;
+    cursor: pointer;
+    font-family: inherit;
+    transition: 0.15s;
+}
+.load-more-btn:active {
+    transform: scale(0.98);
+    background: #1a1a1a;
+    color: #fff;
+}
 .hidden { display: none !important; }
 @media (max-width: 380px) {
     .container { padding: 20px 14px 120px 14px; }
@@ -1516,6 +1559,66 @@ const State = {
     roster: [],
     locations: []
 };
+
+/* ============== CACHE + PAGINATION ============== */
+const CACHE_KEY = 'leaderboard.cachedData';
+const CACHE_VERSION = 1;            // bump if data shape changes
+const FEED_PAGE_SIZE = 15;
+const PROFILE_PAGE_SIZE = 25;
+let feedPage = 1;
+let profilePage = 1;
+
+function saveCache() {
+    try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+            v: CACHE_VERSION,
+            cachedAt: Date.now(),
+            data: {
+                logs: State.logs,
+                roster: State.roster,
+                locations: State.locations
+            }
+        }));
+    } catch (e) { /* quota — ignore silently */ }
+}
+
+function loadCache() {
+    try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (parsed.v !== CACHE_VERSION) return null;
+        return parsed.data;
+    } catch { return null; }
+}
+
+function bootFromCache() {
+    const cached = loadCache();
+    if (!cached) return false;
+    State.logs = (cached.logs || []).filter(log =>
+        log && log.ClimberName && log.Discipline && log.Where && log.Grade && log.Date
+    );
+    State.roster    = (cached.roster || []).filter(r => r && r.Name);
+    State.locations = (cached.locations || []).filter(l => l && l.Name);
+    renderFeed();
+    return true;
+}
+
+function renderFeedSkeleton() {
+    const list = document.getElementById('feed-list');
+    const card = `
+        <div class="session-card skeleton">
+            <div class="session-header">
+                <div class="s-name-block">
+                    <div class="skel-line skel-name"></div>
+                    <div class="skel-line skel-time"></div>
+                </div>
+                <div class="skel-pill"></div>
+            </div>
+            <div class="s-summary"><div class="skel-line skel-summary"></div></div>
+        </div>`;
+    list.innerHTML = Array(4).fill(card).join('');
+}
 
 let activeBoardMode = localStorage.getItem('leaderboard.lastBoardMode') || 'capacity';
 if (!['capacity', 'boards'].includes(activeBoardMode)) activeBoardMode = 'capacity';
@@ -2512,16 +2615,19 @@ async function fetchData() {
         const res = await fetch(AppConfig.api);
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Unknown error');
-        // Filter out malformed/empty rows from the sheet — they cause ghost cards
         State.logs = (json.data.logs || []).filter(log =>
             log && log.ClimberName && log.Discipline && log.Where && log.Grade && log.Date
         );
         State.roster    = (json.data.roster || []).filter(r => r && r.Name);
         State.locations = (json.data.locations || []).filter(l => l && l.Name);
+        saveCache();              // persist for instant boot next time
         renderFeed();
     } catch (err) {
-        document.getElementById('feed-list').innerHTML =
-            `<div class="empty-msg">Couldn't load data.<br><small>${escapeHTML(err.message)}</small></div>`;
+        // Only show error if we have nothing else to show — cache renders are still valid
+        if (State.logs.length === 0) {
+            document.getElementById('feed-list').innerHTML =
+                `<div class="empty-msg">Couldn't load data.<br><small>${escapeHTML(err.message)}</small></div>`;
+        }
     }
 }
 
@@ -2989,21 +3095,41 @@ function renderFeed() {
         return;
     }
     const sessions = groupIntoSessions(State.logs);
-    list.innerHTML = sessions.map((s, i) => renderSessionCard(s, i)).join('');
+    const visibleSessions = sessions.slice(0, feedPage * FEED_PAGE_SIZE);
+    const remaining = sessions.length - visibleSessions.length;
+    
+    let html = visibleSessions.map((s, i) => renderSessionCard(s, i)).join('');
+    if (remaining > 0) {
+        html += `<button class="load-more-btn" id="feed-load-more">Load more · ${remaining} remaining</button>`;
+    }
+    list.innerHTML = html;
+    
     list.querySelectorAll('.session-card').forEach((card, cardIdx) => {
         card.addEventListener('click', () => {
             haptic('tap');
             card.classList.toggle('expanded');
         });
-        // Long-press on individual send rows for own logs
-        const session = sessions[cardIdx];
+        const session = visibleSessions[cardIdx];
         const sortedSends = sortSendsByScore(session.sends, session.discipline);
         card.querySelectorAll('.send-row').forEach((rowEl, sendIdx) => {
             const log = sortedSends[sendIdx];
             attachLongPressToSendRow(rowEl, log);
         });
     });
+    
+    const loadMoreBtn = document.getElementById('feed-load-more');
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => {
+            haptic('tap');
+            feedPage++;
+            renderFeed();
+        });
+    }
 }
+// Cache-aware boot: render from localStorage instantly if available,
+// then fetch fresh in the background. Skeleton shows only on first-ever open.
+const hadCache = bootFromCache();
+if (!hadCache) renderFeedSkeleton();
 fetchData();
 /* ============== CAPACITY BOARD ============== */
 const CAPACITY_THRESHOLD = 10;
@@ -3336,6 +3462,9 @@ function renderProfileSessions(climber) {
         return;
     }
     
+    const visibleLogs = climberLogs.slice(0, profilePage * PROFILE_PAGE_SIZE);
+    const remaining = climberLogs.length - visibleLogs.length;
+    
     const headersHtml = `
         <div class="profile-table-headers">
             <div>Date</div>
@@ -3344,7 +3473,7 @@ function renderProfileSessions(climber) {
             <div>Style</div>
         </div>`;
     
-    const rowsHtml = climberLogs.map(log => {
+    const rowsHtml = visibleLogs.map(log => {
         const dateStr = formatShortDate(getCleanDate(log.Date));
         const styleNorm = String(log.Style || '').toLowerCase();
         const styleClass = (styleNorm === 'flash' || styleNorm === 'onsight') ? styleNorm : '';
@@ -3383,14 +3512,17 @@ function renderProfileSessions(climber) {
         </div>${detailRow}`;
     }).join('');
     
-    container.innerHTML = headersHtml + rowsHtml;
+    let finalHtml = headersHtml + rowsHtml;
+    if (remaining > 0) {
+        finalHtml += `<button class="load-more-btn" id="profile-load-more">Load more · ${remaining} remaining</button>`;
+    }
+    container.innerHTML = finalHtml;
     
     container.querySelectorAll('.profile-table-row').forEach(rowEl => {
         const logId = rowEl.dataset.logId;
         const log = climberLogs.find(l => l.LogId === logId);
         if (log) attachLongPressToSendRow(rowEl, log);
         
-        // Click toggles detail row (if present)
         if (rowEl.classList.contains('has-detail')) {
             rowEl.addEventListener('click', () => {
                 haptic('tap');
@@ -3402,9 +3534,19 @@ function renderProfileSessions(climber) {
             });
         }
     });
+    
+    const loadMoreBtn = document.getElementById('profile-load-more');
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => {
+            haptic('tap');
+            profilePage++;
+            renderProfileSessions(climber);
+        });
+    }
 }
 
 function showProfile(climber) {
+    if (climber !== profileClimber) profilePage = 1;  // reset paging when switching climbers
     profileClimber = climber;
     showView('profile');
     
