@@ -1077,7 +1077,9 @@ h1.screen-title {
 .grade-conv-table {
     background: var(--input-bg);
     border-radius: 12px;
-    overflow: hidden;
+    max-height: 55vh;        /* table itself becomes the scroll container */
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 .grade-conv-headers {
     display: grid;
@@ -1091,6 +1093,9 @@ h1.screen-title {
     letter-spacing: 1.3px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
     background: rgba(0,0,0,0.2);
+    position: sticky;        /* column headers stay pinned while rows scroll */
+    top: 0;
+    z-index: 1;
 }
 .grade-conv-row {
     display: grid;
