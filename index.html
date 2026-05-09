@@ -827,20 +827,45 @@ h1.screen-title {
     position: relative;
 }
 .modal-overlay.active .modal-sheet { transform: translateY(0); }
-.modal-handle {
-    width: 40px;
-    height: 4px;
-    background: #333;
-    border-radius: 2px;
-    margin: 0 auto 16px auto;
+/* Hit zone wraps the visible handle; gives ~36px tall touch target */
+.modal-handle-zone {
+    width: 100%;
+    padding: 14px 0 12px 0;
+    margin: 0 0 4px 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     cursor: grab;
+    touch-action: none;          /* don't let browser scroll/zoom while dragging here */
+    -webkit-touch-callout: none;
+    user-select: none;
 }
-.modal-handle:active { cursor: grabbing; }
+.modal-handle-zone.grabbing { cursor: grabbing; }
+
+/* Visible handle: subtle at rest, more prominent during grab */
+.modal-handle {
+    width: 44px;
+    height: 4px;
+    background: #444;
+    border-radius: 3px;
+    pointer-events: none;        /* parent handles all touches; this is purely visual */
+    transition: width 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+                height 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+                background 0.18s ease;
+}
+.modal-handle-zone.grabbing .modal-handle {
+    width: 56px;
+    height: 5px;
+    background: #888;
+}
+
+/* Disable sheet transition during drag so finger tracks 1:1 */
 .modal-sheet.dragging {
-    transition: none;  /* disable transition while finger is down */
+    transition: none;
 }
+/* Subtle overshoot bounce when releasing below dismissal threshold */
 .modal-sheet.snap-back {
-    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .modal-close {
     position: absolute;
@@ -1362,7 +1387,7 @@ h1.screen-title {
 <div class="modal-overlay" id="logger-modal">
     <div class="modal-sheet">
         <button class="modal-close" id="logger-close">×</button>
-        <div class="modal-handle"></div>
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="switcher-link" id="switcher-trigger">Logging as <strong id="active-user-label">—</strong> ▾</div>
         <div class="modal-title" id="logger-title">Log a send</div>
 <div class="edit-mode-banner hidden" id="edit-mode-banner">Editing existing climb</div>
@@ -1406,7 +1431,7 @@ h1.screen-title {
 <div class="modal-overlay" id="switcher-modal">
     <div class="modal-sheet">
         <button class="modal-close" id="switcher-close">×</button>
-        <div class="modal-handle"></div>
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="modal-title">Who's logging?</div>
         <div class="modal-subtitle">Tap a name. Anyone can add new climbers.</div>
         <div class="pill-row" id="switcher-pills"></div>
@@ -1419,7 +1444,7 @@ h1.screen-title {
 
 <div class="modal-overlay" id="identity-prompt">
     <div class="modal-sheet">
-        <div class="modal-handle"></div>
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="modal-title">Who are you?</div>
         <div class="modal-subtitle">First time logging on this device. Pick yourself, or add yourself if you're new.</div>
         <div class="pill-row" id="identity-pills"></div>
@@ -1438,7 +1463,7 @@ h1.screen-title {
 <div class="modal-overlay" id="info-modal">
     <div class="modal-sheet">
         <button class="modal-close" id="info-close">×</button>
-        <div class="modal-handle"></div>
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="modal-title" id="info-title">Info</div>
         <div id="info-body"></div>
     </div>
@@ -1446,7 +1471,7 @@ h1.screen-title {
 
 <div class="modal-overlay" id="action-sheet-modal">
     <div class="modal-sheet">
-        <div class="modal-handle"></div>
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="action-sheet-summary" id="action-sheet-summary"></div>
         <div class="action-sheet-list">
             <button class="action-sheet-btn" id="action-edit">Edit climb</button>
@@ -1458,7 +1483,7 @@ h1.screen-title {
 
 <div class="modal-overlay" id="confirm-modal">
     <div class="modal-sheet">
-        <div class="modal-handle"></div>
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="modal-title">Delete climb?</div>
         <div class="modal-subtitle" id="confirm-subtitle">This can't be undone.</div>
         <button class="action-sheet-btn danger" id="confirm-yes">Yes, delete</button>
@@ -1468,7 +1493,7 @@ h1.screen-title {
 
 <div class="modal-overlay" id="rename-modal">
     <div class="modal-sheet">
-        <div class="modal-handle"></div>
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="modal-title">Rename location</div>
         <div class="modal-subtitle" id="rename-subtitle">—</div>
         <input type="text" class="add-name-input" id="rename-input" maxlength="30" style="margin-bottom:12px">
@@ -1621,93 +1646,72 @@ function attachSwipeToClose(overlayId) {
     const overlay = document.getElementById(overlayId);
     if (!overlay) return;
     const sheet = overlay.querySelector('.modal-sheet');
-    if (!sheet) return;
+    const handleZone = overlay.querySelector('.modal-handle-zone');
+    if (!sheet || !handleZone) return;
     
-    let startX = 0;
     let startY = 0;
-    let lastY  = 0;
-    let lastT  = 0;
+    let lastY = 0;
+    let lastT = 0;
     let velocity = 0;
     let isDragging = false;
-    let lockedDirection = null; // null | 'vertical' | 'horizontal'
     
     const onStart = (e) => {
-        if (sheet.scrollTop > 0) return; // sheet has been scrolled — let scroll happen
         const touch = e.touches ? e.touches[0] : e;
-        // Only start drag if touch began in the top "handle zone" — prevents accidental
-        // dismissal when interacting with pills, grade selector, form fields, etc.
-        const sheetRect = sheet.getBoundingClientRect();
-        const yInSheet = touch.clientY - sheetRect.top;
-        if (yInSheet > SWIPE_DRAG_ZONE_PX) return;
-        startX = touch.clientX;
         startY = touch.clientY;
-        lastY  = startY;
-        lastT  = performance.now();
+        lastY = startY;
+        lastT = performance.now();
+        velocity = 0;
         isDragging = true;
-        lockedDirection = null;  // decide on first move
         sheet.classList.remove('snap-back');
+        sheet.classList.add('dragging');
+        handleZone.classList.add('grabbing');
+        haptic('tap');  // tactile feedback the moment you grab
     };
     
     const onMove = (e) => {
         if (!isDragging) return;
         const touch = e.touches ? e.touches[0] : e;
-        const dx = touch.clientX - startX;
         const dy = touch.clientY - startY;
-        
-        // Direction lock on first meaningful move (>8px)
-        if (lockedDirection === null) {
-            if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; // not moved enough yet
-            if (Math.abs(dx) > Math.abs(dy)) {
-                lockedDirection = 'horizontal'; // probably a pill scroll, abort
-                isDragging = false;
-                return;
-            }
-            if (dy < 0) {
-                lockedDirection = 'horizontal'; // upward — not a dismiss gesture
-                isDragging = false;
-                return;
-            }
-            lockedDirection = 'vertical';
-            sheet.classList.add('dragging');
+        if (dy < 0) {
+            // dragging up: don't move sheet, but keep tracking for direction reversal
+            sheet.style.transform = '';
+            lastY = touch.clientY;
+            return;
         }
-        
-        if (lockedDirection !== 'vertical') return;
-        
-        const dragDist = Math.max(0, dy);
+        // Stop the page/sheet from scrolling beneath us
+        if (e.cancelable && e.preventDefault) e.preventDefault();
         const now = performance.now();
         const dt = now - lastT;
         if (dt > 0) velocity = (touch.clientY - lastY) / dt;
         lastY = touch.clientY;
         lastT = now;
-        sheet.style.transform = `translateY(${dragDist}px)`;
+        sheet.style.transform = `translateY(${dy}px)`;
     };
     
     const onEnd = () => {
         if (!isDragging) return;
         isDragging = false;
         sheet.classList.remove('dragging');
+        handleZone.classList.remove('grabbing');
         const dy = lastY - startY;
         const flick = velocity > SWIPE_DISMISS_VEL;
         if (dy > SWIPE_DISMISS_PX || flick) {
-            // Dismiss — close modal
             closeModal(overlayId);
             if (overlayId === 'logger-modal' && editingLogId) exitEditMode();
-            haptic('tap');
+            haptic('commit');  // confirm dismiss
         } else {
-            // Snap back
+            // Below threshold — bounce back
             sheet.classList.add('snap-back');
             sheet.style.transform = '';
         }
     };
     
-    // Capture phase = we see the touch before child buttons do.
-    // Without this, tapping a pill can swallow the touchstart and the
-    // sheet never starts following the finger, even though the move/end
-    // events still fire — making it look like the sheet "jumps" closed.
-    sheet.addEventListener('touchstart', onStart, { passive: true, capture: true });
-    sheet.addEventListener('touchmove',  onMove,  { passive: true, capture: true });
-    sheet.addEventListener('touchend',   onEnd, { capture: true });
-    sheet.addEventListener('touchcancel', onEnd, { capture: true });
+    // Touch events fire on the original target throughout the gesture,
+    // so attaching to handleZone alone is enough — no zone math, no conditionals.
+    handleZone.addEventListener('touchstart', onStart, { passive: true });
+    handleZone.addEventListener('touchmove',  onMove,  { passive: false });
+    handleZone.addEventListener('touchend',   onEnd);
+    handleZone.addEventListener('touchcancel', onEnd);
 }
 
 // Wire all modals
