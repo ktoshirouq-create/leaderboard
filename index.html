@@ -2612,7 +2612,9 @@ document.getElementById('fab').addEventListener('click', () => {
 
 async function fetchData() {
     try {
-        const res = await fetch(AppConfig.api);
+        // Cache-bust query param defeats browser HTTP cache + service worker cache.
+        // Apps Script ignores unknown params, so this is safe.
+        const res = await fetch(AppConfig.api + '?t=' + Date.now());
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Unknown error');
         State.logs = (json.data.logs || []).filter(log =>
@@ -2620,10 +2622,10 @@ async function fetchData() {
         );
         State.roster    = (json.data.roster || []).filter(r => r && r.Name);
         State.locations = (json.data.locations || []).filter(l => l && l.Name);
-        saveCache();              // persist for instant boot next time
+        saveCache();
         renderFeed();
     } catch (err) {
-        // Only show error if we have nothing else to show — cache renders are still valid
+        console.error('[fetchData] failed:', err);  // surface silent failures in dev console
         if (State.logs.length === 0) {
             document.getElementById('feed-list').innerHTML =
                 `<div class="empty-msg">Couldn't load data.<br><small>${escapeHTML(err.message)}</small></div>`;
