@@ -3571,6 +3571,11 @@ function showProfile(climber) {
     }
     
     document.getElementById('profile-name').textContent = climber.toUpperCase();
+    // Default the pyramid to whichever discipline this climber most recently logged
+    const recentLog = State.logs
+        .filter(log => log.ClimberName === climber && AppConfig.disciplines.includes(log.Discipline))
+        .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))[0];
+    if (recentLog) profileHistoDiscipline = recentLog.Discipline;
     renderBestsStrip(climber);
     renderHistogram(climber);
     renderProfileSessions(climber);
