@@ -1652,7 +1652,16 @@ function showView(name) {
     document.querySelector(`.nav-btn[data-view="${name}"]`).classList.add('active');
     State.activeView = name;
     window.scrollTo({ top: 0, behavior: 'instant' });
-    if (name === 'boards') applyBoardMode();
+    if (name === 'boards') {
+        // Default the capacity discipline to whatever the active user most recently logged
+        if (State.activeUser) {
+            const recentLog = State.logs
+                .filter(log => log.ClimberName === State.activeUser && AppConfig.disciplines.includes(log.Discipline))
+                .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))[0];
+            if (recentLog) activeBoardDiscipline = recentLog.Discipline;
+        }
+        applyBoardMode();
+    }
 }
 
 // "Me" nav button → own profile (overrides default showView call)
