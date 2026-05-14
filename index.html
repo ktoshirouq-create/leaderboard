@@ -3045,9 +3045,11 @@ function renderSessionCard(session, idx) {
         : [`${sendCount} sends`, `max <span class="grade-value">${escapeHTML(maxGrade)}</span>`];
     const relTime  = formatRelativeTime(session.timestamp);
     const dateText = formatShortDate(session.date);
-    // For "Just now" / "Xh ago" / "Yesterday" etc., prepend the date.
-    // For the 7+d fallback (where formatRelativeTime already returns a date), just show the date.
-    const timeText = relTime === dateText ? dateText : `${dateText} · ${relTime}`;
+    // Show "climb date · relative time" only when relTime is genuinely relative.
+    // Once it falls back to a raw date (7+ days old log), the second date adds
+    // no info — just show the climb date alone.
+    const isRelative = /ago|now|today|yesterday/i.test(relTime);
+    const timeText = isRelative ? `${dateText} · ${relTime}` : dateText;
 
     const sortedSends = sortSendsByScore(session.sends, session.discipline);
     const sendsHtml = sortedSends.map(s => {
