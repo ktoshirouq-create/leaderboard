@@ -1433,12 +1433,12 @@ h1.screen-title {
 .loc-list-row:last-child { border-bottom: none; }
 .loc-list-grade { font-size: 1rem; font-weight: 800; color: #fff; min-width: 36px; }
 .loc-list-climber { color: #d4d4d4; font-weight: 700; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dist-chart { display: flex; align-items: stretch; justify-content: space-around; gap: 6px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius); padding: 14px 10px 12px 10px; height: 200px; }
-.dist-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
-.dist-count { font-size: 0.72rem; font-weight: 800; color: #fff; }
-.dist-bar-track { width: 100%; max-width: 30px; flex: 1; position: relative; }
-.dist-bar { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 4px 4px 0 0; min-height: 4px; transition: height 0.4s cubic-bezier(0.4,0,0.2,1); }
-.dist-label { font-size: 0.6rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.dist-chart { display: flex; align-items: stretch; justify-content: space-around; gap: 8px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius); padding: 16px 12px 12px 12px; height: 210px; }
+.dist-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
+.dist-bar-track { position: relative; flex: 1; width: 100%; max-width: 34px; }
+.dist-bar { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 5px 5px 0 0; min-height: 4px; transition: height 0.4s cubic-bezier(0.4,0,0.2,1); }
+.dist-count { position: absolute; left: -4px; right: -4px; text-align: center; font-size: 0.74rem; font-weight: 800; color: #fff; transition: bottom 0.4s cubic-bezier(0.4,0,0.2,1); }
+.dist-label { font-size: 0.62rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
 
 @media (max-width: 380px) {
     .container { padding: 20px 14px 120px 14px; }
@@ -3951,6 +3951,23 @@ function renderLocationRecentList(sends) {
     }).join('') + `</div>`;
 }
 
+// Per-grade bar colour: indoor-boulder grades use their hold/circuit colour;
+// everything else uses the flat discipline colour.
+function flatDiscColor(disc) {
+    return ({ 'In Boulder': 'var(--disc-in-boulder)', 'In Rope': 'var(--disc-in-rope)', 'Out Rope': 'var(--disc-out-rope)', 'Out Boulder': 'var(--disc-out-boulder)', 'Trad': 'var(--disc-trad)' })[disc] || 'var(--primary)';
+}
+function gradeBarColor(grade, disc, idx) {
+    if (disc === 'In Boulder') {
+        const scale = AppConfig.grades['In Boulder'];
+        const colors = scale && scale.colors;
+        if (colors) {
+            if (Array.isArray(colors)) { if (colors[idx]) return colors[idx]; }
+            else if (colors[grade]) return colors[grade];
+        }
+    }
+    return flatDiscColor(disc);
+}
+
 // Vertical bar-chart grade distribution (gym only)
 function renderGradeDistribution(sends) {
     if (sends.length === 0) return '';
@@ -3968,12 +3985,15 @@ function renderGradeDistribution(sends) {
     const present = scale.labels.filter(g => counts[g]);  // easy → hard
     if (present.length === 0) return '';
     const maxC = Math.max(...present.map(g => counts[g]));
-    const fill = ({ 'In Boulder': 'var(--disc-in-boulder)', 'In Rope': 'var(--disc-in-rope)', 'Out Rope': 'var(--disc-out-rope)', 'Out Boulder': 'var(--disc-out-boulder)', 'Trad': 'var(--disc-trad)' })[domDisc] || 'var(--primary)';
     const cols = present.map(g => {
-        const h = Math.round((counts[g] / maxC) * 100);
+        const idx = scale.labels.indexOf(g);
+        const h = Math.max(10, Math.round((counts[g] / maxC) * 80));  // cap 80% → leaves headroom for the count above
+        const color = gradeBarColor(g, domDisc, idx);
         return `<div class="dist-col">
-            <div class="dist-count">${counts[g]}</div>
-            <div class="dist-bar-track"><div class="dist-bar" style="height:${h}%;background:${fill}"></div></div>
+            <div class="dist-bar-track">
+                <div class="dist-bar" style="height:${h}%;background:${color}"></div>
+                <div class="dist-count" style="bottom:calc(${h}% + 5px)">${counts[g]}</div>
+            </div>
             <div class="dist-label">${escapeHTML(g)}</div>
         </div>`;
     }).join('');
