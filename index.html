@@ -1379,6 +1379,7 @@ h1.screen-title {
     color: #fff;
 }
 .hidden { display: none !important; }
+body.modal-open { overflow: hidden; }
 
 /* ===== LOCATION PAGE ===== */
 .loc-header { margin-bottom: 18px; }
@@ -1456,6 +1457,17 @@ h1.screen-title {
 .nerd-line:last-child { border-bottom: none; }
 .nerd-line .k { color: var(--text-muted); font-weight: 600; }
 .nerd-line .v { color: #fff; font-weight: 800; }
+
+/* Secret stats activity heatmap */
+.hm-wrap { display: flex; gap: 3px; overflow-x: auto; padding: 10px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius); scrollbar-width: none; }
+.hm-wrap::-webkit-scrollbar { display: none; }
+.hm-col { display: flex; flex-direction: column; gap: 3px; }
+.hm-cell { width: 11px; height: 11px; border-radius: 2px; background: #1c1c1c; }
+.hm-l0 { background: #1c1c1c; }
+.hm-l1 { background: rgba(16,185,129,0.30); }
+.hm-l2 { background: rgba(16,185,129,0.55); }
+.hm-l3 { background: rgba(16,185,129,0.80); }
+.hm-l4 { background: #10b981; }
 
 @media (max-width: 380px) {
     .container { padding: 20px 14px 120px 14px; }
@@ -1535,6 +1547,28 @@ h1.screen-title {
     <div class="loc-lenses pill-row" id="location-lenses"></div>
     <div id="location-main"></div>
     <div id="location-dist"></div>
+</div>
+
+<div class="view" id="view-secret">
+    <button class="profile-back" id="secret-back">← Back</button>
+    <div class="profile-name" id="secret-name">—</div>
+    <div style="margin:-12px 0 18px; font-size:0.72rem; font-weight:800; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Secret stats</div>
+
+    <div class="profile-section-title" style="margin-top:0">Grade pyramid · all-time</div>
+    <div class="histogram-tabs" id="secret-pyramid-tabs"></div>
+    <div id="secret-pyramid"></div>
+
+    <div class="profile-section-title">Sends per month · last 12</div>
+    <div id="secret-monthly"></div>
+
+    <div class="profile-section-title">Top spots · by visits</div>
+    <div id="secret-spots"></div>
+
+    <div class="profile-section-title">Flash rate · by discipline</div>
+    <div id="secret-flash"></div>
+
+    <div class="profile-section-title">Activity · last 26 weeks</div>
+    <div id="secret-heatmap"></div>
 </div>
 
 </div>
@@ -1858,6 +1892,7 @@ function openModal(id) {
     if (el.classList.contains('active')) return;
     el.classList.add('active');
     modalStack.push(id);
+    document.body.classList.add('modal-open');
     history.pushState({ modal: id }, '');
 }
 function closeModal(id) {
@@ -1875,6 +1910,7 @@ function closeModal(id) {
     }
     const idx = modalStack.lastIndexOf(id);
     if (idx >= 0) modalStack.splice(idx, 1);
+    if (modalStack.length === 0) document.body.classList.remove('modal-open');
 }
 
 /* ============== SWIPE-DOWN TO DISMISS ============== */
@@ -1969,6 +2005,7 @@ window.addEventListener('popstate', () => {
             el.classList.remove('active');
             modalStack.pop();
         }
+        if (modalStack.length === 0) document.body.classList.remove('modal-open');
         // Push a sentinel back so the next back press doesn't exit immediately
         history.pushState({ sentinel: true }, '');
     }
@@ -3795,7 +3832,7 @@ document.getElementById('profile-switcher').addEventListener('click', () => {
 function openNerdStats(climber) {
     if (!climber) return;
     const logs = State.logs.filter(l => l.ClimberName === climber);
-    document.getElementById('nerd-title').textContent = `Nerd stats · ${climber}`;
+    document.getElementById('nerd-title').textContent = `Secret stats · ${climber}`;
     const body = document.getElementById('nerd-body');
     if (logs.length === 0) {
         body.innerHTML = '<div class="lb-empty">No sends logged yet.</div>';
@@ -3803,44 +3840,61 @@ function openNerdStats(climber) {
         return;
     }
 
-    const totalSends = logs.length;
-    const days  = new Set(logs.map(l => getCleanDate(l.Date))).size;
-    const spots = new Set(logs.map(l => l.Where).filter(Boolean)).size;
-    const flashes  = logs.filter(l => { const s = String(l.Style || '').toLowerCase(); return s === 'flash' || s === 'onsight'; }).length;
-    const onsights = logs.filter(l => String(l.Style || '').toLowerCase() === 'onsight').length;
-    const flashRate = Math.round((flashes / totalSends) * 100);
+    const total = logs.length;
+    const days = new Set(logs.map(l => getCleanDate(l.Date))).size;
+    const lc = s => String(s || '').toLowerCase();
+    const flashes  = logs.filter(l => lc(l.Style) === 'flash' || lc(l.Style) === 'onsight').length;
+    const onsights = logs.filter(l => lc(l.Style) === 'onsight').length;
+    const flashRate   = Math.round(flashes / total * 100);
+    const onsightRate = Math.round(onsights / total * 100);
+    const outdoorDiscs = ['Out Rope', 'Out Boulder', 'Trad'];
+    const outdoorPct = Math.round(logs.filter(l => outdoorDiscs.includes(l.Discipline)).length / total * 100);
 
-    const spotCount = {};
-    logs.forEach(l => { if (l.Where) spotCount[l.Where] = (spotCount[l.Where] || 0) + 1; });
-    const favSpot = Object.entries(spotCount).sort((a, b) => b[1] - a[1])[0];
+    let hardest = null, hScore = -1;
+    logs.forEach(l => { const sc = getScoredValue(l.Grade, l.Style, l.Discipline); if (sc > hScore) { hScore = sc; hardest = l; } });
 
-    let hardest = null, hardestScore = -1;
-    logs.forEach(l => {
-        const sc = getScoredValue(l.Grade, l.Style, l.Discipline);
-        if (sc > hardestScore) { hardestScore = sc; hardest = l; }
-    });
+    // Favourite spot — by VISITS (distinct days), not raw sends
+    const spotDays = {};
+    logs.forEach(l => { if (l.Where) (spotDays[l.Where] = spotDays[l.Where] || new Set()).add(getCleanDate(l.Date)); });
+    const favSpot = Object.entries(spotDays).map(([w, s]) => [w, s.size]).sort((a, b) => b[1] - a[1])[0];
+
+    const perDay = {};
+    logs.forEach(l => { const d = getCleanDate(l.Date); perDay[d] = (perDay[d] || 0) + 1; });
+    const biggest = Object.entries(perDay).sort((a, b) => b[1] - a[1])[0];
+
+    const perMonth = {};
+    logs.forEach(l => { const ym = getCleanDate(l.Date).slice(0, 7); perMonth[ym] = (perMonth[ym] || 0) + 1; });
+    const busiest = Object.entries(perMonth).sort((a, b) => b[1] - a[1])[0];
+    const monthName = ym => { const [y, m] = ym.split('-'); return `${AppConfig.months[+m - 1]} ${y.slice(2)}`; };
+    const daysPerMonth = (days / (Object.keys(perMonth).length || 1)).toFixed(1);
+
+    const gradeCount = {};
+    logs.forEach(l => { const g = getBaseGrade(l.Grade); if (g) gradeCount[g] = (gradeCount[g] || 0) + 1; });
+    const modeGrade = Object.entries(gradeCount).sort((a, b) => b[1] - a[1])[0];
 
     const discCount = {};
     logs.forEach(l => { discCount[l.Discipline] = (discCount[l.Discipline] || 0) + 1; });
-    const discRows = AppConfig.disciplines
-        .filter(d => discCount[d])
+    const discRows = AppConfig.disciplines.filter(d => discCount[d])
         .sort((a, b) => discCount[b] - discCount[a])
-        .map(d => `<div class="nerd-line"><span class="k">${escapeHTML(d)}</span><span class="v">${discCount[d]}</span></div>`)
-        .join('');
+        .map(d => `<div class="nerd-line"><span class="k">${escapeHTML(d)}</span><span class="v">${discCount[d]}</span></div>`).join('');
 
     body.innerHTML = `
         <div class="nerd-grid">
-            <div class="nerd-cell"><div class="nerd-val">${totalSends}</div><div class="nerd-label">Total sends</div></div>
-            <div class="nerd-cell"><div class="nerd-val">${days}</div><div class="nerd-label">Climbing days</div></div>
+            <div class="nerd-cell"><div class="nerd-val">${total}</div><div class="nerd-label">Total sends</div></div>
             <div class="nerd-cell"><div class="nerd-val accent">${flashRate}%</div><div class="nerd-label">Flash rate</div></div>
-            <div class="nerd-cell"><div class="nerd-val">${spots}</div><div class="nerd-label">Spots visited</div></div>
+            <div class="nerd-cell"><div class="nerd-val accent">${onsightRate}%</div><div class="nerd-label">Onsight rate</div></div>
+            <div class="nerd-cell"><div class="nerd-val accent">${outdoorPct}%</div><div class="nerd-label">Outdoors</div></div>
         </div>
         <div class="nerd-sub">Lifetime</div>
         <div class="nerd-line"><span class="k">Hardest ever</span><span class="v">${hardest ? escapeHTML(hardest.Grade) + ' · ' + escapeHTML(hardest.Discipline) : '—'}</span></div>
-        <div class="nerd-line"><span class="k">Onsights</span><span class="v">${onsights}</span></div>
-        <div class="nerd-line"><span class="k">Favourite spot</span><span class="v">${favSpot ? escapeHTML(favSpot[0]) + ' · ' + favSpot[1] : '—'}</span></div>
+        <div class="nerd-line"><span class="k">Favourite spot</span><span class="v">${favSpot ? escapeHTML(favSpot[0]) + ' · ' + favSpot[1] + ' visit' + (favSpot[1] === 1 ? '' : 's') : '—'}</span></div>
+        <div class="nerd-line"><span class="k">Biggest day</span><span class="v">${biggest ? biggest[1] + ' sends · ' + escapeHTML(formatShortDate(biggest[0])) : '—'}</span></div>
+        <div class="nerd-line"><span class="k">Busiest month</span><span class="v">${busiest ? escapeHTML(monthName(busiest[0])) + ' · ' + busiest[1] : '—'}</span></div>
+        <div class="nerd-line"><span class="k">Climbing days</span><span class="v">${days} · ~${daysPerMonth}/mo</span></div>
+        <div class="nerd-line"><span class="k">Most-climbed grade</span><span class="v">${modeGrade ? escapeHTML(modeGrade[0]) + ' · ' + modeGrade[1] + '×' : '—'}</span></div>
         <div class="nerd-sub">Sends by discipline</div>
         ${discRows}
+        <div style="text-align:center; margin-top:18px; font-size:0.72rem; color:var(--text-muted); font-weight:600;">Hold the name for the full breakdown ↗</div>
     `;
     openModal('nerd-modal');
 }
@@ -3850,12 +3904,30 @@ document.getElementById('nerd-modal').addEventListener('click', e => {
     if (e.target.id === 'nerd-modal') closeModal('nerd-modal');
 });
 
-// Secret unlock: 5 fast taps on the big profile name → Nerd stats for whoever's profile this is
+// Profile name secrets: 5 fast taps → quick sheet; long-press → full Secret stats page
 (function () {
     const nameEl = document.getElementById('profile-name');
     if (!nameEl) return;
-    let taps = 0, resetTimer = null;
+    let taps = 0, resetTimer = null, lpTimer = null, suppressClick = false;
+    const startLP = () => {
+        lpTimer = setTimeout(() => {
+            suppressClick = true;
+            taps = 0;
+            clearTimeout(resetTimer);
+            haptic('commit');
+            if (profileClimber) showSecretStats(profileClimber);
+        }, LONG_PRESS_MS);
+    };
+    const cancelLP = () => clearTimeout(lpTimer);
+    nameEl.addEventListener('touchstart', startLP, { passive: true });
+    nameEl.addEventListener('touchmove', cancelLP, { passive: true });
+    nameEl.addEventListener('touchend', cancelLP);
+    nameEl.addEventListener('touchcancel', cancelLP);
+    nameEl.addEventListener('mousedown', startLP);
+    nameEl.addEventListener('mouseup', cancelLP);
+    nameEl.addEventListener('mouseleave', cancelLP);
     nameEl.addEventListener('click', () => {
+        if (suppressClick) { suppressClick = false; return; }
         taps++;
         clearTimeout(resetTimer);
         resetTimer = setTimeout(() => { taps = 0; }, 1500);
@@ -3867,6 +3939,154 @@ document.getElementById('nerd-modal').addEventListener('click', e => {
         }
     });
 })();
+
+/* ============== SECRET STATS PAGE (hidden — long-press the profile name) ============== */
+let secretClimber = null;
+let secretPyramidDisc = 'In Boulder';
+
+function showSecretStats(climber) {
+    if (!climber) return;
+    secretClimber = climber;
+    const recent = State.logs
+        .filter(l => l.ClimberName === climber && AppConfig.disciplines.includes(l.Discipline))
+        .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))[0];
+    if (recent) secretPyramidDisc = recent.Discipline;
+    document.getElementById('secret-name').textContent = climber.toUpperCase();
+    showView('secret');
+    renderSecretStats();
+}
+
+function renderSecretStats() {
+    const climber = secretClimber;
+    if (!climber) return;
+    const logs = State.logs.filter(l => l.ClimberName === climber);
+    renderSecretPyramid(logs);
+    renderSecretMonthly(logs);
+    renderSecretSpots(logs);
+    renderSecretFlash(logs);
+    renderSecretHeatmap(logs);
+}
+
+function renderSecretPyramid(logs) {
+    const tabsEl = document.getElementById('secret-pyramid-tabs');
+    tabsEl.innerHTML = AppConfig.disciplines.map(d =>
+        `<button class="pill ${d === secretPyramidDisc ? 'active' : ''}" data-secret-disc="${d}">${d}</button>`).join('');
+    tabsEl.querySelectorAll('[data-secret-disc]').forEach(el => {
+        el.addEventListener('click', () => { haptic('tap'); secretPyramidDisc = el.dataset.secretDisc; renderSecretPyramid(logs); });
+    });
+    const scale = AppConfig.grades[secretPyramidDisc];
+    const el = document.getElementById('secret-pyramid');
+    if (!scale) { el.innerHTML = ''; return; }
+    const counts = {};
+    logs.forEach(l => { if (l.Discipline !== secretPyramidDisc) return; const g = getBaseGrade(l.Grade); if (scale.labels.includes(g)) counts[g] = (counts[g] || 0) + 1; });
+    const present = scale.labels.filter(g => counts[g]);
+    if (present.length === 0) { el.innerHTML = '<div class="lb-empty">No sends in this discipline.</div>'; return; }
+    const maxC = Math.max(...present.map(g => counts[g]));
+    const cols = present.map(g => {
+        const idx = scale.labels.indexOf(g);
+        const h = Math.max(10, Math.round(counts[g] / maxC * 80));
+        const color = gradeBarColor(g, secretPyramidDisc, idx);
+        return `<div class="dist-col">
+            <div class="dist-bar-track">
+                <div class="dist-bar" style="height:${h}%;background:${color}"></div>
+                <div class="dist-count" style="bottom:calc(${h}% + 5px)">${counts[g]}</div>
+            </div>
+            <div class="dist-label">${escapeHTML(g)}</div>
+        </div>`;
+    }).join('');
+    el.innerHTML = `<div class="dist-chart">${cols}</div>`;
+}
+
+function renderSecretMonthly(logs) {
+    const el = document.getElementById('secret-monthly');
+    const now = new Date();
+    const months = [];
+    for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: AppConfig.months[d.getMonth()] });
+    }
+    const counts = {};
+    logs.forEach(l => { const ym = getCleanDate(l.Date).slice(0, 7); counts[ym] = (counts[ym] || 0) + 1; });
+    const vals = months.map(m => counts[m.key] || 0);
+    if (vals.every(v => v === 0)) { el.innerHTML = '<div class="lb-empty">No sends in the last year.</div>'; return; }
+    const maxC = Math.max(...vals, 1);
+    const cols = months.map((m, i) => {
+        const c = vals[i];
+        const h = c > 0 ? Math.max(8, Math.round(c / maxC * 80)) : 0;
+        const bar = c > 0
+            ? `<div class="dist-bar" style="height:${h}%;background:var(--primary)"></div><div class="dist-count" style="bottom:calc(${h}% + 5px)">${c}</div>`
+            : '';
+        return `<div class="dist-col"><div class="dist-bar-track">${bar}</div><div class="dist-label">${m.label[0]}</div></div>`;
+    }).join('');
+    el.innerHTML = `<div class="dist-chart" style="height:180px">${cols}</div>`;
+}
+
+function renderSecretSpots(logs) {
+    const el = document.getElementById('secret-spots');
+    const spotDays = {};
+    logs.forEach(l => { if (l.Where) (spotDays[l.Where] = spotDays[l.Where] || new Set()).add(getCleanDate(l.Date)); });
+    const rows = Object.entries(spotDays).map(([w, s]) => ({ where: w, visits: s.size })).sort((a, b) => b.visits - a.visits).slice(0, 8);
+    if (rows.length === 0) { el.innerHTML = '<div class="lb-empty">No spots yet.</div>'; return; }
+    const maxV = Math.max(...rows.map(r => r.visits), 1);
+    el.innerHTML = `<div class="histogram">` + rows.map(r => {
+        const pct = Math.round(r.visits / maxV * 100);
+        return `<div class="histo-row" style="height:18px;margin-bottom:8px;">
+            <div class="histo-label" style="width:96px;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(r.where)}</div>
+            <div class="histo-bar-wrap"><div class="histo-bar" style="width:${pct}%;background:var(--primary)"></div></div>
+            <div class="histo-count" style="width:28px;">${r.visits}</div>
+        </div>`;
+    }).join('') + `</div>`;
+}
+
+function renderSecretFlash(logs) {
+    const el = document.getElementById('secret-flash');
+    const rows = AppConfig.disciplines.map(d => {
+        const ds = logs.filter(l => l.Discipline === d);
+        if (ds.length === 0) return null;
+        const fl = ds.filter(l => { const s = String(l.Style || '').toLowerCase(); return s === 'flash' || s === 'onsight'; }).length;
+        return { disc: d, pct: Math.round(fl / ds.length * 100) };
+    }).filter(Boolean);
+    if (rows.length === 0) { el.innerHTML = '<div class="lb-empty">No data.</div>'; return; }
+    el.innerHTML = `<div class="histogram">` + rows.map(r => `
+        <div class="histo-row" style="height:18px;margin-bottom:8px;">
+            <div class="histo-label" style="width:96px;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(r.disc)}</div>
+            <div class="histo-bar-wrap"><div class="histo-bar" style="width:${r.pct}%;background:${flatDiscColor(r.disc)}"></div></div>
+            <div class="histo-count" style="width:38px;">${r.pct}%</div>
+        </div>`).join('') + `</div>`;
+}
+
+function renderSecretHeatmap(logs) {
+    const el = document.getElementById('secret-heatmap');
+    const perDay = {};
+    logs.forEach(l => { const d = getCleanDate(l.Date); perDay[d] = (perDay[d] || 0) + 1; });
+    const fmt = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    const WEEKS = 26;
+    const today = new Date(getCleanDate(new Date()) + 'T00:00:00');
+    const dow = (today.getDay() + 6) % 7; // 0=Mon … 6=Sun
+    const start = new Date(today);
+    start.setDate(today.getDate() - dow - (WEEKS - 1) * 7);
+    let maxC = 1;
+    Object.values(perDay).forEach(v => { if (v > maxC) maxC = v; });
+    const level = c => { if (!c) return 0; const r = c / maxC; if (r <= 0.25) return 1; if (r <= 0.5) return 2; if (r <= 0.75) return 3; return 4; };
+    const cur = new Date(start);
+    let cols = '';
+    for (let w = 0; w < WEEKS; w++) {
+        let cells = '';
+        for (let d = 0; d < 7; d++) {
+            const c = perDay[fmt(cur)] || 0;
+            const lvl = cur > today ? 0 : level(c);
+            cells += `<div class="hm-cell hm-l${lvl}"></div>`;
+            cur.setDate(cur.getDate() + 1);
+        }
+        cols += `<div class="hm-col">${cells}</div>`;
+    }
+    el.innerHTML = `<div class="hm-wrap">${cols}</div>`;
+}
+
+document.getElementById('secret-back').addEventListener('click', () => {
+    haptic('tap');
+    showView('profile');
+});
 
 /* ============== LOCATION PAGE ============== */
 let locationName = null;
@@ -4314,14 +4534,16 @@ function computeHotSpots() {
         if (!AppConfig.disciplines.includes(log.Discipline)) return;
         const where = log.Where;
         if (!where) return;
-        if (!byLoc.has(where)) byLoc.set(where, { where, count: 0, climbers: new Set() });
+        if (!byLoc.has(where)) byLoc.set(where, { where, visits: new Set(), climbers: new Set(), sends: 0 });
         const e = byLoc.get(where);
-        e.count++;
+        e.sends++;
         e.climbers.add(log.ClimberName);
+        // a "visit" = one climber on one day — footfall, not one person's volume dump
+        e.visits.add(log.ClimberName + '|' + getCleanDate(log.Date));
     });
     return Array.from(byLoc.values())
-        .map(e => ({ where: e.where, count: e.count, climbers: e.climbers.size }))
-        .sort((a, b) => b.count - a.count || b.climbers - a.climbers);
+        .map(e => ({ where: e.where, count: e.visits.size, climbers: e.climbers.size, sends: e.sends }))
+        .sort((a, b) => b.count - a.count || b.climbers - a.climbers || b.sends - a.sends);
 }
 
 function renderHotSpotsBoard() {
@@ -4346,7 +4568,7 @@ function renderHotSpotsBoard() {
             </div>
             <div class="lb-grade">
                 <div class="lb-grade-val">${r.count}</div>
-                <div class="lb-grade-pct">sends · ${r.climbers} climber${r.climbers === 1 ? '' : 's'}</div>
+                <div class="lb-grade-pct">visits · ${r.climbers} climber${r.climbers === 1 ? '' : 's'}</div>
             </div>
         </div>`;
     }).join('');
