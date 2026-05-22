@@ -57,7 +57,12 @@ body {
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
+/* Re-enable selection only where it's actually wanted */
+input, textarea { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .container {
     max-width: 850px;
     margin: 0 auto;
@@ -1440,6 +1445,18 @@ h1.screen-title {
 .dist-count { position: absolute; left: -4px; right: -4px; text-align: center; font-size: 0.74rem; font-weight: 800; color: #fff; transition: bottom 0.4s cubic-bezier(0.4,0,0.2,1); }
 .dist-label { font-size: 0.62rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
 
+/* ===== NERD STATS (hidden) ===== */
+.nerd-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px; }
+.nerd-cell { background: var(--input-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: 12px; padding: 14px; text-align: center; }
+.nerd-val { font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+.nerd-val.accent { color: var(--primary); }
+.nerd-label { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-top: 5px; }
+.nerd-sub { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1.3px; color: var(--text-muted); margin: 18px 0 8px; }
+.nerd-line { display: flex; justify-content: space-between; align-items: center; padding: 11px 4px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.9rem; }
+.nerd-line:last-child { border-bottom: none; }
+.nerd-line .k { color: var(--text-muted); font-weight: 600; }
+.nerd-line .v { color: #fff; font-weight: 800; }
+
 @media (max-width: 380px) {
     .container { padding: 20px 14px 120px 14px; }
 }
@@ -1477,7 +1494,7 @@ h1.screen-title {
     <div id="boards-mode" style="display: none;">
     <div class="board-tabs" id="board-tabs">
         <button class="pill active" data-board="hardest">Hardest</button>
-        <button class="pill" data-board="volume">Most Volume</button>
+        <button class="pill" data-board="hotspots">Hot Spots</button>
         <button class="pill" data-board="addicted">Most Addicted</button>
         <button class="pill" data-board="outdoor">Outdoor Days</button>
     </div>
@@ -1612,6 +1629,15 @@ h1.screen-title {
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="modal-title" id="info-title">Info</div>
         <div id="info-body"></div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="nerd-modal">
+    <div class="modal-sheet">
+        <button class="modal-close" id="nerd-close">×</button>
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
+        <div class="modal-title" id="nerd-title">Nerd stats</div>
+        <div id="nerd-body"></div>
     </div>
 </div>
 
@@ -1932,7 +1958,7 @@ function attachSwipeToClose(overlayId) {
 
 // Wire all modals
 ['logger-modal', 'switcher-modal', 'identity-prompt', 'info-modal',  
- 'action-sheet-modal', 'confirm-modal', 'rename-modal'].forEach(attachSwipeToClose);
+ 'nerd-modal', 'action-sheet-modal', 'confirm-modal', 'rename-modal'].forEach(attachSwipeToClose);
 
 // Back button: close topmost modal if any are open
 window.addEventListener('popstate', () => {
@@ -3636,17 +3662,19 @@ function renderProfileSessions(climber) {
         const dot = dotColor
             ? `<span class="grade-dot" style="background:${dotColor}"></span>`
             : '';
-        const hasDetail = !!log.RouteName;
-        const expandIcon = hasDetail ? ' <span class="pt-expand">▾</span>' : '';
-        const detailRow = hasDetail
-            ? `<div class="profile-table-detail" data-disc="${escapeHTML(log.Discipline)}">
-                 <span class="pt-detail-label">Route</span>
-                 <span class="pt-detail-value">${escapeHTML(log.RouteName)}</span>
-               </div>`
+        // Caret always shown so every row signals "tap to expand". Location name
+        // stays its own nav target (its click stops propagation, so it won't expand).
+        const routePair = log.RouteName
+            ? `<span class="pt-detail-label">Route</span><span class="pt-detail-value">${escapeHTML(log.RouteName)}</span>`
             : '';
-        return `<div class="profile-table-row ${hasDetail ? 'has-detail' : ''}" data-log-id="${escapeHTML(log.LogId || '')}" data-disc="${escapeHTML(log.Discipline)}">
+        const detailRow = `<div class="profile-table-detail" data-disc="${escapeHTML(log.Discipline)}">
+                ${routePair}
+                <span class="pt-detail-label">Disc</span>
+                <span class="pt-detail-value">${escapeHTML(log.Discipline)}</span>
+            </div>`;
+        return `<div class="profile-table-row has-detail" data-log-id="${escapeHTML(log.LogId || '')}" data-disc="${escapeHTML(log.Discipline)}">
             <div class="pt-date">${escapeHTML(dateStr)}</div>
-            <div class="pt-route">${dot}<span class="pt-where-link" data-loc="${escapeHTML(log.Where)}">${escapeHTML(log.Where)}</span>${expandIcon}</div>
+            <div class="pt-route">${dot}<span class="pt-where-link" data-loc="${escapeHTML(log.Where)}">${escapeHTML(log.Where)}</span> <span class="pt-expand">▾</span></div>
             <div class="pt-grade">${escapeHTML(log.Grade)}</div>
             <div class="pt-style ${styleClass}">${escapeHTML(log.Style)}</div>
         </div>${detailRow}`;
@@ -3762,6 +3790,83 @@ document.getElementById('profile-switcher').addEventListener('click', () => {
     }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false });
     openModal('switcher-modal');
 });
+
+/* ============== NERD STATS (hidden — 5 taps on profile name) ============== */
+function openNerdStats(climber) {
+    if (!climber) return;
+    const logs = State.logs.filter(l => l.ClimberName === climber);
+    document.getElementById('nerd-title').textContent = `Nerd stats · ${climber}`;
+    const body = document.getElementById('nerd-body');
+    if (logs.length === 0) {
+        body.innerHTML = '<div class="lb-empty">No sends logged yet.</div>';
+        openModal('nerd-modal');
+        return;
+    }
+
+    const totalSends = logs.length;
+    const days  = new Set(logs.map(l => getCleanDate(l.Date))).size;
+    const spots = new Set(logs.map(l => l.Where).filter(Boolean)).size;
+    const flashes  = logs.filter(l => { const s = String(l.Style || '').toLowerCase(); return s === 'flash' || s === 'onsight'; }).length;
+    const onsights = logs.filter(l => String(l.Style || '').toLowerCase() === 'onsight').length;
+    const flashRate = Math.round((flashes / totalSends) * 100);
+
+    const spotCount = {};
+    logs.forEach(l => { if (l.Where) spotCount[l.Where] = (spotCount[l.Where] || 0) + 1; });
+    const favSpot = Object.entries(spotCount).sort((a, b) => b[1] - a[1])[0];
+
+    let hardest = null, hardestScore = -1;
+    logs.forEach(l => {
+        const sc = getScoredValue(l.Grade, l.Style, l.Discipline);
+        if (sc > hardestScore) { hardestScore = sc; hardest = l; }
+    });
+
+    const discCount = {};
+    logs.forEach(l => { discCount[l.Discipline] = (discCount[l.Discipline] || 0) + 1; });
+    const discRows = AppConfig.disciplines
+        .filter(d => discCount[d])
+        .sort((a, b) => discCount[b] - discCount[a])
+        .map(d => `<div class="nerd-line"><span class="k">${escapeHTML(d)}</span><span class="v">${discCount[d]}</span></div>`)
+        .join('');
+
+    body.innerHTML = `
+        <div class="nerd-grid">
+            <div class="nerd-cell"><div class="nerd-val">${totalSends}</div><div class="nerd-label">Total sends</div></div>
+            <div class="nerd-cell"><div class="nerd-val">${days}</div><div class="nerd-label">Climbing days</div></div>
+            <div class="nerd-cell"><div class="nerd-val accent">${flashRate}%</div><div class="nerd-label">Flash rate</div></div>
+            <div class="nerd-cell"><div class="nerd-val">${spots}</div><div class="nerd-label">Spots visited</div></div>
+        </div>
+        <div class="nerd-sub">Lifetime</div>
+        <div class="nerd-line"><span class="k">Hardest ever</span><span class="v">${hardest ? escapeHTML(hardest.Grade) + ' · ' + escapeHTML(hardest.Discipline) : '—'}</span></div>
+        <div class="nerd-line"><span class="k">Onsights</span><span class="v">${onsights}</span></div>
+        <div class="nerd-line"><span class="k">Favourite spot</span><span class="v">${favSpot ? escapeHTML(favSpot[0]) + ' · ' + favSpot[1] : '—'}</span></div>
+        <div class="nerd-sub">Sends by discipline</div>
+        ${discRows}
+    `;
+    openModal('nerd-modal');
+}
+
+document.getElementById('nerd-close').addEventListener('click', () => closeModal('nerd-modal'));
+document.getElementById('nerd-modal').addEventListener('click', e => {
+    if (e.target.id === 'nerd-modal') closeModal('nerd-modal');
+});
+
+// Secret unlock: 5 fast taps on the big profile name → Nerd stats for whoever's profile this is
+(function () {
+    const nameEl = document.getElementById('profile-name');
+    if (!nameEl) return;
+    let taps = 0, resetTimer = null;
+    nameEl.addEventListener('click', () => {
+        taps++;
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => { taps = 0; }, 1500);
+        if (taps >= 5) {
+            taps = 0;
+            clearTimeout(resetTimer);
+            haptic('commit');
+            if (profileClimber) openNerdStats(profileClimber);
+        }
+    });
+})();
 
 /* ============== LOCATION PAGE ============== */
 let locationName = null;
@@ -4020,11 +4125,12 @@ document.getElementById('view-location').addEventListener('click', (e) => {
 /* ============== SPECIAL BOARDS ============== */
 const SPECIAL_WINDOW_DAYS = 30;
 let activeSpecialBoard = localStorage.getItem('leaderboard.lastSpecialBoard') || 'hardest';
-if (!['hardest', 'volume', 'addicted', 'outdoor'].includes(activeSpecialBoard)) activeSpecialBoard = 'hardest';
+if (!['hardest', 'hotspots', 'addicted', 'outdoor'].includes(activeSpecialBoard)) activeSpecialBoard = 'hardest';
+let hotSpotsExpanded = false;
 
 const BOARD_SUBTITLES = {
     hardest:  'Highest single send, last 30 days',
-    volume:   'Total sends, last 30 days',
+    hotspots: 'Crags & gyms · all-time activity',
     addicted: 'Distinct climbing days, last 30 days',
     outdoor:  'Distinct outdoor days, last 30 days'
 };
@@ -4200,6 +4306,68 @@ function renderCountBoard(rows, unitLabel) {
     });
 }
 
+// Hot Spots: locations ranked by all-time activity (sends) + crew size.
+// Doubles as the home for location pages, and the full directory via "Show all".
+function computeHotSpots() {
+    const byLoc = new Map();
+    State.logs.forEach(log => {
+        if (!AppConfig.disciplines.includes(log.Discipline)) return;
+        const where = log.Where;
+        if (!where) return;
+        if (!byLoc.has(where)) byLoc.set(where, { where, count: 0, climbers: new Set() });
+        const e = byLoc.get(where);
+        e.count++;
+        e.climbers.add(log.ClimberName);
+    });
+    return Array.from(byLoc.values())
+        .map(e => ({ where: e.where, count: e.count, climbers: e.climbers.size }))
+        .sort((a, b) => b.count - a.count || b.climbers - a.climbers);
+}
+
+function renderHotSpotsBoard() {
+    const all = assignTiedRanksByCount(computeHotSpots());
+    const container = document.getElementById('special-board');
+    if (all.length === 0) {
+        container.innerHTML = '<div class="lb-empty">No locations logged yet.</div>';
+        return;
+    }
+    const shown = hotSpotsExpanded ? all : all.slice(0, 10);
+    const maxCount = all[0].count || 1;
+    let html = shown.map(r => {
+        const type = getLocationType(r.where);
+        const badge = `<span class="loc-badge ${type}" style="margin-left:8px">${type === 'crag' ? 'Crag' : 'Gym'}</span>`;
+        const fillPct = Math.round((r.count / maxCount) * 100);
+        return `
+        <div class="lb-row" data-loc="${escapeHTML(r.where)}">
+            <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
+            <div class="lb-bar-wrap">
+                <div class="lb-name">${escapeHTML(r.where)}${badge}</div>
+                <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
+            </div>
+            <div class="lb-grade">
+                <div class="lb-grade-val">${r.count}</div>
+                <div class="lb-grade-pct">sends · ${r.climbers} climber${r.climbers === 1 ? '' : 's'}</div>
+            </div>
+        </div>`;
+    }).join('');
+    if (!hotSpotsExpanded && all.length > 10) {
+        html += `<button class="load-more-btn" id="hotspots-more">Show all · ${all.length - 10} more</button>`;
+    }
+    container.innerHTML = html;
+    container.querySelectorAll('.lb-row').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            showLocation(el.dataset.loc, 'boards');
+        });
+    });
+    const moreBtn = document.getElementById('hotspots-more');
+    if (moreBtn) moreBtn.addEventListener('click', () => {
+        haptic('tap');
+        hotSpotsExpanded = true;
+        renderHotSpotsBoard();
+    });
+}
+
 function renderSpecialBoard() {
     document.getElementById('board-subtitle').textContent = BOARD_SUBTITLES[activeSpecialBoard];
     document.querySelectorAll('#board-tabs .pill').forEach(el => {
@@ -4207,9 +4375,8 @@ function renderSpecialBoard() {
     });
     if (activeSpecialBoard === 'hardest') {
         renderHardestBoard();
-    } else if (activeSpecialBoard === 'volume') {
-        const rows = assignTiedRanksByCount(computeVolume());
-        renderCountBoard(rows, 'sends');
+    } else if (activeSpecialBoard === 'hotspots') {
+        renderHotSpotsBoard();
     } else if (activeSpecialBoard === 'addicted') {
         const rows = assignTiedRanksByCount(computeAddicted());
         renderCountBoard(rows, 'days');
@@ -4224,6 +4391,7 @@ document.querySelectorAll('#board-tabs .pill').forEach(el => {
         haptic('tap');
         activeSpecialBoard = el.dataset.board;
         localStorage.setItem('leaderboard.lastSpecialBoard', activeSpecialBoard);
+        hotSpotsExpanded = false;
         renderSpecialBoard();
     });
 });
