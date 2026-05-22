@@ -1456,7 +1456,7 @@ h1.screen-title {
         <div class="field-label">Discipline</div>
         <div class="pill-row" id="logger-discipline"></div>
 
-        <div class="field-label">Where</div>
+        <div class="field-label" id="where-label">Where</div>
         <div class="pill-row" id="logger-where"></div>
         <div class="add-name-row hidden" id="where-add-row">
             <input type="text" class="add-name-input" id="where-add-input" placeholder="Gym or crag name" maxlength="30">
@@ -2111,9 +2111,20 @@ function renderDisciplinePills() {
 /* ----- Where pills ----- */
 function renderWherePills() {
     const c = document.getElementById('logger-where');
+    // Dynamic label + placeholder: Crag for outdoor, Gym for indoor
+    const isOut = isOutdoor(LoggerState.discipline);
+    const labelEl = document.getElementById('where-label');
+    if (labelEl) labelEl.textContent = isOut ? 'Crag' : 'Gym';
+    const addInputEl = document.getElementById('where-add-input');
+    if (addInputEl) addInputEl.placeholder = isOut ? 'Crag name' : 'Gym name';
     const stickyKey = `leaderboard.lastWhere.${LoggerState.discipline}`;
     const sticky = localStorage.getItem(stickyKey);
     const locations = getLocationsForDiscipline(LoggerState.discipline);
+    // EDIT MODE: if the climb's location isn't a registered Location, keep it
+    // as a pill so editing doesn't silently swap it to a different crag/gym.
+    if (editingLogId && LoggerState.where && !locations.includes(LoggerState.where)) {
+        locations.unshift(LoggerState.where);
+    }
     if (!locations.includes(LoggerState.where)) {
         LoggerState.where = locations.includes(sticky) ? sticky : (locations[0] || null);
     }
@@ -2341,7 +2352,7 @@ document.getElementById('style-info').addEventListener('click', (e) => {
     e.stopPropagation();
     haptic('tap');
     openInfoModal('Style', [
-        { term: 'Send',    def: 'Clean ascent on lead. Redpoint after any number of attempts counts.' },
+        { term: 'Send / Redpoint', def: 'A clean lead from bottom to top with no falls, rests, or hanging on the rope. Counts no matter how many attempts it took before.' },
         { term: 'Flash',   def: 'Clean first-try ascent on lead, with prior beta or watching others.' },
         { term: 'Onsight', def: 'Clean first-try ascent on lead — no prior info, never seen anyone on it.' }
     ]);
@@ -3099,7 +3110,7 @@ function renderSessionCard(session, idx) {
     <div class="session-card ${stateClass}" data-disc="${escapeHTML(session.discipline)}" data-idx="${idx}">
         <div class="session-header">
             <div class="s-name-block">
-                <div class="s-name">${escapeHTML(session.climber)}</div>
+                <div class="s-name" data-profile-link>${escapeHTML(session.climber)}</div>
                 <div class="s-time">${escapeHTML(timeText)}</div>
             </div>
             <div class="s-where">${session.wheres.map(w => '@ ' + escapeHTML(w)).join('  ')}</div>
@@ -3136,6 +3147,15 @@ function renderFeed() {
             card.classList.toggle('expanded');
         });
         const session = visibleSessions[cardIdx];
+        // Tapping the climber's name jumps to their profile (not card expand)
+        const nameEl = card.querySelector('.s-name[data-profile-link]');
+        if (nameEl) {
+            nameEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                haptic('tap');
+                showProfile(session.climber);
+            });
+        }
         const sortedSends = sortSendsByScore(session.sends, session.discipline);
         card.querySelectorAll('.send-row').forEach((rowEl, sendIdx) => {
             const log = sortedSends[sendIdx];
@@ -3552,10 +3572,20 @@ function renderProfileSessions(climber) {
         if (rowEl.classList.contains('has-detail')) {
             rowEl.addEventListener('click', () => {
                 haptic('tap');
-                rowEl.classList.toggle('expanded');
-                const detail = rowEl.nextElementSibling;
-                if (detail && detail.classList.contains('profile-table-detail')) {
-                    detail.classList.toggle('expanded');
+                const wasOpen = rowEl.classList.contains('expanded');
+                // Accordion: collapse any other open row first
+                container.querySelectorAll('.profile-table-row.expanded').forEach(r => {
+                    r.classList.remove('expanded');
+                    const d = r.nextElementSibling;
+                    if (d && d.classList.contains('profile-table-detail')) d.classList.remove('expanded');
+                });
+                // Open this one only if it wasn't already open (tap-again closes)
+                if (!wasOpen) {
+                    rowEl.classList.add('expanded');
+                    const detail = rowEl.nextElementSibling;
+                    if (detail && detail.classList.contains('profile-table-detail')) {
+                        detail.classList.add('expanded');
+                    }
                 }
             });
         }
