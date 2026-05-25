@@ -2514,7 +2514,7 @@ document.querySelectorAll('#logger-date [data-date]').forEach(el => {
         if (el.dataset.date === 'custom') {
             customInput.classList.remove('hidden');
             // Default the custom picker to today, max = today (no future logging)
-            const today = new Date().toISOString().substring(0, 10);
+            const today = getCleanDate(new Date());
             if (!customInput.value) customInput.value = today;
             customInput.max = today;
             customInput.focus();
