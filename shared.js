@@ -79,18 +79,18 @@ const AppConfig = {
 // Strip style markers from grade strings (legacy from personal app — leaderboard probably won't need but kept for safety)
 const getBaseGrade = (g) => String(g || "").replace(/[⚡💎🚀🛠️❌🪢🔄\s]/g, '');
 
-// Date string normalizer — uses +12h hack to avoid TZ-related off-by-one
+// Date string normalizer — extracts a LOCAL YYYY-MM-DD deterministically (no UTC round-trip, no hour math)
 const getCleanDate = (dStr) => {
-    if (!dStr) {
-        const d = new Date();
-        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().substring(0, 10);
-    }
+    const toLocalYMD = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+    if (!dStr) return toLocalYMD(new Date());
     if (typeof dStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dStr.trim())) return dStr.trim();
     const d = new Date(dStr);
-    if (!isNaN(d.getTime())) {
-        d.setHours(d.getHours() + 12);
-        return d.toISOString().substring(0, 10);
-    }
+    if (!isNaN(d.getTime())) return toLocalYMD(d);
     return String(dStr).substring(0, 10);
 };
 
