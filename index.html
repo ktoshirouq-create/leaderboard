@@ -1647,7 +1647,8 @@ body.disco { animation: disco-hue 0.8s linear infinite; }
         </div>
 
         <div class="field-label hidden" id="route-name-label">Route name <span style="color: var(--text-muted); font-weight: 600; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
-        <input type="text" class="add-name-input hidden" id="logger-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom: 0; width: 100%;">
+        <input type="text" class="add-name-input hidden" id="logger-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom: 0; width: 100%;" list="route-suggestions" autocomplete="off">
+        <datalist id="route-suggestions"></datalist>
 
         <div class="field-label">
             Grade
@@ -2260,11 +2261,29 @@ const LoggerState = {
 
 function isOutdoor(disc) { return disc === 'Out Rope' || disc === 'Out Boulder' || disc === 'Trad'; }
 
+function populateRouteSuggestions() {
+    const dl = document.getElementById('route-suggestions');
+    if (!dl) return;
+    const where = LoggerState.where;
+    const seen = new Set();
+    const opts = [];
+    State.logs.forEach(l => {
+        if (!l.RouteName) return;
+        if (where && l.Where !== where) return;  // routes previously logged at this crag
+        const n = String(l.RouteName).trim();
+        if (!n || seen.has(n.toLowerCase())) return;
+        seen.add(n.toLowerCase());
+        opts.push(`<option value="${escapeHTML(n)}"></option>`);
+    });
+    dl.innerHTML = opts.join('');
+}
+
 function updateRouteNameVisibility() {
     const isOut = isOutdoor(LoggerState.discipline);
     document.getElementById('route-name-label').classList.toggle('hidden', !isOut);
     document.getElementById('logger-route-name').classList.toggle('hidden', !isOut);
     if (!isOut) document.getElementById('logger-route-name').value = '';
+    if (isOut) populateRouteSuggestions();
 }
 
 function getLocationsForDiscipline(disc) {
@@ -2333,6 +2352,7 @@ function renderWherePills() {
             LoggerState.where = el.dataset.where;
             localStorage.setItem(stickyKey, LoggerState.where);
             renderWherePills();
+            populateRouteSuggestions();
         });
         attachLongPressToWherePill(el, el.dataset.where);
     });
