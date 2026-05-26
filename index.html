@@ -1400,7 +1400,7 @@ body.modal-open { overflow: hidden; }
 .loc-badge.gym  { background: rgba(6,182,212,0.15);  color: var(--disc-in-rope); }
 .loc-disciplines { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
 .loc-stats {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px;
     padding: 16px 12px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid rgba(255,255,255,0.03);
 }
 .loc-stat { text-align: center; }
@@ -4372,13 +4372,15 @@ function renderLocationPage() {
         midVal = new Set(sends.map(s => getCleanDate(s.Date))).size;
         midLabel = 'Days';
     } else {
-        midVal = new Set(sends.map(s => s.ClimberName)).size;
-        midLabel = 'Climbers';
+        midVal = new Set(sends.map(s => getCleanDate(s.Date))).size;
+        midLabel = 'Days';
     }
     const hardest = hardestGradeOf(sends);
+    const visitors = new Set(allHere.map(s => s.ClimberName).filter(Boolean)).size;
     document.getElementById('location-stats').innerHTML = `
         <div class="loc-stat"><div class="loc-stat-val">${total}</div><div class="loc-stat-label">Sends</div></div>
         <div class="loc-stat"><div class="loc-stat-val">${midVal}</div><div class="loc-stat-label">${escapeHTML(midLabel)}</div></div>
+        <div class="loc-stat"><div class="loc-stat-val">${visitors}</div><div class="loc-stat-label">Visitors</div></div>
         <div class="loc-stat"><div class="loc-stat-val ${hardest ? '' : 'empty'}">${escapeHTML(hardest || '—')}</div><div class="loc-stat-label">Hardest</div></div>`;
 
     // lens pills (crag: hardest/popular/recent; gym: hardest/recent)
