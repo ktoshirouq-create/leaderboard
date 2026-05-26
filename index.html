@@ -258,6 +258,7 @@ h1.screen-title {
 }
 .send-style-tag.flash   { background: rgba(245,158,11,0.15); color: #fbbf24; }
 .send-style-tag.onsight { background: rgba(168,85,247,0.15); color: #c084fc; }
+.send-style-tag.tr      { background: rgba(148,163,184,0.15); color: #cbd5e1; }
 .send-grade {
     color: #fff;
     font-weight: 800;
@@ -611,6 +612,7 @@ h1.screen-title {
 }
 .pt-style.flash   { color: #fbbf24; }
 .pt-style.onsight { color: #c084fc; }
+.pt-style.tr      { color: #94a3b8; }
 
 .send-route-inline {
     color: #fff;
@@ -3284,9 +3286,11 @@ function renderSessionCard(session, idx) {
     const sendsHtml = sortedSends.map(s => {
         const styleNorm = String(s.Style || '').toLowerCase();
         const isSpecial = (styleNorm === 'flash' || styleNorm === 'onsight');
-        const tag = isSpecial
-            ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
-            : `<span style="color:#666; font-weight:600;">${escapeHTML(s.Style)}</span>`;
+        const tag = isTopRope(s.Style)
+            ? `<span class="send-style-tag tr">TR</span>`
+            : isSpecial
+                ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
+                : `<span style="color:#666; font-weight:600;">${escapeHTML(s.Style)}</span>`;
         // Grade dot for disciplines with hold colors (currently only Indoor Boulder)
         const scale = AppConfig.grades[session.discipline];
         const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
@@ -3442,6 +3446,7 @@ function computeCapacity(discipline) {
     State.logs.forEach(log => {
         if (log.Discipline !== discipline) return;
         if (!isWithinWindow(log.Date, CAPACITY_WINDOW_DAYS)) return;
+        if (isTopRope(log.Style)) return;  // lead capacity only; TR capacity comes in the next wave
         const score = getScoredValue(log.Grade, log.Style, discipline);
         if (score <= 0) return;
         const climber = log.ClimberName;
@@ -3603,6 +3608,7 @@ function getBestsFor(climber) {
             if (log.ClimberName !== climber) return;
             if (log.Discipline !== disc) return;
             if (!isWithinWindow(log.Date, 60)) return;
+            if (isTopRope(log.Style)) return;
             const idx = scale.labels.indexOf(getBaseGrade(log.Grade));
             if (idx > bestScoreIdx) bestScoreIdx = idx;
         });
@@ -3639,6 +3645,7 @@ function computeHistogram(climber, discipline) {
         if (log.ClimberName !== climber) return;
         if (log.Discipline !== discipline) return;
         if (!isWithinWindow(log.Date, PROFILE_HISTO_WINDOW_DAYS)) return;
+        if (isTopRope(log.Style)) return;
         const idx = scale.labels.indexOf(getBaseGrade(log.Grade));
         if (idx >= 0) {
             counts[idx].count++;
@@ -3736,7 +3743,7 @@ function renderProfileSessions(climber) {
     const rowsHtml = visibleLogs.map(log => {
         const dateStr = formatShortDate(getCleanDate(log.Date));
         const styleNorm = String(log.Style || '').toLowerCase();
-        const styleClass = (styleNorm === 'flash' || styleNorm === 'onsight') ? styleNorm : '';
+        const styleClass = isTopRope(log.Style) ? 'tr' : ((styleNorm === 'flash' || styleNorm === 'onsight') ? styleNorm : '');
         const scale = AppConfig.grades[log.Discipline];
         const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
         const dotIdx = useDot ? scale.labels.indexOf(getBaseGrade(log.Grade)) : -1;
@@ -3770,7 +3777,7 @@ function renderProfileSessions(climber) {
             <div class="pt-date">${escapeHTML(dateStr)}</div>
             <div class="pt-route">${dot}<span class="pt-where-link" data-loc="${escapeHTML(log.Where)}">${escapeHTML(log.Where)}</span> <span class="pt-expand">▾</span></div>
             <div class="pt-grade">${escapeHTML(log.Grade)}</div>
-            <div class="pt-style ${styleClass}">${escapeHTML(log.Style)}</div>
+            <div class="pt-style ${styleClass}">${isTopRope(log.Style) ? 'TR' : escapeHTML(log.Style)}</div>
         </div>${detailRow}`;
     }).join('');
     
@@ -4030,7 +4037,7 @@ function renderSecretPyramid(logs) {
     const el = document.getElementById('secret-pyramid');
     if (!scale) { el.innerHTML = ''; return; }
     const counts = {};
-    logs.forEach(l => { if (l.Discipline !== secretPyramidDisc) return; const g = getBaseGrade(l.Grade); if (scale.labels.includes(g)) counts[g] = (counts[g] || 0) + 1; });
+    logs.forEach(l => { if (l.Discipline !== secretPyramidDisc) return; if (isTopRope(l.Style)) return; const g = getBaseGrade(l.Grade); if (scale.labels.includes(g)) counts[g] = (counts[g] || 0) + 1; });
     const present = scale.labels.filter(g => counts[g]);
     if (present.length === 0) { el.innerHTML = '<div class="lb-empty">No sends in this discipline.</div>'; return; }
     const maxC = Math.max(...present.map(g => counts[g]));
@@ -4544,6 +4551,7 @@ function computeHardest() {
     const byClimber = new Map();
     State.logs.forEach(log => {
         if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
+        if (isTopRope(log.Style)) return;  // Hardest is the lead trophy — TR never counts here
         const disc = log.Discipline;
         if (!AppConfig.disciplines.includes(disc)) return;
         const score = getScoredValue(log.Grade, log.Style, disc);
