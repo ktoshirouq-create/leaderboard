@@ -22,8 +22,8 @@ const AppConfig = {
     // Style options per discipline
     stylesForDiscipline: {
         'In Boulder':  ['Send', 'Flash'],
-        'In Rope':     ['Send', 'Flash'],
-        'Out Rope':    ['Send', 'Flash', 'Onsight'],
+        'In Rope':     ['Send', 'Flash', 'Top-rope'],
+        'Out Rope':    ['Send', 'Flash', 'Onsight', 'Top-rope'],
         'Out Boulder': ['Send', 'Flash'],
         'Trad':        ['Send', 'Flash', 'Onsight']
     },
@@ -78,6 +78,9 @@ const AppConfig = {
 
 // Strip style markers from grade strings (legacy from personal app — leaderboard probably won't need but kept for safety)
 const getBaseGrade = (g) => String(g || "").replace(/[⚡💎🚀🛠️❌🪢🔄\s]/g, '');
+
+// True if a send was top-roped — kept separate from lead everywhere, never scored on lead boards
+const isTopRope = (style) => String(style || '').toLowerCase().trim() === 'top-rope';
 
 // Date string normalizer — extracts a LOCAL YYYY-MM-DD deterministically (no UTC round-trip, no hour math)
 const getCleanDate = (dStr) => {
