@@ -3426,6 +3426,8 @@ const CAPACITY_WINDOW_DAYS = 60;
 
 let activeBoardDiscipline = localStorage.getItem('leaderboard.lastBoardDisc') || 'In Boulder';
 if (!AppConfig.disciplines.includes(activeBoardDiscipline)) activeBoardDiscipline = 'In Boulder';
+let activeCapacityMode = 'lead';  // 'lead' | 'tr' — only meaningful for rope disciplines
+const TR_CAPACITY_DISCIPLINES = ['In Rope', 'Out Rope'];
 
 function gradeForScore(score, discipline) {
     const scale = AppConfig.grades[discipline];
@@ -3466,12 +3468,12 @@ function isWithinWindow(dateStr, days) {
     return d >= cutoff;
 }
 
-function computeCapacity(discipline) {
+function computeCapacity(discipline, mode = 'lead') {
     const byClimber = new Map();
     State.logs.forEach(log => {
         if (log.Discipline !== discipline) return;
         if (!isWithinWindow(log.Date, CAPACITY_WINDOW_DAYS)) return;
-        if (isTopRope(log.Style)) return;  // lead capacity only; TR capacity comes in the next wave
+        if (mode === 'tr' ? !isTopRope(log.Style) : isTopRope(log.Style)) return;
         const score = getScoredValue(log.Grade, log.Style, discipline);
         if (score <= 0) return;
         const climber = log.ClimberName;
@@ -3523,7 +3525,9 @@ function rankClass(rank) {
 }
 
 function renderCapacityBoard() {
-    const { qualified, provisional } = computeCapacity(activeBoardDiscipline);
+    const discHasTR = TR_CAPACITY_DISCIPLINES.includes(activeBoardDiscipline);
+    if (!discHasTR) activeCapacityMode = 'lead';  // boulder/Trad never have a TR board
+    const { qualified, provisional } = computeCapacity(activeBoardDiscipline, activeCapacityMode);
     assignTiedRanks(qualified);
     
     const maxAvg = qualified[0]?.avgScore || 1;
@@ -3542,6 +3546,13 @@ function renderCapacityBoard() {
             renderCapacityBoard();
         });
     });
+
+    if (discHasTR) {
+        html += `<div class="seg-ctrl" id="cap-mode-toggle" style="margin-bottom:14px">
+            <button class="seg-item ${activeCapacityMode === 'lead' ? 'active' : ''}" data-cap-mode="lead">Lead</button>
+            <button class="seg-item ${activeCapacityMode === 'tr' ? 'active' : ''}" data-cap-mode="tr">Top-rope</button>
+        </div>`;
+    }
     
     const scale = AppConfig.grades[activeBoardDiscipline];
     const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
@@ -3597,6 +3608,17 @@ function renderCapacityBoard() {
     }
     
     document.getElementById('capacity-board').innerHTML = html;
+
+    const capModeToggle = document.getElementById('cap-mode-toggle');
+    if (capModeToggle) {
+        capModeToggle.querySelectorAll('[data-cap-mode]').forEach(el => {
+            el.addEventListener('click', () => {
+                haptic('tap');
+                activeCapacityMode = el.dataset.capMode;
+                renderCapacityBoard();
+            });
+        });
+    }
     
     document.querySelectorAll('#capacity-board .lb-row').forEach(el => {
         el.addEventListener('click', () => {
@@ -3940,7 +3962,7 @@ function openNerdStats(climber) {
     const outdoorPct = Math.round(logs.filter(l => outdoorDiscs.includes(l.Discipline)).length / total * 100);
 
     let hardest = null, hScore = -1;
-    logs.forEach(l => { const sc = getScoredValue(l.Grade, l.Style, l.Discipline); if (sc > hScore) { hScore = sc; hardest = l; } });
+    logs.forEach(l => { if (isTopRope(l.Style)) return; const sc = getScoredValue(l.Grade, l.Style, l.Discipline); if (sc > hScore) { hScore = sc; hardest = l; } });
 
     // Favourite spot — by VISITS (distinct days), not raw sends
     const spotDays = {};
