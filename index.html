@@ -1863,12 +1863,11 @@ function showView(name) {
     }
 }
 
-// "Me" nav button → own profile (overrides default showView call)
+// "Me" nav button → own profile, or a gentle "pick your name" prompt if no user yet
 document.querySelector('.nav-btn[data-view="profile"]').addEventListener('click', (e) => {
-    if (State.activeUser) {
-        e.stopImmediatePropagation();
-        showProfile(State.activeUser);
-    }
+    e.stopImmediatePropagation();
+    haptic('tap');
+    showProfile(State.activeUser || null);
 }, true); // capture phase so it fires before the generic showView listener
 
 // Long-press the Me nav button → open user switcher (faster than going to profile first)
@@ -3834,8 +3833,8 @@ function showProfile(climber) {
     if (!climber) {
         document.getElementById('profile-name').textContent = '—';
         document.getElementById('profile-bests').innerHTML = '';
-        document.getElementById('profile-histo-tabs').innerHTML = '';
-        document.getElementById('profile-histo').innerHTML = '';
+        document.getElementById('histogram-tabs').innerHTML = '';
+        document.getElementById('histogram').innerHTML = '';
         document.getElementById('profile-sessions').innerHTML = `
             <div class="empty-msg" style="padding: 32px 16px; line-height: 1.5;">
                 Pick your name first to see your profile.<br>
