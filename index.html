@@ -1416,7 +1416,11 @@ body.modal-open { overflow: hidden; }
 .gb-route-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 16px 10px 16px; }
 .gb-route-name { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: -0.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gb-route-grade { font-size: 1.05rem; font-weight: 800; color: var(--disc-color, var(--primary)); white-space: nowrap; }
-.gb-ticks { padding: 0 16px 12px 16px; display: flex; flex-direction: column; gap: 5px; }
+.gb-ticks { padding: 0 16px 12px 16px; display: none; flex-direction: column; gap: 5px; }
+.gb-route.expanded .gb-ticks { display: flex; }
+.gb-route-head { cursor: pointer; }
+.gb-route-caret { display: inline-block; margin-left: 6px; color: var(--text-muted); font-size: 0.7rem; transition: transform 0.2s; }
+.gb-route.expanded .gb-route-caret { transform: rotate(180deg); }
 .gb-tick { display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; color: #a3a3a3; font-weight: 600; }
 .gb-tick-climber { color: #d4d4d4; font-weight: 700; cursor: pointer; }
 .gb-tick-style { font-size: 0.7rem; color: var(--text-muted); }
@@ -2545,7 +2549,8 @@ document.getElementById('style-info').addEventListener('click', (e) => {
     openInfoModal('Style', [
         { term: 'Send / Redpoint', def: 'A clean lead from bottom to top with no falls, rests, or hanging on the rope. Counts no matter how many attempts it took before.' },
         { term: 'Flash',   def: 'Clean first-try ascent on lead, with prior beta or watching others.' },
-        { term: 'Onsight', def: 'Clean first-try ascent on lead — no prior info, never seen anyone on it.' }
+        { term: 'Onsight', def: 'Clean first-try ascent on lead — no prior info, never seen anyone on it.' },
+        { term: 'Top-rope', def: 'A clean top-rope ascent — no rests, hangs, or falls.' }
     ]);
 });
 
@@ -4425,7 +4430,7 @@ function renderTopRoutes(sends, lens) {
         return `<div class="gb-route" data-disc="${escapeHTML(r.disc)}">
             <div class="gb-route-head">
                 <span class="gb-route-name">${escapeHTML(r.route)}${countBadge}</span>
-                <span class="gb-route-grade">${escapeHTML(r.grade)}</span>
+                <span class="gb-route-grade">${escapeHTML(r.grade)}<span class="gb-route-caret">▾</span></span>
             </div>
             <div class="gb-ticks">${ticksHtml}</div>
         </div>`;
@@ -4530,7 +4535,9 @@ document.getElementById('location-back').addEventListener('click', () => {
 });
 document.getElementById('view-location').addEventListener('click', (e) => {
     const t = e.target.closest('[data-loc-climber]');
-    if (t) { haptic('tap'); showProfile(t.dataset.locClimber); }
+    if (t) { haptic('tap'); showProfile(t.dataset.locClimber); return; }
+    const head = e.target.closest('.gb-route-head');
+    if (head) { haptic('tap'); head.parentElement.classList.toggle('expanded'); }
 });
 
 /* ============== SPECIAL BOARDS ============== */
