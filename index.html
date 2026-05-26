@@ -1103,7 +1103,7 @@ h1.screen-title {
 }
 .grade-conv-headers {
     display: grid;
-    grid-template-columns: 70px 1fr;
+    grid-template-columns: 72px 1fr 1fr;
     gap: 12px;
     padding: 10px 16px;
     font-size: 0.62rem;
@@ -1119,7 +1119,7 @@ h1.screen-title {
 }
 .grade-conv-row {
     display: grid;
-    grid-template-columns: 70px 1fr;
+    grid-template-columns: 72px 1fr 1fr;
     gap: 12px;
     align-items: center;
     padding: 10px 16px;
@@ -1130,6 +1130,11 @@ h1.screen-title {
     font-size: 1.05rem;
     font-weight: 800;
     color: #fff;
+}
+.grade-conv-cell {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #d4d4d4;
 }
 .grade-conv-french-list {
     display: flex;
@@ -2578,32 +2583,36 @@ document.getElementById('style-info').addEventListener('click', (e) => {
 // Based on Rockfax conversion chart.
 // Norway grades are stiffer than French at the upper end (6b+ ≈ 7-, not 6+).
 const GRADE_CONVERSIONS = [
-    { french: '3',    norway: '3'  },
-    { french: '4-',   norway: '5-' },
-    { french: '4',    norway: '5'  },
-    { french: '4+',   norway: '5'  },
-    { french: '4b',   norway: '5'  },
-    { french: '4c',   norway: '5'  },
-    { french: '5-',   norway: '5+' },
-    { french: '5a',   norway: '5+' },
-    { french: '5a+',  norway: '5+' },
-    { french: '5b',   norway: '6-' },
-    { french: '5b+',  norway: '6-' },
-    { french: '5c',   norway: '6-' },
-    { french: '5c+',  norway: '6'  },
-    { french: '6a',   norway: '6'  },
-    { french: '6a+',  norway: '6'  },
-    { french: '6b',   norway: '6+' },
-    { french: '6b+',  norway: '7-' },
-    { french: '6c',   norway: '7'  },
-    { french: '6c+',  norway: '7'  },
-    { french: '7a',   norway: '7+' },
-    { french: '7a+',  norway: '8-' },
-    { french: '7b',   norway: '8-' },
-    { french: '7b+',  norway: '8'  },
-    { french: '7c',   norway: '8+' }
+    { french: '3',   norway: '3',  usa: '5.4'     },
+    { french: '4',   norway: '4',  usa: '5.5'     },
+    { french: '4+',  norway: '4+', usa: '5.6'     },
+    { french: '4b',  norway: '4',  usa: '5.6'     },
+    { french: '4c',  norway: '4+', usa: '5.7'     },
+    { french: '5a',  norway: '5',  usa: '5.7'     },
+    { french: '5a+', norway: '5+', usa: '5.8'     },
+    { french: '5b',  norway: '5+', usa: '5.8'     },
+    { french: '5b+', norway: '6-', usa: '5.9'     },
+    { french: '5c',  norway: '6-', usa: '5.9'     },
+    { french: '5c+', norway: '6-', usa: '5.10a'   },
+    { french: '6a',  norway: '6-', usa: '5.10a'   },
+    { french: '6a+', norway: '6',  usa: '5.10b'   },
+    { french: '6b',  norway: '6+', usa: '5.10c/d' },
+    { french: '6b+', norway: '7-', usa: '5.11a'   },
+    { french: '6c',  norway: '7',  usa: '5.11b'   },
+    { french: '6c+', norway: '7',  usa: '5.11c'   },
+    { french: '7a',  norway: '7+', usa: '5.11d'   },
+    { french: '7a+', norway: '8-', usa: '5.12a'   },
+    { french: '7b',  norway: '8-', usa: '5.12b'   },
+    { french: '7b+', norway: '8',  usa: '5.12c'   },
+    { french: '7c',  norway: '8+', usa: '5.12d'   },
+    { french: '7c+', norway: '8+', usa: '5.13a'   },
+    { french: '8a',  norway: '9-', usa: '5.13b'   },
+    { french: '8a+', norway: '9',  usa: '5.13c'   },
+    { french: '8b',  norway: '9',  usa: '5.13d'   },
+    { french: '8b+', norway: '9+', usa: '5.14a'   },
+    { french: '8c',  norway: '9+', usa: '5.14b'   }
 ];
-
+    
 function openGradeConversionModal() {
     const currentGrade = LoggerState.grade;
     const currentScale = AppConfig.grades[LoggerState.discipline];
@@ -2612,29 +2621,20 @@ function openGradeConversionModal() {
     const validFrench = new Set(currentScale ? currentScale.labels : []);
     const filtered = GRADE_CONVERSIONS.filter(c => validFrench.has(c.french));
     
-    // Group French grades under each Norway grade, preserving order
-    const byNorway = new Map();
-    filtered.forEach(c => {
-        if (!byNorway.has(c.norway)) byNorway.set(c.norway, []);
-        byNorway.get(c.norway).push(c.french);
-    });
-    
-    const rowsHtml = Array.from(byNorway.entries()).map(([norway, frenchList]) => {
-        const pillsHtml = frenchList.map(f =>
-            `<button class="grade-conv-pill ${f === currentGrade ? 'active' : ''}" data-french="${escapeHTML(f)}">${escapeHTML(f)}</button>`
-        ).join('');
-        return `<div class="grade-conv-row">
-            <div class="grade-conv-norway">${escapeHTML(norway)}</div>
-            <div class="grade-conv-french-list">${pillsHtml}</div>
-        </div>`;
-    }).join('');
+    const rowsHtml = filtered.map(c => `
+        <div class="grade-conv-row">
+            <button class="grade-conv-pill ${c.french === currentGrade ? 'active' : ''}" data-french="${escapeHTML(c.french)}">${escapeHTML(c.french)}</button>
+            <div class="grade-conv-cell">${escapeHTML(c.norway)}</div>
+            <div class="grade-conv-cell">${escapeHTML(c.usa)}</div>
+        </div>`).join('');
     
     const tableHtml = `
         <div class="grade-conv-note">Tap a French grade to select it<span class="disclaimer">Approximate — charts vary</span></div>
         <div class="grade-conv-table">
             <div class="grade-conv-headers">
-                <div>Norway</div>
                 <div>French</div>
+                <div>Norway</div>
+                <div>USA</div>
             </div>
             ${rowsHtml}
         </div>
