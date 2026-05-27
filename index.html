@@ -4103,6 +4103,7 @@ document.getElementById('nerd-modal').addEventListener('click', e => {
 /* ============== SECRET STATS PAGE (hidden — long-press the profile name) ============== */
 let secretClimber = null;
 let secretPyramidDisc = 'In Boulder';
+let secretPyramidMode = 'lead';  // 'lead' | 'tr' — rope disciplines only
 let secretWindow = 'all';      // '30' | '90' | '365' | 'all'
 let secretHeatMonth = null;    // first-of-month Date shown in the calendar
 
@@ -4145,10 +4146,23 @@ function renderSecretPyramid(logs) {
     const scale = AppConfig.grades[secretPyramidDisc];
     const el = document.getElementById('secret-pyramid');
     if (!scale) { el.innerHTML = ''; return; }
+    const pyrHasTR = ['In Rope', 'Out Rope'].includes(secretPyramidDisc);
+    if (!pyrHasTR) secretPyramidMode = 'lead';
+    const pyrToggle = pyrHasTR ? `<div class="seg-ctrl" id="secret-pyr-toggle" style="margin-bottom:12px">
+        <button class="seg-item ${secretPyramidMode === 'lead' ? 'active' : ''}" data-secret-mode="lead">Lead</button>
+        <button class="seg-item ${secretPyramidMode === 'tr' ? 'active' : ''}" data-secret-mode="tr">Top-rope</button>
+    </div>` : '';
+    const wirePyrToggle = () => {
+        const t = document.getElementById('secret-pyr-toggle');
+        if (!t) return;
+        t.querySelectorAll('[data-secret-mode]').forEach(b => b.addEventListener('click', () => {
+            haptic('tap'); secretPyramidMode = b.dataset.secretMode; renderSecretPyramid(logs);
+        }));
+    };
     const counts = {};
-    logs.forEach(l => { if (l.Discipline !== secretPyramidDisc) return; if (isTopRope(l.Style)) return; const g = getBaseGrade(l.Grade); if (scale.labels.includes(g)) counts[g] = (counts[g] || 0) + 1; });
+    logs.forEach(l => { if (l.Discipline !== secretPyramidDisc) return; if (secretPyramidMode === 'tr' ? !isTopRope(l.Style) : isTopRope(l.Style)) return; const g = getBaseGrade(l.Grade); if (scale.labels.includes(g)) counts[g] = (counts[g] || 0) + 1; });
     const present = scale.labels.filter(g => counts[g]);
-    if (present.length === 0) { el.innerHTML = '<div class="lb-empty">No sends in this discipline.</div>'; return; }
+    if (present.length === 0) { el.innerHTML = pyrToggle + '<div class="lb-empty">No sends in this discipline.</div>'; wirePyrToggle(); return; }
     const maxC = Math.max(...present.map(g => counts[g]));
     const cols = present.map(g => {
         const idx = scale.labels.indexOf(g);
@@ -4162,7 +4176,8 @@ function renderSecretPyramid(logs) {
             <div class="dist-label">${escapeHTML(g)}</div>
         </div>`;
     }).join('');
-    el.innerHTML = `<div class="dist-chart">${cols}</div>`;
+    el.innerHTML = pyrToggle + `<div class="dist-chart">${cols}</div>`;
+    wirePyrToggle();
 }
 
 function renderSecretVolume(logs, win) {
