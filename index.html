@@ -1666,6 +1666,9 @@ body.disco { animation: disco-hue 0.8s linear infinite; }
         </div>
         <div class="pill-row" id="logger-style"></div>
 
+        <div class="field-label hidden" id="belayer-label">Belayer <span style="color: var(--text-muted); font-weight: 600; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
+        <div class="pill-row scroll hidden" id="logger-belayer"></div>
+
         <div class="field-label">Date</div>
 <div class="pill-row" id="logger-date">
     <button class="pill active" data-date="today">Today</button>
@@ -2261,10 +2264,46 @@ const LoggerState = {
     where: null,        // resolved per-discipline below
     grade: null,        // resolved per-discipline below
     style: 'Send',
-    date: 'today'       // 'today' | 'yesterday'
+    date: 'today',      // 'today' | 'yesterday'
+    belayer: ''         // optional, rope disciplines only
 };
 
 function isOutdoor(disc) { return disc === 'Out Rope' || disc === 'Out Boulder' || disc === 'Trad'; }
+function isRopeDiscipline(disc) { return disc === 'In Rope' || disc === 'Out Rope' || disc === 'Trad'; }
+
+function updateBelayerVisibility() {
+    const show = isRopeDiscipline(LoggerState.discipline);
+    document.getElementById('belayer-label').classList.toggle('hidden', !show);
+    document.getElementById('logger-belayer').classList.toggle('hidden', !show);
+    if (show) renderBelayerPills();
+}
+
+function renderBelayerPills() {
+    const c = document.getElementById('logger-belayer');
+    if (!c) return;
+    const freq = {};
+    State.logs.forEach(l => {
+        if (l.ClimberName !== State.activeUser || !l.Belayer) return;
+        freq[l.Belayer] = (freq[l.Belayer] || 0) + 1;
+    });
+    const names = State.roster.map(r => r.Name)
+        .filter(n => n && n !== State.activeUser)
+        .sort((a, b) => (freq[b] || 0) - (freq[a] || 0));
+    if (LoggerState.belayer && !names.includes(LoggerState.belayer)) names.unshift(LoggerState.belayer);
+    const none = `<button class="pill ${!LoggerState.belayer ? 'active' : ''}" data-belayer="">None</button>`;
+    const pills = names.map(n =>
+        `<button class="pill ${n === LoggerState.belayer ? 'active' : ''}" data-belayer="${escapeHTML(n)}">${escapeHTML(n)}</button>`
+    ).join('');
+    c.innerHTML = none + pills;
+    c.querySelectorAll('[data-belayer]').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            LoggerState.belayer = el.dataset.belayer;
+            if (LoggerState.belayer) localStorage.setItem('leaderboard.lastBelayer', LoggerState.belayer);
+            renderBelayerPills();
+        });
+    });
+}
 
 function populateRouteSuggestions() {
     const dl = document.getElementById('route-suggestions');
@@ -2323,6 +2362,7 @@ function renderDisciplinePills() {
             renderGradePills();
             renderStylePills();
             updateRouteNameVisibility();
+            updateBelayerVisibility();
         });
     });
 }
@@ -2712,7 +2752,8 @@ async function submitLog() {
             Grade:      LoggerState.grade,
             Style:      LoggerState.style,
             Date:       newDate,
-            RouteName:  editRouteName
+            RouteName:  editRouteName,
+            Belayer:    LoggerState.belayer || ''
         };
         closeModal('logger-modal');
         exitEditMode();
@@ -2737,7 +2778,8 @@ async function submitLog() {
                     grade:      LoggerState.grade,
                     style:      LoggerState.style,
                     date:       newDate,
-                    routeName:  editRouteName
+                    routeName:  editRouteName,
+                    belayer:    LoggerState.belayer || ''
                 })
             });
             const json = await res.json();
@@ -2776,7 +2818,8 @@ async function submitLog() {
         grade:      LoggerState.grade,
         style:      LoggerState.style,
         date:       submittedDate,
-        routeName:  routeName
+        routeName:  routeName,
+        belayer:    LoggerState.belayer || ''
     };
 
     const optimisticRow = {
@@ -2789,7 +2832,9 @@ async function submitLog() {
         Style:        payload.style,
         Date:         payload.date,
         RouteName:    payload.routeName,
+        Belayer:      payload.belayer,
         _optimistic:  true
+    };
     };
     State.logs.unshift(optimisticRow);
     closeModal('logger-modal');
@@ -2863,6 +2908,9 @@ function openLogger() {
     
     document.getElementById('logger-route-name').value = '';
     updateRouteNameVisibility();
+
+    LoggerState.belayer = localStorage.getItem('leaderboard.lastBelayer') || '';
+    updateBelayerVisibility();
     
     openModal('logger-modal');
 }
@@ -3281,6 +3329,8 @@ function openLoggerInEditMode(log) {
     renderStylePills();
     document.getElementById('logger-route-name').value = log.RouteName || '';
     updateRouteNameVisibility();
+    LoggerState.belayer = log.Belayer || '';
+    updateBelayerVisibility();
     openModal('logger-modal');
 }
 
@@ -3983,6 +4033,12 @@ function openNerdStats(climber) {
     logs.forEach(l => { const g = getBaseGrade(l.Grade); if (g) gradeCount[g] = (gradeCount[g] || 0) + 1; });
     const modeGrade = Object.entries(gradeCount).sort((a, b) => b[1] - a[1])[0];
 
+    const belayerCount = {};
+    logs.forEach(l => { if (l.Belayer) belayerCount[l.Belayer] = (belayerCount[l.Belayer] || 0) + 1; });
+    const topBelayer = Object.entries(belayerCount).sort((a, b) => b[1] - a[1])[0];
+    const caught = State.logs.filter(l => l.Belayer === climber);
+    const caughtPeople = new Set(caught.map(l => l.ClimberName)).size;
+
     const discCount = {};
     logs.forEach(l => { discCount[l.Discipline] = (discCount[l.Discipline] || 0) + 1; });
     const discRows = AppConfig.disciplines.filter(d => discCount[d])
@@ -4003,6 +4059,8 @@ function openNerdStats(climber) {
         <div class="nerd-line"><span class="k">Busiest month</span><span class="v">${busiest ? escapeHTML(monthName(busiest[0])) + ' · ' + busiest[1] : '—'}</span></div>
         <div class="nerd-line"><span class="k">Climbing days</span><span class="v">${days} · ~${daysPerMonth}/mo</span></div>
         <div class="nerd-line"><span class="k">Most-climbed grade</span><span class="v">${modeGrade ? escapeHTML(modeGrade[0]) + ' · ' + modeGrade[1] + '×' : '—'}</span></div>
+        <div class="nerd-line"><span class="k">Most belayed by</span><span class="v">${topBelayer ? escapeHTML(topBelayer[0]) + ' · ' + topBelayer[1] + '×' : '—'}</span></div>
+        <div class="nerd-line"><span class="k">Sends caught</span><span class="v">${caught.length ? caught.length + ' · ' + caughtPeople + ' climber' + (caughtPeople === 1 ? '' : 's') : '—'}</span></div>
         <div class="nerd-sub">Sends by discipline</div>
         ${discRows}
         <button class="btn-main" id="nerd-fullbreakdown" style="margin-top:18px;">Full breakdown →</button>
