@@ -3693,6 +3693,7 @@ document.getElementById('capacity-info').addEventListener('click', () => {
 const PROFILE_HISTO_WINDOW_DAYS = 60;
 let profileClimber = null;
 let profileHistoDiscipline = 'In Boulder';
+let profileHistoMode = 'lead';  // 'lead' | 'tr' — rope disciplines only
 
 // Returns hardest send grade per discipline for the climber, in last 60 days
 function getBestsFor(climber) {
@@ -3731,7 +3732,7 @@ function renderBestsStrip(climber) {
     }).join('');
 }
 
-function computeHistogram(climber, discipline) {
+function computeHistogram(climber, discipline, mode = 'lead') {
     const scale = AppConfig.grades[discipline];
     if (!scale) return [];
     
@@ -3742,7 +3743,7 @@ function computeHistogram(climber, discipline) {
         if (log.ClimberName !== climber) return;
         if (log.Discipline !== discipline) return;
         if (!isWithinWindow(log.Date, PROFILE_HISTO_WINDOW_DAYS)) return;
-        if (isTopRope(log.Style)) return;
+        if (mode === 'tr' ? !isTopRope(log.Style) : isTopRope(log.Style)) return;
         const idx = scale.labels.indexOf(getBaseGrade(log.Grade));
         if (idx >= 0) {
             counts[idx].count++;
@@ -3776,11 +3777,29 @@ function renderHistogram(climber) {
     });
     
     // Bars
-    const data = computeHistogram(climber, profileHistoDiscipline);
+    const histoHasTR = ['In Rope', 'Out Rope'].includes(profileHistoDiscipline);
+    if (!histoHasTR) profileHistoMode = 'lead';
+    const histoToggle = histoHasTR ? `<div class="seg-ctrl" id="histo-mode-toggle" style="margin-bottom:12px">
+        <button class="seg-item ${profileHistoMode === 'lead' ? 'active' : ''}" data-histo-mode="lead">Lead</button>
+        <button class="seg-item ${profileHistoMode === 'tr' ? 'active' : ''}" data-histo-mode="tr">Top-rope</button>
+    </div>` : '';
+    const wireHistoToggle = () => {
+        const t = document.getElementById('histo-mode-toggle');
+        if (!t) return;
+        t.querySelectorAll('[data-histo-mode]').forEach(el => el.addEventListener('click', () => {
+            haptic('tap');
+            profileHistoMode = el.dataset.histoMode;
+            renderHistogram(climber);
+        }));
+    };
+
+    // Bars
+    const data = computeHistogram(climber, profileHistoDiscipline, profileHistoMode);
     const totalSends = data.reduce((s, d) => s + d.count, 0);
     const container = document.getElementById('histogram');
     if (totalSends === 0) {
-        container.innerHTML = '<div class="histo-empty">No sends in this discipline in 60 days.</div>';
+        container.innerHTML = histoToggle + '<div class="histo-empty">No sends in this discipline in 60 days.</div>';
+        wireHistoToggle();
         return;
     }
     const maxCount = Math.max(...data.map(d => d.count));
@@ -3796,7 +3815,7 @@ function renderHistogram(climber) {
     };
     const discFill = discFillMap[profileHistoDiscipline];
     
-    container.innerHTML = data.map(d => {
+    container.innerHTML = histoToggle + data.map(d => {
         const pct = maxCount > 0 ? (d.count / maxCount) * 100 : 0;
         const dot = useDot && d.scoreIdx >= 0
             ? `<span class="grade-dot" style="background:${scale.colors[d.scoreIdx]}"></span>`
@@ -3814,6 +3833,7 @@ function renderHistogram(climber) {
             <div class="histo-count ${d.count === 0 ? 'zero' : ''}">${d.count}</div>
         </div>`;
     }).join('');
+    wireHistoToggle();
 }
 
 function renderProfileSessions(climber) {
