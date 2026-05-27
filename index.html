@@ -1971,7 +1971,6 @@ function closeModal(id) {
 /* ============== SWIPE-DOWN TO DISMISS ============== */
 // Drag-to-dismiss: touch in top ~60px of any .modal-sheet, drag down,
 // release past threshold to close.
-const SWIPE_DRAG_ZONE_PX  = 80;   // top of sheet that starts the drag
 const SWIPE_DISMISS_PX    = 100;  // distance dragged before close fires
 const SWIPE_DISMISS_VEL   = 0.5;  // px/ms — fast flick threshold
 
@@ -3376,10 +3375,7 @@ function renderSessionCard(session, idx) {
                     : '';
             })()
             : '';
-                const routeRow = s.RouteName
-            ? `<div class="send-route-name">${escapeHTML(s.RouteName)}</div>`
-            : '';
-        const routeNamePart = s.RouteName
+                const routeNamePart = s.RouteName
             ? `<span class="send-route-inline">${escapeHTML(s.RouteName)}</span>`
             : '';
         return `<div class="send-row">
@@ -3477,16 +3473,6 @@ let activeBoardDiscipline = localStorage.getItem('leaderboard.lastBoardDisc') ||
 if (!AppConfig.disciplines.includes(activeBoardDiscipline)) activeBoardDiscipline = 'In Boulder';
 let activeCapacityMode = 'lead';  // 'lead' | 'tr' — only meaningful for rope disciplines
 const TR_CAPACITY_DISCIPLINES = ['In Rope', 'Out Rope'];
-
-function gradeForScore(score, discipline) {
-    const scale = AppConfig.grades[discipline];
-    if (!scale) return '?';
-    let bestIdx = 0;
-    for (let i = 0; i < scale.scores.length; i++) {
-        if (scale.scores[i] <= score) bestIdx = i;
-    }
-    return scale.labels[bestIdx];
-}
 
 function gradeProgress(score, discipline) {
     const scale = AppConfig.grades[discipline];
@@ -3804,7 +3790,6 @@ function renderHistogram(climber) {
     const maxCount = Math.max(...data.map(d => d.count));
     const scale = AppConfig.grades[profileHistoDiscipline];
     const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
-    const fillColor = `var(--disc-${profileHistoDiscipline.toLowerCase().replace(' ', '-')})`;
     const discFillMap = {
         'In Boulder':  'var(--disc-in-boulder)',
         'In Rope':     'var(--disc-in-rope)',
@@ -4698,19 +4683,6 @@ function computeHardest() {
         }
     });
     return Array.from(byClimber.values()).sort((a, b) => b.score - a.score);
-}
-
-// Volume: total send count per climber, in window
-function computeVolume() {
-    const byClimber = new Map();
-    State.logs.forEach(log => {
-        if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
-        if (!AppConfig.disciplines.includes(log.Discipline)) return;
-        byClimber.set(log.ClimberName, (byClimber.get(log.ClimberName) || 0) + 1);
-    });
-    return Array.from(byClimber.entries())
-        .map(([climber, count]) => ({ climber, count }))
-        .sort((a, b) => b.count - a.count);
 }
 
 // Addicted: distinct climbing days per climber
