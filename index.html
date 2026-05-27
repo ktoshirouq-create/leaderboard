@@ -2835,7 +2835,6 @@ async function submitLog() {
         Belayer:      payload.belayer,
         _optimistic:  true
     };
-    };
     State.logs.unshift(optimisticRow);
     closeModal('logger-modal');
     renderFeed();
