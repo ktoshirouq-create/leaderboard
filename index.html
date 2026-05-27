@@ -2280,14 +2280,25 @@ function updateBelayerVisibility() {
 function renderBelayerPills() {
     const c = document.getElementById('logger-belayer');
     if (!c) return;
-    const freq = {};
+    // Tally this user's past belayers: how often, and how recently
+    const stats = {};
     State.logs.forEach(l => {
         if (l.ClimberName !== State.activeUser || !l.Belayer) return;
-        freq[l.Belayer] = (freq[l.Belayer] || 0) + 1;
+        const s = stats[l.Belayer] || (stats[l.Belayer] = { count: 0, last: 0 });
+        s.count++;
+        const t = new Date(l.Timestamp).getTime() || 0;
+        if (t > s.last) s.last = t;
     });
+    // Used belayers float to the front (most-used, then most-recent); rest of roster follows
     const names = State.roster.map(r => r.Name)
         .filter(n => n && n !== State.activeUser)
-        .sort((a, b) => (freq[b] || 0) - (freq[a] || 0));
+        .sort((a, b) => {
+            const sa = stats[a], sb = stats[b];
+            if (sa && sb) return sb.count - sa.count || sb.last - sa.last;
+            if (sa) return -1;
+            if (sb) return 1;
+            return a.localeCompare(b);
+        });
     if (LoggerState.belayer && !names.includes(LoggerState.belayer)) names.unshift(LoggerState.belayer);
     const none = `<button class="pill ${!LoggerState.belayer ? 'active' : ''}" data-belayer="">None</button>`;
     const pills = names.map(n =>
@@ -2298,7 +2309,6 @@ function renderBelayerPills() {
         el.addEventListener('click', () => {
             haptic('tap');
             LoggerState.belayer = el.dataset.belayer;
-            if (LoggerState.belayer) localStorage.setItem('leaderboard.lastBelayer', LoggerState.belayer);
             renderBelayerPills();
         });
     });
@@ -2907,7 +2917,7 @@ function openLogger() {
     document.getElementById('logger-route-name').value = '';
     updateRouteNameVisibility();
 
-    LoggerState.belayer = localStorage.getItem('leaderboard.lastBelayer') || '';
+    LoggerState.belayer = '';   // start empty — don't assume a belayer
     updateBelayerVisibility();
     
     openModal('logger-modal');
