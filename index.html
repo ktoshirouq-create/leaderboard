@@ -4060,6 +4060,11 @@ function openNerdStats(climber) {
     const ropeTR = ropeLogs.filter(l => isTopRope(l.Style)).length;
     const leadPct = ropeLogs.length ? Math.round((ropeLogs.length - ropeTR) / ropeLogs.length * 100) : null;
 
+    // Lead vs top-rope split, over roped disciplines only (where TR is possible)
+    const ropeLogs = logs.filter(l => l.Discipline === 'In Rope' || l.Discipline === 'Out Rope');
+    const ropeTR = ropeLogs.filter(l => isTopRope(l.Style)).length;
+    const leadPct = ropeLogs.length ? Math.round((ropeLogs.length - ropeTR) / ropeLogs.length * 100) : null;
+
     const discCount = {};
     logs.forEach(l => { discCount[l.Discipline] = (discCount[l.Discipline] || 0) + 1; });
     const discRows = AppConfig.disciplines.filter(d => discCount[d])
@@ -4081,6 +4086,7 @@ function openNerdStats(climber) {
         <div class="nerd-line"><span class="k">Climbing days</span><span class="v">${days} · ~${daysPerMonth}/mo</span></div>
         <div class="nerd-line"><span class="k">Most-climbed grade</span><span class="v">${modeGrade ? escapeHTML(modeGrade[0]) + ' · ' + modeGrade[1] + '×' : '—'}</span></div>
         <div class="nerd-line"><span class="k">Lead vs top-rope</span><span class="v">${leadPct !== null ? leadPct + '% lead · ' + (100 - leadPct) + '% TR' : '—'}</span></div>
+        <div class="nerd-line"><span class="k">Most belayed by</span><span class="v">${topBelayer ? escapeHTML(topBelayer[0]) + ' · ' + topBelayer[1] + '×' : '—'}</span></div>
         <div class="nerd-line"><span class="k">Most belayed by</span><span class="v">${topBelayer ? escapeHTML(topBelayer[0]) + ' · ' + topBelayer[1] + '×' : '—'}</span></div>
         <div class="nerd-line"><span class="k">Sends caught</span><span class="v">${caught.length ? caught.length + ' · ' + caughtPeople + ' climber' + (caughtPeople === 1 ? '' : 's') : '—'}</span></div>
         <div class="nerd-sub">Sends by discipline</div>
