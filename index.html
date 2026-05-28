@@ -1668,6 +1668,10 @@ body.disco { animation: disco-hue 0.8s linear infinite; }
 
         <div class="field-label hidden" id="belayer-label">Belayer <span style="color: var(--text-muted); font-weight: 600; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
         <div class="pill-row scroll hidden" id="logger-belayer"></div>
+        <div class="add-name-row hidden" id="belayer-add-row">
+            <input type="text" class="add-name-input" id="belayer-add-input" placeholder="Belayer name" maxlength="20">
+            <button class="add-name-save" id="belayer-add-save">Save</button>
+        </div>
 
         <div class="field-label">Date</div>
 <div class="pill-row" id="logger-date">
@@ -2274,6 +2278,8 @@ function updateBelayerVisibility() {
     const show = isRopeDiscipline(LoggerState.discipline);
     document.getElementById('belayer-label').classList.toggle('hidden', !show);
     document.getElementById('logger-belayer').classList.toggle('hidden', !show);
+    const addRow = document.getElementById('belayer-add-row');
+    if (addRow) addRow.classList.add('hidden');
     if (show) renderBelayerPills();
 }
 
@@ -2289,8 +2295,8 @@ function renderBelayerPills() {
         const t = new Date(l.Timestamp).getTime() || 0;
         if (t > s.last) s.last = t;
     });
-    // Used belayers float to the front (most-used, then most-recent); rest of roster follows
-    const names = State.roster.map(r => r.Name)
+    // Candidates = roster ∪ anyone you've belayed with before (so typed names persist as pills)
+    const names = [...new Set([...State.roster.map(r => r.Name), ...Object.keys(stats)])]
         .filter(n => n && n !== State.activeUser)
         .sort((a, b) => {
             const sa = stats[a], sb = stats[b];
@@ -2304,7 +2310,7 @@ function renderBelayerPills() {
     const pills = names.map(n =>
         `<button class="pill ${n === LoggerState.belayer ? 'active' : ''}" data-belayer="${escapeHTML(n)}">${escapeHTML(n)}</button>`
     ).join('');
-    c.innerHTML = none + pills;
+    c.innerHTML = none + pills + '<button class="pill add-btn" data-belayer-add="1">+ Add</button>';
     c.querySelectorAll('[data-belayer]').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
@@ -2312,6 +2318,31 @@ function renderBelayerPills() {
             renderBelayerPills();
         });
     });
+    // + Add → reveal a free-text field
+    c.querySelector('[data-belayer-add]').addEventListener('click', () => {
+        haptic('tap');
+        const row = document.getElementById('belayer-add-row');
+        const inp = document.getElementById('belayer-add-input');
+        row.classList.remove('hidden');
+        setTimeout(() => { inp.focus(); inp.click(); }, 100);
+    });
+    // Save the typed name as the belayer (free text — not added to the roster)
+    const addRow = document.getElementById('belayer-add-row');
+    const addInp = document.getElementById('belayer-add-input');
+    const addBtn = document.getElementById('belayer-add-save');
+    if (addBtn) {
+        const commit = () => {
+            const name = normalizeName(addInp.value);
+            if (!name) return;
+            LoggerState.belayer = name;
+            addRow.classList.add('hidden');
+            addInp.value = '';
+            haptic('commit');
+            renderBelayerPills();
+        };
+        addBtn.onclick = () => { haptic('tap'); commit(); };
+        addInp.onkeydown = (e) => { if (e.key === 'Enter') commit(); };
+    }
 }
 
 function populateRouteSuggestions() {
