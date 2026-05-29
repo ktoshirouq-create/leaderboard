@@ -2329,8 +2329,8 @@ function renderBelayerPills() {
     // Save the typed name as the belayer (free text — not added to the roster)
     const addRow = document.getElementById('belayer-add-row');
     const addInp = document.getElementById('belayer-add-input');
-    const addBtn = document.getElementById('belayer-add-save');
-    if (addBtn) {
+    const addSaveBtn = document.getElementById('belayer-add-save');
+    if (addSaveBtn) {
         const commit = () => {
             const name = normalizeName(addInp.value);
             if (!name) return;
@@ -2340,7 +2340,7 @@ function renderBelayerPills() {
             haptic('commit');
             renderBelayerPills();
         };
-        addBtn.onclick = () => { haptic('tap'); commit(); };
+        addSaveBtn.onclick = () => { haptic('tap'); commit(); };
         addInp.onkeydown = (e) => { if (e.key === 'Enter') commit(); };
     }
 }
@@ -2600,9 +2600,10 @@ function renderStylePills() {
     if (!styles.includes(LoggerState.style)) {
         LoggerState.style = styles.includes(sticky) ? sticky : 'Send';
     }
-    c.innerHTML = styles.map(s =>
-        `<button class="pill ${s === LoggerState.style ? 'active' : ''}" data-style="${s}">${s}</button>`
-    ).join('');
+    c.innerHTML = styles.map(s => {
+        const label = s === 'Top-rope' ? 'TR / Auto' : s;
+        return `<button class="pill ${s === LoggerState.style ? 'active' : ''}" data-style="${s}">${label}</button>`;
+    }).join('');
     c.querySelectorAll('[data-style]').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
@@ -2655,7 +2656,7 @@ document.getElementById('style-info').addEventListener('click', (e) => {
         { term: 'Send / Redpoint', def: 'A clean lead from bottom to top with no falls, rests, or hanging on the rope. Counts no matter how many attempts it took before.' },
         { term: 'Flash',   def: 'Clean first-try ascent on lead, with prior beta or watching others.' },
         { term: 'Onsight', def: 'Clean first-try ascent on lead — no prior info, never seen anyone on it.' },
-        { term: 'Top-rope', def: 'A clean top-rope ascent — no rests, hangs, or falls.' }
+        { term: 'Top-rope', def: 'A clean top-rope or autobelay ascent — no rests, hangs, or falls.' }
     ]);
 });
 
@@ -3382,12 +3383,21 @@ function exitEditMode() {
 
 function renderSessionCard(session, idx) {
     const sendCount = session.sends.length;
-    const maxGrade  = maxGradeOfSession(session);
-    // Build summary parts. For multi-send sessions, split "max" from the grade
-    // so we can style them independently (max = muted prefix, grade = big colored).
-    const summaryParts = sendCount === 1
-        ? ['1 send', `<span class="grade-value">${escapeHTML(maxGrade)}</span>`]
-        : [`${sendCount} sends`, `max <span class="grade-value">${escapeHTML(maxGrade)}</span>`];
+    // TR doesn't count as max (matches the personal-app convention)
+    const leadSends = session.sends.filter(s => !isTopRope(s.Style));
+    const leadCount = leadSends.length;
+    const trCount   = sendCount - leadCount;
+    let maxGrade = null;
+    if (leadCount > 0) {
+        const sortedLead = sortSendsByScore(leadSends, session.discipline);
+        maxGrade = sortedLead[0]?.Grade || null;
+    }
+    // "N sends · M TR · max X" — any of the three can be absent
+    const summaryItems = [];
+    if (leadCount > 0) summaryItems.push(`<span>${leadCount} send${leadCount === 1 ? '' : 's'}</span>`);
+    if (trCount > 0)   summaryItems.push(`<span>${trCount} TR</span>`);
+    if (maxGrade)      summaryItems.push(`<span class="max-grade">max <span class="grade-value">${escapeHTML(maxGrade)}</span></span>`);
+    const summaryHtml = summaryItems.join('<span class="dot">·</span>');
     const relTime  = formatRelativeTime(session.timestamp);
     const dateText = formatShortDate(session.date);
     // Show "climb date · relative time" only when relTime is genuinely relative.
@@ -3437,9 +3447,7 @@ function renderSessionCard(session, idx) {
             <div class="s-where">${session.wheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ')}</div>
         </div>
         <div class="s-summary">
-            <span>${escapeHTML(summaryParts[0])}</span>
-            <span class="dot">·</span>
-            <span class="max-grade">${summaryParts[1] || ''}</span>
+            ${summaryHtml}
         </div>
         <button class="expand-btn"><span class="expand-arrow">▾</span> View ${sendCount} climb${sendCount > 1 ? 's' : ''}</button>
         <div class="session-children">${sendsHtml}</div>
