@@ -2306,15 +2306,15 @@ function renderBelayerPills() {
             return a.localeCompare(b);
         });
     if (LoggerState.belayer && !names.includes(LoggerState.belayer)) names.unshift(LoggerState.belayer);
-    const none = `<button class="pill ${!LoggerState.belayer ? 'active' : ''}" data-belayer="">None</button>`;
+    const addBtn = '<button class="pill add-btn" data-belayer-add="1">+ Add</button>';
     const pills = names.map(n =>
         `<button class="pill ${n === LoggerState.belayer ? 'active' : ''}" data-belayer="${escapeHTML(n)}">${escapeHTML(n)}</button>`
     ).join('');
-    c.innerHTML = none + pills + '<button class="pill add-btn" data-belayer-add="1">+ Add</button>';
+    c.innerHTML = addBtn + pills;  // + Add first so it's obvious; no None — leave unset, or tap the active pill again to clear
     c.querySelectorAll('[data-belayer]').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
-            LoggerState.belayer = el.dataset.belayer;
+            LoggerState.belayer = (el.dataset.belayer === LoggerState.belayer) ? '' : el.dataset.belayer;
             renderBelayerPills();
         });
     });
