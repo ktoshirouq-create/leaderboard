@@ -550,6 +550,60 @@ h1.screen-title {
 }
 .histo-count.zero { color: #444; }
 
+/* Top 10 — the climbs currently feeding capacity */
+.top10-list {
+    background: var(--card-bg);
+    border: 1px solid rgba(255,255,255,0.03);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+.top10-row {
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-left: 3px solid var(--disc-color, #555);
+}
+.top10-row:last-child { border-bottom: none; }
+.top10-row[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
+.top10-row[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
+.top10-row[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
+.top10-row[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
+.top10-row[data-disc="Trad"]        { --disc-color: var(--disc-trad); }
+.top10-grade {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.2px;
+}
+.top10-info { min-width: 0; }
+.top10-route {
+    font-size: 0.9rem;
+    color: #fff;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.top10-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-top: 2px;
+}
+.top10-expiry {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-align: right;
+    white-space: nowrap;
+}
+.top10-expiry.soon    { color: var(--gold); }
+.top10-expiry.expires { color: var(--danger); }
+
 /* Clean table style for profile sessions */
 .profile-table-headers,
 .profile-table-row {
@@ -1563,6 +1617,9 @@ body.disco { animation: disco-hue 0.8s linear infinite; }
     <div class="profile-section-title">Grade pyramid · last 60 days</div>
     <div class="histogram-tabs" id="histogram-tabs"></div>
     <div class="histogram" id="histogram"></div>
+    
+    <div class="profile-section-title">Top 10 · last 60 days</div>
+    <div id="profile-top10"></div>
     
     <div class="profile-section-title">Last 30 days</div>
     <div id="profile-sessions"></div>
@@ -2601,7 +2658,10 @@ function renderStylePills() {
         LoggerState.style = styles.includes(sticky) ? sticky : 'Send';
     }
     c.innerHTML = styles.map(s => {
-        const label = s === 'Top-rope' ? 'TR / Auto' : s;
+        // Indoor rope can use autobelay; outdoor never can — label accordingly
+        const label = s === 'Top-rope'
+            ? (LoggerState.discipline === 'In Rope' ? 'TR / Auto' : 'Top-rope')
+            : s;
         return `<button class="pill ${s === LoggerState.style ? 'active' : ''}" data-style="${s}">${label}</button>`;
     }).join('');
     c.querySelectorAll('[data-style]').forEach(el => {
@@ -2652,11 +2712,15 @@ document.getElementById('info-modal').addEventListener('click', e => {
 document.getElementById('style-info').addEventListener('click', (e) => {
     e.stopPropagation();
     haptic('tap');
+    // Autobelay only exists indoors — drop the mention for outdoor rope
+    const trDef = LoggerState.discipline === 'In Rope'
+        ? 'A clean top-rope or autobelay ascent — no rests, hangs, or falls.'
+        : 'A clean top-rope ascent — no rests, hangs, or falls.';
     openInfoModal('Style', [
         { term: 'Send / Redpoint', def: 'A clean lead from bottom to top with no falls, rests, or hanging on the rope. Counts no matter how many attempts it took before.' },
         { term: 'Flash',   def: 'Clean first-try ascent on lead, with prior beta or watching others.' },
         { term: 'Onsight', def: 'Clean first-try ascent on lead — no prior info, never seen anyone on it.' },
-        { term: 'Top-rope', def: 'A clean top-rope or autobelay ascent — no rests, hangs, or falls.' }
+        { term: 'Top-rope', def: trDef }
     ]);
 });
 
@@ -3834,6 +3898,7 @@ function renderHistogram(climber) {
     if (totalSends === 0) {
         container.innerHTML = histoToggle + '<div class="histo-empty">No sends in this discipline in 60 days.</div>';
         wireHistoToggle();
+        renderProfileTop10(climber);
         return;
     }
     const maxCount = Math.max(...data.map(d => d.count));
@@ -3867,6 +3932,65 @@ function renderHistogram(climber) {
         </div>`;
     }).join('');
     wireHistoToggle();
+    renderProfileTop10(climber);
+}
+
+function renderProfileTop10(climber) {
+    const container = document.getElementById('profile-top10');
+    if (!container) return;
+    const discipline = profileHistoDiscipline;
+    const mode = profileHistoMode;
+
+    // Same filter as computeCapacity, but kept as the list rather than averaged
+    const climbs = State.logs.filter(log => {
+        if (log.ClimberName !== climber) return false;
+        if (log.Discipline !== discipline) return false;
+        if (!isWithinWindow(log.Date, 60)) return false;
+        if (mode === 'tr' ? !isTopRope(log.Style) : isTopRope(log.Style)) return false;
+        return getScoredValue(log.Grade, log.Style, discipline) > 0;
+    });
+
+    if (climbs.length === 0) {
+        container.innerHTML = '<div class="lb-empty">No qualifying sends.</div>';
+        return;
+    }
+
+    const scored = climbs
+        .map(c => ({ ...c, _score: getScoredValue(c.Grade, c.Style, discipline) }))
+        .sort((a, b) => b._score - a._score)
+        .slice(0, 10);
+
+    const today = new Date(getCleanDate(new Date()));
+
+    const rows = scored.map(c => {
+        const climbDate = new Date(getCleanDate(c.Date));
+        const ageDays = Math.floor((today - climbDate) / 86400000);
+        const remaining = Math.max(0, 60 - ageDays);
+        let expiryClass = '';
+        let expiryText;
+        if (remaining === 0) {
+            expiryClass = 'expires';
+            expiryText = 'drops today';
+        } else if (remaining < 7) {
+            expiryClass = 'soon';
+            expiryText = `${remaining}d left`;
+        } else {
+            expiryText = `${remaining}d left`;
+        }
+        const topLine = c.RouteName || c.Where;
+        const dateText = formatShortDate(getCleanDate(c.Date));
+        const subLine = c.RouteName ? `${dateText} · ${c.Where}` : dateText;
+        return `<div class="top10-row" data-disc="${escapeHTML(c.Discipline)}">
+            <span class="top10-grade">${escapeHTML(c.Grade)}</span>
+            <div class="top10-info">
+                <div class="top10-route">${escapeHTML(topLine)}</div>
+                <div class="top10-meta">${escapeHTML(subLine)}</div>
+            </div>
+            <span class="top10-expiry ${expiryClass}">${escapeHTML(expiryText)}</span>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = `<div class="top10-list">${rows}</div>`;
 }
 
 function renderProfileSessions(climber) {
