@@ -604,6 +604,52 @@ h1.screen-title {
 .top10-expiry.soon    { color: var(--gold); }
 .top10-expiry.expires { color: var(--danger); }
 
+/* Top-10 panel that drops in under an expanded capacity row */
+.cap-top10-detail {
+    position: relative;
+    margin: -6px 0 10px 0;
+    padding: 30px 10px 10px 10px;
+    background: rgba(0,0,0,0.35);
+    border-radius: 0 0 12px 12px;
+    border: 1px solid rgba(255,255,255,0.03);
+    border-top: none;
+    animation: fadeIn 0.2s ease;
+}
+.cap-top10-detail .top10-list {
+    margin-bottom: 0;
+    background: transparent;
+    border: none;
+}
+.cap-detail-close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    color: var(--text-muted);
+    border: none;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cap-detail-close:active { background: rgba(255,255,255,0.12); }
+.lb-row.pressing { background: rgba(16,185,129,0.08); }
+
+/* Capacity-over-time chart on profile */
+.cap-chart {
+    background: var(--card-bg);
+    border: 1px solid rgba(255,255,255,0.03);
+    border-radius: var(--radius);
+    padding: 14px 12px 8px 12px;
+    margin-bottom: 8px;
+}
+
 /* Clean table style for profile sessions */
 .profile-table-headers,
 .profile-table-row {
@@ -1618,8 +1664,8 @@ body.disco { animation: disco-hue 0.8s linear infinite; }
     <div class="histogram-tabs" id="histogram-tabs"></div>
     <div class="histogram" id="histogram"></div>
     
-    <div class="profile-section-title">Top 10 · last 60 days</div>
-    <div id="profile-top10"></div>
+    <div class="profile-section-title">Capacity over time · last 6 months</div>
+    <div id="profile-capacity-chart"></div>
     
     <div class="profile-section-title">Last 30 days</div>
     <div id="profile-sessions"></div>
@@ -3308,6 +3354,35 @@ function attachLongPressToSendRow(rowEl, log) {
     rowEl.addEventListener('mouseleave', cancel);
 }
 
+// Long-press a capacity row to expand a panel showing the top-10 climbs feeding that score.
+// Tap still navigates to profile; the synthesized click after long-press is suppressed per-climber.
+function attachLongPressToCapacityRow(rowEl, climber) {
+    let timer = null;
+    const start = () => {
+        rowEl.classList.add('pressing');
+        timer = setTimeout(() => {
+            haptic('commit');
+            rowEl.classList.remove('pressing');
+            capLongPressFor = climber;
+            // Failsafe in case the synthetic click never fires (finger lifted off-row)
+            setTimeout(() => { if (capLongPressFor === climber) capLongPressFor = null; }, 500);
+            capExpandedClimber = capExpandedClimber === climber ? null : climber;
+            renderCapacityBoard();
+        }, LONG_PRESS_MS);
+    };
+    const cancel = () => {
+        clearTimeout(timer);
+        rowEl.classList.remove('pressing');
+    };
+    rowEl.addEventListener('touchstart',  start, { passive: true });
+    rowEl.addEventListener('touchmove',   cancel, { passive: true });
+    rowEl.addEventListener('touchend',    cancel);
+    rowEl.addEventListener('touchcancel', cancel);
+    rowEl.addEventListener('mousedown',   start);
+    rowEl.addEventListener('mouseup',     cancel);
+    rowEl.addEventListener('mouseleave',  cancel);
+}
+
 function openActionSheet(log) {
     const summary = document.getElementById('action-sheet-summary');
     summary.innerHTML = `<span class="grade">${escapeHTML(log.Grade)}</span>
@@ -3586,6 +3661,8 @@ let activeBoardDiscipline = localStorage.getItem('leaderboard.lastBoardDisc') ||
 if (!AppConfig.disciplines.includes(activeBoardDiscipline)) activeBoardDiscipline = 'In Boulder';
 let activeCapacityMode = 'lead';  // 'lead' | 'tr' — only meaningful for rope disciplines
 const TR_CAPACITY_DISCIPLINES = ['In Rope', 'Out Rope'];
+let capExpandedClimber = null;    // climber whose top-10 panel is open under their capacity row
+let capLongPressFor    = null;    // when set, suppress the next click on that climber's row (the one synthesized after long-press)
 
 function gradeProgress(score, discipline) {
     const scale = AppConfig.grades[discipline];
@@ -3722,10 +3799,11 @@ function renderCapacityBoard() {
                     <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
                 </div>
                 <div class="lb-grade">
+                    <div class="lb-grade">
                     <div class="lb-grade-val">${dot}${escapeHTML(prog.current)}</div>
                     <div class="lb-grade-pct">${pctText}</div>
                 </div>
-            </div>`;
+            </div>${r.climber === capExpandedClimber ? renderCapTop10Panel(r.climber) : ''}`;
         }).join('');
     } else {
         html += '<div class="lb-empty">No one\'s qualified yet. Log 10 sends in this discipline.</div>';
@@ -3749,9 +3827,10 @@ function renderCapacityBoard() {
                     <div class="lb-grade-pct">${r.sendCount} / 10 sends</div>
                 </div>
                 <div class="lb-grade">
+                    <div class="lb-grade">
                     <div class="lb-grade-val">${dot}~${escapeHTML(prog.current)}</div>
                 </div>
-            </div>`;
+            </div>${r.climber === capExpandedClimber ? renderCapTop10Panel(r.climber) : ''}`;
         }).join('');
     }
     
@@ -3769,9 +3848,22 @@ function renderCapacityBoard() {
     }
     
     document.querySelectorAll('#capacity-board .lb-row').forEach(el => {
+        const climber = el.dataset.climber;
+        if (!climber) return;
+        attachLongPressToCapacityRow(el, climber);
         el.addEventListener('click', () => {
+            // Eat the synthetic click that follows a long-press on this row
+            if (capLongPressFor === climber) { capLongPressFor = null; return; }
             haptic('tap');
-            showProfile(el.dataset.climber);
+            showProfile(climber);
+        });
+    });
+    document.querySelectorAll('#capacity-board [data-cap-close]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            haptic('tap');
+            capExpandedClimber = null;
+            renderCapacityBoard();
         });
     });
 }
@@ -3898,7 +3990,7 @@ function renderHistogram(climber) {
     if (totalSends === 0) {
         container.innerHTML = histoToggle + '<div class="histo-empty">No sends in this discipline in 60 days.</div>';
         wireHistoToggle();
-        renderProfileTop10(climber);
+        renderCapacityChart(climber);
         return;
     }
     const maxCount = Math.max(...data.map(d => d.count));
@@ -3932,16 +4024,12 @@ function renderHistogram(climber) {
         </div>`;
     }).join('');
     wireHistoToggle();
-    renderProfileTop10(climber);
+    renderCapacityChart(climber);
 }
 
-function renderProfileTop10(climber) {
-    const container = document.getElementById('profile-top10');
-    if (!container) return;
-    const discipline = profileHistoDiscipline;
-    const mode = profileHistoMode;
-
-    // Same filter as computeCapacity, but kept as the list rather than averaged
+// Top-10 climbs feeding capacity for one climber in this discipline+mode.
+// Same filter as computeCapacity, returned as the list rather than averaged.
+function computeTop10For(climber, discipline, mode) {
     const climbs = State.logs.filter(log => {
         if (log.ClimberName !== climber) return false;
         if (log.Discipline !== discipline) return false;
@@ -3949,37 +4037,26 @@ function renderProfileTop10(climber) {
         if (mode === 'tr' ? !isTopRope(log.Style) : isTopRope(log.Style)) return false;
         return getScoredValue(log.Grade, log.Style, discipline) > 0;
     });
-
-    if (climbs.length === 0) {
-        container.innerHTML = '<div class="lb-empty">No qualifying sends.</div>';
-        return;
-    }
-
-    const scored = climbs
+    return climbs
         .map(c => ({ ...c, _score: getScoredValue(c.Grade, c.Style, discipline) }))
         .sort((a, b) => b._score - a._score)
         .slice(0, 10);
+}
 
+// Top-10 rows with "Nd left" expiry, shared between profile and capacity drill-down.
+function renderTop10Rows(climbs) {
     const today = new Date(getCleanDate(new Date()));
-
-    const rows = scored.map(c => {
+    return climbs.map(c => {
         const climbDate = new Date(getCleanDate(c.Date));
         const ageDays = Math.floor((today - climbDate) / 86400000);
         const remaining = Math.max(0, 60 - ageDays);
-        let expiryClass = '';
-        let expiryText;
-        if (remaining === 0) {
-            expiryClass = 'expires';
-            expiryText = 'drops today';
-        } else if (remaining < 7) {
-            expiryClass = 'soon';
-            expiryText = `${remaining}d left`;
-        } else {
-            expiryText = `${remaining}d left`;
-        }
-        const topLine = c.RouteName || c.Where;
+        let expiryClass = '', expiryText;
+        if (remaining === 0)    { expiryClass = 'expires'; expiryText = 'drops today'; }
+        else if (remaining < 7) { expiryClass = 'soon';    expiryText = `${remaining}d left`; }
+        else                    { expiryText = `${remaining}d left`; }
+        const topLine  = c.RouteName || c.Where;
         const dateText = formatShortDate(getCleanDate(c.Date));
-        const subLine = c.RouteName ? `${dateText} · ${c.Where}` : dateText;
+        const subLine  = c.RouteName ? `${dateText} · ${c.Where}` : dateText;
         return `<div class="top10-row" data-disc="${escapeHTML(c.Discipline)}">
             <span class="top10-grade">${escapeHTML(c.Grade)}</span>
             <div class="top10-info">
@@ -3989,8 +4066,125 @@ function renderProfileTop10(climber) {
             <span class="top10-expiry ${expiryClass}">${escapeHTML(expiryText)}</span>
         </div>`;
     }).join('');
+}
 
-    container.innerHTML = `<div class="top10-list">${rows}</div>`;
+// Top-10 panel rendered inline under an expanded capacity row.
+function renderCapTop10Panel(climber) {
+    const climbs = computeTop10For(climber, activeBoardDiscipline, activeCapacityMode);
+    const close = '<button class="cap-detail-close" data-cap-close="1">×</button>';
+    if (climbs.length === 0) {
+        return `<div class="cap-top10-detail">${close}<div class="lb-empty" style="border:none">No qualifying sends.</div></div>`;
+    }
+    return `<div class="cap-top10-detail">${close}<div class="top10-list">${renderTop10Rows(climbs)}</div></div>`;
+}
+
+// Sliding 60-day-window snapshots of one climber's capacity, sampled weekly across ~6 months.
+function computeCapacityHistory(climber, discipline, mode) {
+    const today = new Date(getCleanDate(new Date()));
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 180);
+    const firstSunday = new Date(startDate);
+    while (firstSunday.getDay() !== 0) firstSunday.setDate(firstSunday.getDate() + 1);
+    const relevant = State.logs.filter(log => {
+        if (log.ClimberName !== climber) return false;
+        if (log.Discipline !== discipline) return false;
+        if (mode === 'tr' ? !isTopRope(log.Style) : isTopRope(log.Style)) return false;
+        return getScoredValue(log.Grade, log.Style, discipline) > 0;
+    });
+    const snapshots = [];
+    const cur = new Date(firstSunday);
+    while (cur <= today) {
+        const snapDate = new Date(cur);
+        const windowStart = new Date(snapDate);
+        windowStart.setDate(snapDate.getDate() - 60);
+        const scores = [];
+        relevant.forEach(log => {
+            const logDate = new Date(getCleanDate(log.Date));
+            if (logDate < windowStart || logDate > snapDate) return;
+            scores.push(getScoredValue(log.Grade, log.Style, discipline));
+        });
+        const sortedDesc = scores.sort((a, b) => b - a);
+        const top10 = sortedDesc.slice(0, 10);
+        const avg = top10.length > 0 ? top10.reduce((s, x) => s + x, 0) / top10.length : null;
+        snapshots.push({ date: snapDate.toISOString().slice(0, 10), score: avg });
+        cur.setDate(cur.getDate() + 7);
+    }
+    return snapshots;
+}
+
+function renderCapacityChart(climber) {
+    const container = document.getElementById('profile-capacity-chart');
+    if (!container) return;
+    const discipline = profileHistoDiscipline;
+    const mode = profileHistoMode;
+    const snapshots = computeCapacityHistory(climber, discipline, mode);
+    const withData = snapshots.filter(s => s.score !== null);
+    if (withData.length < 2) {
+        container.innerHTML = '<div class="cap-chart"><div class="lb-empty" style="border:none;padding:20px 8px">Not enough history yet — keep logging.</div></div>';
+        return;
+    }
+    const scale = AppConfig.grades[discipline];
+    if (!scale) { container.innerHTML = ''; return; }
+    const scores = withData.map(s => s.score);
+    const yMin = Math.min(...scores) - 4;
+    const yMax = Math.max(...scores) + 4;
+    const yRange = Math.max(1, yMax - yMin);
+    const W = 320, H = 150;
+    const padL = 34, padR = 12, padT = 14, padB = 26;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+    const allTicks = [];
+    scale.scores.forEach((sc, i) => {
+        if (sc >= yMin && sc <= yMax) allTicks.push({ label: scale.labels[i], score: sc });
+    });
+    const stride = allTicks.length > 6 ? Math.ceil(allTicks.length / 5) : 1;
+    const yTicks = allTicks.filter((_, i) => i % stride === 0).map(t => ({
+        ...t,
+        y: padT + ((yMax - t.score) / yRange) * innerH
+    }));
+    const points = snapshots.map((s, i) => {
+        const x = padL + (snapshots.length === 1 ? innerW / 2 : (i / (snapshots.length - 1)) * innerW);
+        if (s.score === null) return { x, y: null };
+        return { x, y: padT + ((yMax - s.score) / yRange) * innerH, score: s.score };
+    });
+    let pathD = '';
+    let pen = false;
+    points.forEach(p => {
+        if (p.y === null) { pen = false; return; }
+        pathD += pen ? ` L ${p.x.toFixed(1)} ${p.y.toFixed(1)}` : `M ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+        pen = true;
+    });
+    const discColors = {
+        'In Boulder':  '#f59e0b',
+        'In Rope':     '#06b6d4',
+        'Out Rope':    '#10b981',
+        'Out Boulder': '#a855f7',
+        'Trad':        '#f43f5e'
+    };
+    const lineColor = discColors[discipline] || '#10b981';
+    const xLabels = [{ x: padL, label: formatShortDate(snapshots[0].date) }];
+    if (snapshots.length > 2) {
+        const midIdx = Math.floor(snapshots.length / 2);
+        xLabels.push({ x: padL + (midIdx / (snapshots.length - 1)) * innerW, label: formatShortDate(snapshots[midIdx].date) });
+    }
+    xLabels.push({ x: padL + innerW, label: formatShortDate(snapshots[snapshots.length - 1].date) });
+    const lastPt = points.slice().reverse().find(p => p.y !== null);
+    const yTickSvg = yTicks.map(t => `
+        <line x1="${padL}" y1="${t.y.toFixed(1)}" x2="${W - padR}" y2="${t.y.toFixed(1)}" stroke="#1f1f1f" stroke-width="1"/>
+        <text x="${padL - 6}" y="${(t.y + 3).toFixed(1)}" font-size="9" fill="#737373" text-anchor="end" font-family="Inter, sans-serif" font-weight="700">${escapeHTML(t.label)}</text>
+    `).join('');
+    const xLabelSvg = xLabels.map(l => `
+        <text x="${l.x.toFixed(1)}" y="${H - 8}" font-size="9" fill="#737373" text-anchor="middle" font-family="Inter, sans-serif" font-weight="600">${escapeHTML(l.label)}</text>
+    `).join('');
+    const lastDotSvg = lastPt ? `<circle cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" r="3" fill="${lineColor}"/>` : '';
+    container.innerHTML = `<div class="cap-chart">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; display:block">
+            ${yTickSvg}
+            <path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            ${lastDotSvg}
+            ${xLabelSvg}
+        </svg>
+    </div>`;
 }
 
 function renderProfileSessions(climber) {
