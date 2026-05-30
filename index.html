@@ -3365,14 +3365,7 @@ function attachLongPressToCapacityRow(rowEl, climber) {
             rowEl.classList.remove('pressing');
             capSuppressClick = true;
             capExpandedClimber = capExpandedClimber === climber ? null : climber;
-            try {
-                renderCapacityBoard();
-                alert('RENDER OK · panels=' + document.querySelectorAll('.cap-top10-detail').length);
-            } catch (err) {
-                alert('RENDER THREW: ' + (err && (err.stack || err.message)));
-            }
-                showToast('LP ok · panels=' + document.querySelectorAll('.cap-top10-detail').length);
-            } catch (err) { showToast('LP err · ' + (err && err.message)); }
+            renderCapacityBoard();
         }, LONG_PRESS_MS);
     };
     const cancel = () => {
