@@ -3363,9 +3363,7 @@ function attachLongPressToCapacityRow(rowEl, climber) {
         timer = setTimeout(() => {
             haptic('commit');
             rowEl.classList.remove('pressing');
-            capLongPressFor = climber;
-            // Failsafe in case the synthetic click never fires (finger lifted off-row)
-            setTimeout(() => { if (capLongPressFor === climber) capLongPressFor = null; }, 500);
+            capSuppressClick = true;   // swallow the trailing emulated click — no self-clearing timer
             capExpandedClimber = capExpandedClimber === climber ? null : climber;
             renderCapacityBoard();
         }, LONG_PRESS_MS);
@@ -3662,7 +3660,7 @@ if (!AppConfig.disciplines.includes(activeBoardDiscipline)) activeBoardDisciplin
 let activeCapacityMode = 'lead';  // 'lead' | 'tr' — only meaningful for rope disciplines
 const TR_CAPACITY_DISCIPLINES = ['In Rope', 'Out Rope'];
 let capExpandedClimber = null;    // climber whose top-10 panel is open under their capacity row
-let capLongPressFor    = null;    // when set, suppress the next click on that climber's row (the one synthesized after long-press)
+let capSuppressClick   = false;   // set on long-press; trailing emulated click is swallowed in capture phase, no time limit
 
 function gradeProgress(score, discipline) {
     const scale = AppConfig.grades[discipline];
@@ -3849,12 +3847,12 @@ function renderCapacityBoard() {
         const climber = el.dataset.climber;
         if (!climber) return;
         attachLongPressToCapacityRow(el, climber);
-        el.addEventListener('click', () => {
-            // Eat the synthetic click that follows a long-press on this row
-            if (capLongPressFor === climber) { capLongPressFor = null; return; }
+        el.addEventListener('click', (e) => {
+            // Swallow the trailing emulated click after a long-press (capture phase, any hold length)
+            if (capSuppressClick) { e.preventDefault(); e.stopImmediatePropagation(); capSuppressClick = false; return; }
             haptic('tap');
             showProfile(climber);
-        });
+        }, true);
     });
     document.querySelectorAll('#capacity-board [data-cap-close]').forEach(el => {
         el.addEventListener('click', (e) => {
