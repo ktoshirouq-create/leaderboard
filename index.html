@@ -3799,7 +3799,6 @@ function renderCapacityBoard() {
                     <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
                 </div>
                 <div class="lb-grade">
-                    <div class="lb-grade">
                     <div class="lb-grade-val">${dot}${escapeHTML(prog.current)}</div>
                     <div class="lb-grade-pct">${pctText}</div>
                 </div>
@@ -3827,7 +3826,6 @@ function renderCapacityBoard() {
                     <div class="lb-grade-pct">${r.sendCount} / 10 sends</div>
                 </div>
                 <div class="lb-grade">
-                    <div class="lb-grade">
                     <div class="lb-grade-val">${dot}~${escapeHTML(prog.current)}</div>
                 </div>
             </div>${r.climber === capExpandedClimber ? renderCapTop10Panel(r.climber) : ''}`;
