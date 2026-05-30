@@ -5463,6 +5463,75 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').catch(() => {});
     });
 }
+
+/* ===== Capacity top-10 page — self-contained, overrides any earlier attempts ===== */
+function attachLongPressToCapacityRow(rowEl, climber) {
+    var timer = null;
+    var start = function () {
+        rowEl.classList.add('pressing');
+        timer = setTimeout(function () {
+            haptic('commit');
+            rowEl.classList.remove('pressing');
+            capSuppressClick = true;
+            showCapTop10(climber);
+        }, LONG_PRESS_MS);
+    };
+    var cancel = function () { clearTimeout(timer); rowEl.classList.remove('pressing'); };
+    rowEl.addEventListener('touchstart',  start, { passive: true });
+    rowEl.addEventListener('touchmove',   cancel, { passive: true });
+    rowEl.addEventListener('touchend',    cancel);
+    rowEl.addEventListener('touchcancel', cancel);
+    rowEl.addEventListener('mousedown',   start);
+    rowEl.addEventListener('mouseup',     cancel);
+    rowEl.addEventListener('mouseleave',  cancel);
+}
+function showCapTop10(climber) {
+    if (!climber) return;
+    window.__ct = window.__ct || {};
+    window.__ct.climber = climber;
+    window.__ct.disc = activeBoardDiscipline;
+    window.__ct.mode = activeCapacityMode;
+    var v = document.getElementById('view-captop10');
+    if (!v) {
+        v = document.createElement('div');
+        v.className = 'view';
+        v.id = 'view-captop10';
+        v.innerHTML =
+            '<button class="profile-back" id="captop10-back">← Back</button>' +
+            '<div class="profile-name" id="captop10-name">—</div>' +
+            '<div style="margin:-12px 0 16px;font-size:0.72rem;font-weight:800;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;">Top 10 · last 60 days</div>' +
+            '<div class="cap-tabs" id="captop10-tabs"></div>' +
+            '<div id="captop10-list"></div>';
+        (document.querySelector('.container') || document.body).appendChild(v);
+        v.querySelector('#captop10-back').addEventListener('click', function () { haptic('tap'); capSuppressClick = false; showView('boards'); });
+    }
+    document.getElementById('captop10-name').textContent = climber.toUpperCase();
+    showView('captop10');
+    renderCapTop10Page();
+}
+function renderCapTop10Page() {
+    var ct = window.__ct; if (!ct || !ct.climber) return;
+    document.getElementById('captop10-tabs').innerHTML = AppConfig.disciplines.map(function (d) {
+        return '<button class="cap-tab ' + (d === ct.disc ? 'active' : '') + '" data-ct-disc="' + d + '">' + d + '</button>';
+    }).join('');
+    document.querySelectorAll('#captop10-tabs .cap-tab').forEach(function (el) {
+        el.addEventListener('click', function () { haptic('tap'); ct.disc = el.dataset.ctDisc; renderCapTop10Page(); });
+    });
+    var hasTR = TR_CAPACITY_DISCIPLINES.includes(ct.disc);
+    if (!hasTR) ct.mode = 'lead';
+    var toggle = hasTR ? '<div class="seg-ctrl" id="captop10-mode" style="margin-bottom:14px">' +
+        '<button class="seg-item ' + (ct.mode === 'lead' ? 'active' : '') + '" data-ct-mode="lead">Lead</button>' +
+        '<button class="seg-item ' + (ct.mode === 'tr' ? 'active' : '') + '" data-ct-mode="tr">Top-rope</button></div>' : '';
+    var climbs = computeTop10For(ct.climber, ct.disc, ct.mode);
+    var list = climbs.length === 0
+        ? '<div class="lb-empty">No qualifying sends in the last 60 days.</div>'
+        : '<div class="top10-list">' + renderTop10Rows(climbs) + '</div>';
+    document.getElementById('captop10-list').innerHTML = toggle + list;
+    var mt = document.getElementById('captop10-mode');
+    if (mt) mt.querySelectorAll('[data-ct-mode]').forEach(function (el) {
+        el.addEventListener('click', function () { haptic('tap'); ct.mode = el.dataset.ctMode; renderCapTop10Page(); });
+    });
+}
 </script>
 
 </body>
