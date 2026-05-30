@@ -3367,6 +3367,10 @@ function attachLongPressToCapacityRow(rowEl, climber) {
             capExpandedClimber = capExpandedClimber === climber ? null : climber;
             try {
                 renderCapacityBoard();
+                alert('RENDER OK · panels=' + document.querySelectorAll('.cap-top10-detail').length);
+            } catch (err) {
+                alert('RENDER THREW: ' + (err && (err.stack || err.message)));
+            }
                 showToast('LP ok · panels=' + document.querySelectorAll('.cap-top10-detail').length);
             } catch (err) { showToast('LP err · ' + (err && err.message)); }
         }, LONG_PRESS_MS);
