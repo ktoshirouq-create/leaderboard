@@ -3363,9 +3363,12 @@ function attachLongPressToCapacityRow(rowEl, climber) {
         timer = setTimeout(() => {
             haptic('commit');
             rowEl.classList.remove('pressing');
-            capSuppressClick = true;   // swallow the trailing emulated click — no self-clearing timer
+            capSuppressClick = true;
             capExpandedClimber = capExpandedClimber === climber ? null : climber;
-            renderCapacityBoard();
+            try {
+                renderCapacityBoard();
+                showToast('LP ok · panels=' + document.querySelectorAll('.cap-top10-detail').length);
+            } catch (err) { showToast('LP err · ' + (err && err.message)); }
         }, LONG_PRESS_MS);
     };
     const cancel = () => {
