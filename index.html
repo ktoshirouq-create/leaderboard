@@ -1726,6 +1726,14 @@ body.disco { animation: disco-hue 0.8s linear infinite; }
     <div id="spots-list"></div>
 </div>
 
+<div class="view" id="view-captop10">
+    <button class="profile-back" id="captop10-back">← Back</button>
+    <div class="profile-name" id="captop10-name">—</div>
+    <div style="margin:-12px 0 16px; font-size:0.72rem; font-weight:800; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Top 10 · last 60 days</div>
+    <div class="cap-tabs" id="captop10-tabs"></div>
+    <div id="captop10-list"></div>
+</div>
+
 </div>
 
 <div class="bottom-nav">
@@ -3354,8 +3362,8 @@ function attachLongPressToSendRow(rowEl, log) {
     rowEl.addEventListener('mouseleave', cancel);
 }
 
-// Long-press a capacity row to expand a panel showing the top-10 climbs feeding that score.
-// Tap still navigates to profile; the synthesized click after long-press is suppressed per-climber.
+// Long-press a capacity row → open that climber's top-10 page.
+// Tap still goes to the profile; the trailing emulated click is suppressed.
 function attachLongPressToCapacityRow(rowEl, climber) {
     let timer = null;
     const start = () => {
@@ -3364,8 +3372,7 @@ function attachLongPressToCapacityRow(rowEl, climber) {
             haptic('commit');
             rowEl.classList.remove('pressing');
             capSuppressClick = true;
-            capExpandedClimber = capExpandedClimber === climber ? null : climber;
-            renderCapacityBoard();
+            showCapTop10(climber);
         }, LONG_PRESS_MS);
     };
     const cancel = () => {
@@ -3661,6 +3668,9 @@ let activeCapacityMode = 'lead';  // 'lead' | 'tr' — only meaningful for rope 
 const TR_CAPACITY_DISCIPLINES = ['In Rope', 'Out Rope'];
 let capExpandedClimber = null;    // climber whose top-10 panel is open under their capacity row
 let capSuppressClick   = false;   // set on long-press; trailing emulated click is swallowed in capture phase, no time limit
+let capPageClimber = null;        // climber whose top-10 page is open
+let capPageDisc    = 'In Boulder';// discipline shown on the top-10 page
+let capPageMode    = 'lead';      // 'lead' | 'tr' on the top-10 page
 
 function gradeProgress(score, discipline) {
     const scale = AppConfig.grades[discipline];
@@ -3748,6 +3758,7 @@ function rankClass(rank) {
 }
 
 function renderCapacityBoard() {
+    capSuppressClick = false;  // fresh render — clear any stale long-press suppression
     const discHasTR = TR_CAPACITY_DISCIPLINES.includes(activeBoardDiscipline);
     if (!discHasTR) activeCapacityMode = 'lead';  // boulder/Trad never have a TR board
     const { qualified, provisional } = computeCapacity(activeBoardDiscipline, activeCapacityMode);
@@ -3874,6 +3885,60 @@ document.getElementById('capacity-info').addEventListener('click', () => {
         { term: 'Qualifying',
           def: 'Need 10+ sends in a discipline within 60 days to be ranked. Below that, you\'re provisional and ranked separately.' }
     ]);
+});
+
+/* ===== CAPACITY TOP-10 PAGE (long-press a capacity row) ===== */
+function showCapTop10(climber) {
+    if (!climber) return;
+    capPageClimber = climber;
+    capPageDisc = activeBoardDiscipline;   // open on whatever discipline you were viewing
+    capPageMode = activeCapacityMode;
+    document.getElementById('captop10-name').textContent = climber.toUpperCase();
+    showView('captop10');
+    renderCapTop10Page();
+}
+
+function renderCapTop10Page() {
+    const climber = capPageClimber;
+    if (!climber) return;
+
+    document.getElementById('captop10-tabs').innerHTML = AppConfig.disciplines.map(d =>
+        `<button class="cap-tab ${d === capPageDisc ? 'active' : ''}" data-captop-disc="${d}">${d}</button>`
+    ).join('');
+    document.querySelectorAll('#captop10-tabs .cap-tab').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            capPageDisc = el.dataset.captopDisc;
+            renderCapTop10Page();
+        });
+    });
+
+    const hasTR = TR_CAPACITY_DISCIPLINES.includes(capPageDisc);
+    if (!hasTR) capPageMode = 'lead';
+    const toggle = hasTR ? `<div class="seg-ctrl" id="captop10-mode" style="margin-bottom:14px">
+        <button class="seg-item ${capPageMode === 'lead' ? 'active' : ''}" data-captop-mode="lead">Lead</button>
+        <button class="seg-item ${capPageMode === 'tr' ? 'active' : ''}" data-captop-mode="tr">Top-rope</button>
+    </div>` : '';
+
+    const climbs = computeTop10For(climber, capPageDisc, capPageMode);
+    const listHtml = climbs.length === 0
+        ? '<div class="lb-empty">No qualifying sends in the last 60 days.</div>'
+        : `<div class="top10-list">${renderTop10Rows(climbs)}</div>`;
+    document.getElementById('captop10-list').innerHTML = toggle + listHtml;
+
+    const modeToggle = document.getElementById('captop10-mode');
+    if (modeToggle) modeToggle.querySelectorAll('[data-captop-mode]').forEach(el => {
+        el.addEventListener('click', () => {
+            haptic('tap');
+            capPageMode = el.dataset.captopMode;
+            renderCapTop10Page();
+        });
+    });
+}
+
+document.getElementById('captop10-back').addEventListener('click', () => {
+    haptic('tap');
+    showView('boards');
 });
 /* ============== PROFILE ============== */
 const PROFILE_HISTO_WINDOW_DAYS = 60;
