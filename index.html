@@ -3366,7 +3366,17 @@ function attachLongPressToSendRow(rowEl, log) {
 // Tap still goes to the profile; the trailing emulated click is suppressed.
 function attachLongPressToCapacityRow(rowEl, climber) {
     let timer = null;
+    let startX = 0;
+    let startY = 0;
+
     const start = (e) => {
+        if (e.touches && e.touches.length > 0) {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        } else if (e.clientX) {
+            startX = e.clientX;
+            startY = e.clientY;
+        }
         rowEl.classList.add('pressing');
         timer = setTimeout(() => {
             haptic('commit');
@@ -3375,10 +3385,18 @@ function attachLongPressToCapacityRow(rowEl, climber) {
             showCapTop10(climber);
         }, LONG_PRESS_MS);
     };
-    const cancel = () => {
+
+    const cancel = (e) => {
+        // Ignore tiny movements (like the CSS shrink animation or thumb squish)
+        if (e && e.type === 'touchmove' && e.touches && e.touches.length > 0) {
+            const dx = Math.abs(e.touches[0].clientX - startX);
+            const dy = Math.abs(e.touches[0].clientY - startY);
+            if (dx < 15 && dy < 15) return; 
+        }
         clearTimeout(timer);
         rowEl.classList.remove('pressing');
     };
+
     rowEl.addEventListener('touchstart',  start, { passive: true });
     rowEl.addEventListener('touchmove',   cancel, { passive: true });
     rowEl.addEventListener('touchend',    cancel);
@@ -3386,6 +3404,7 @@ function attachLongPressToCapacityRow(rowEl, climber) {
     rowEl.addEventListener('mousedown',   start);
     rowEl.addEventListener('mouseup',     cancel);
     rowEl.addEventListener('mouseleave',  cancel);
+    rowEl.addEventListener('contextmenu', (e) => e.preventDefault()); // Block native popup
 }
 
 function openActionSheet(log) {
@@ -3859,15 +3878,15 @@ function renderCapacityBoard() {
         if (!climber) return;
         attachLongPressToCapacityRow(el, climber);
         el.addEventListener('click', (e) => {
-        // Swallow the ghost click if it happened within 500ms of a long-press
-        if (capSuppressClick && (Date.now() - capSuppressClick < 500)) { 
-            e.preventDefault(); 
-            e.stopImmediatePropagation(); 
-            return; 
-        }
-        haptic('tap');
-        showProfile(climber);
-    }, true);
+            // Swallow the ghost click if it happened within 500ms of a long-press
+            if (capSuppressClick && (Date.now() - capSuppressClick < 500)) { 
+                e.preventDefault(); 
+                e.stopImmediatePropagation(); 
+                return; 
+            }
+            haptic('tap');
+            showProfile(climber);
+        }, true);
     });
     document.querySelectorAll('#capacity-board [data-cap-close]').forEach(el => {
         el.addEventListener('click', (e) => {
