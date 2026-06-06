@@ -855,6 +855,20 @@ h1.screen-title {
 .cap-tab[data-disc="Out Boulder"] { --cap-color: var(--disc-out-boulder); }
 .cap-tab[data-disc="Trad"]        { --cap-color: var(--disc-trad); }
 
+/* Horizontal-scroll variant — used on the capacity top-10 detail page */
+.cap-tabs.scroll {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    padding-bottom: 4px;
+}
+.cap-tabs.scroll::-webkit-scrollbar { display: none; }
+.cap-tabs.scroll .cap-tab {
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+}
+
 .bottom-nav {
     position: fixed;
     bottom: 16px;
@@ -1730,7 +1744,7 @@ body.disco { animation: disco-hue 0.8s linear infinite; }
     <button class="profile-back" id="captop10-back">← Back</button>
     <div class="profile-name" id="captop10-name">—</div>
     <div style="margin:-12px 0 16px; font-size:0.72rem; font-weight:800; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Top 10 · last 60 days</div>
-    <div class="cap-tabs" id="captop10-tabs"></div>
+    <div class="cap-tabs scroll" id="captop10-tabs"></div>
     <div id="captop10-list"></div>
 </div>
 
@@ -3935,6 +3949,11 @@ function renderCapTop10Page() {
             renderCapTop10Page();
         });
     });
+    // Keep the active discipline centered in the horizontal scroller
+    setTimeout(() => {
+        const at = document.querySelector('#captop10-tabs .cap-tab.active');
+        if (at) at.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'center' });
+    }, 0);
 
     const hasTR = TR_CAPACITY_DISCIPLINES.includes(capPageDisc);
     if (!hasTR) capPageMode = 'lead';
@@ -3944,10 +3963,18 @@ function renderCapTop10Page() {
     </div>` : '';
 
     const climbs = computeTop10For(climber, capPageDisc, capPageMode);
-    const listHtml = climbs.length === 0
-        ? '<div class="lb-empty">No qualifying sends in the last 60 days.</div>'
-        : `<div class="top10-list">${renderTop10Rows(climbs)}</div>`;
-    document.getElementById('captop10-list').innerHTML = toggle + listHtml;
+
+    if (climbs.length === 0) {
+        document.getElementById('captop10-list').innerHTML =
+            toggle + '<div class="lb-empty">No qualifying sends in the last 60 days.</div>';
+    } else {
+        const chartHtml = '<div class="profile-section-title" style="margin-top:18px">Capacity over time · last 6 months</div><div id="captop10-chart"></div>';
+        const insightHtml = capInsightCard(climbs, capPageDisc);
+        const listTitle = '<div class="profile-section-title">Top 10 climbs</div>';
+        const listHtml = `<div class="top10-list">${renderTop10Rows(climbs)}</div>`;
+        document.getElementById('captop10-list').innerHTML = toggle + chartHtml + insightHtml + listTitle + listHtml;
+        renderCapacityChart(climber, capPageDisc, capPageMode, 'captop10-chart');
+    }
 
     const modeToggle = document.getElementById('captop10-mode');
     if (modeToggle) modeToggle.querySelectorAll('[data-captop-mode]').forEach(el => {
@@ -3957,6 +3984,49 @@ function renderCapTop10Page() {
             renderCapTop10Page();
         });
     });
+}
+
+// Actionable capacity insights: when your score next changes, and what single
+// send would tip you to the next grade. Reuses .histogram card + .nerd-line rows.
+function capInsightCard(climbs, discipline) {
+    if (!climbs || climbs.length === 0) return '';
+    const rows = [];
+    // Next drop-off = soonest-expiring of the current top 10
+    const today = new Date(getCleanDate(new Date()));
+    let soonest = null;
+    climbs.forEach(c => {
+        const cd = new Date(getCleanDate(c.Date));
+        const rem = Math.max(0, 60 - Math.floor((today - cd) / 86400000));
+        if (soonest === null || rem < soonest.rem) soonest = { rem, grade: c.Grade };
+    });
+    if (soonest) {
+        const when = soonest.rem === 0 ? 'today' : `in ${soonest.rem}d`;
+        rows.push(`<div class="nerd-line"><span class="k">Next drop-off</span><span class="v">${escapeHTML(soonest.grade)} · ${when}</span></div>`);
+    }
+    // What single send tips you to the next grade
+    const scale = AppConfig.grades[discipline];
+    if (scale) {
+        const scores = climbs.map(c => c._score);
+        const n = scores.length;
+        const sum = scores.reduce((s, x) => s + x, 0);
+        const avg = sum / n;
+        const prog = gradeProgress(avg, discipline);
+        if (prog.next) {
+            const nextScore = scale.scores[scale.labels.indexOf(prog.next)];
+            const required = n >= 10
+                ? (10 * nextScore - sum + Math.min(...scores))
+                : (nextScore * (n + 1) - sum);
+            let tipLabel = null;
+            for (let i = 0; i < scale.scores.length; i++) {
+                if (scale.scores[i] >= required) { tipLabel = scale.labels[i]; break; }
+            }
+            if (tipLabel) {
+                rows.push(`<div class="nerd-line"><span class="k">Tips to ${escapeHTML(prog.next)}</span><span class="v">one ${escapeHTML(tipLabel)} send</span></div>`);
+            }
+        }
+    }
+    if (rows.length === 0) return '';
+    return `<div class="histogram" style="margin-bottom:8px">${rows.join('')}</div>`;
 }
 
 document.getElementById('captop10-back').addEventListener('click', () => {
@@ -4196,11 +4266,9 @@ function computeCapacityHistory(climber, discipline, mode) {
     return snapshots;
 }
 
-function renderCapacityChart(climber) {
-    const container = document.getElementById('profile-capacity-chart');
+function renderCapacityChart(climber, discipline = profileHistoDiscipline, mode = profileHistoMode, containerId = 'profile-capacity-chart') {
+    const container = document.getElementById(containerId);
     if (!container) return;
-    const discipline = profileHistoDiscipline;
-    const mode = profileHistoMode;
     const snapshots = computeCapacityHistory(climber, discipline, mode);
     const withData = snapshots.filter(s => s.score !== null);
     if (withData.length < 2) {
