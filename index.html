@@ -157,6 +157,12 @@ h1.screen-title {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.s-with {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-top: 3px;
+}
 .s-where {
     font-size: 0.78rem;
     color: #d4d4d4;
@@ -3124,6 +3130,7 @@ function groupIntoSessions(logs) {
             map.set(key, {
                 climber:    log.ClimberName,
                 wheres:     [],          // list of distinct locations in this session
+                belayers:   [],          // distinct belayers named across this session's sends
                 date:       date,
                 discipline: log.Discipline,
                 timestamp:  log.Timestamp,
@@ -3136,6 +3143,9 @@ function groupIntoSessions(logs) {
         session.sends.push(log);
         if (!session.wheres.includes(log.Where)) {
             session.wheres.push(log.Where);
+        }
+        if (log.Belayer && log.Belayer !== log.ClimberName && !session.belayers.includes(log.Belayer)) {
+            session.belayers.push(log.Belayer);
         }
         // Track newest timestamp for "X ago" display
         if (new Date(log.Timestamp) > new Date(session.timestamp)) {
@@ -3612,6 +3622,7 @@ function renderSessionCard(session, idx) {
             <div class="s-name-block">
                 <div class="s-name" data-profile-link>${escapeHTML(session.climber)}</div>
                 <div class="s-time">${escapeHTML(timeText)}</div>
+                ${session.belayers && session.belayers.length ? `<div class="s-with">with ${session.belayers.map(escapeHTML).join(', ')}</div>` : ''}
             </div>
             <div class="s-where">${session.wheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ')}</div>
         </div>
