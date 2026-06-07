@@ -604,41 +604,6 @@ h1.screen-title {
 .top10-expiry.soon    { color: var(--gold); }
 .top10-expiry.expires { color: var(--danger); }
 
-/* Top-10 panel that drops in under an expanded capacity row */
-.cap-top10-detail {
-    position: relative;
-    margin: -6px 0 10px 0;
-    padding: 30px 10px 10px 10px;
-    background: rgba(0,0,0,0.35);
-    border-radius: 0 0 12px 12px;
-    border: 1px solid rgba(255,255,255,0.03);
-    border-top: none;
-    animation: fadeIn 0.2s ease;
-}
-.cap-top10-detail .top10-list {
-    margin-bottom: 0;
-    background: transparent;
-    border: none;
-}
-.cap-detail-close {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.06);
-    color: var(--text-muted);
-    border: none;
-    font-size: 1rem;
-    line-height: 1;
-    cursor: pointer;
-    font-family: inherit;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.cap-detail-close:active { background: rgba(255,255,255,0.12); }
 .lb-row.pressing { background: rgba(16,185,129,0.08); }
 
 /* Capacity-over-time chart on profile */
@@ -3699,7 +3664,6 @@ let activeBoardDiscipline = localStorage.getItem('leaderboard.lastBoardDisc') ||
 if (!AppConfig.disciplines.includes(activeBoardDiscipline)) activeBoardDiscipline = 'In Boulder';
 let activeCapacityMode = 'lead';  // 'lead' | 'tr' — only meaningful for rope disciplines
 const TR_CAPACITY_DISCIPLINES = ['In Rope', 'Out Rope'];
-let capExpandedClimber = null;    // climber whose top-10 panel is open under their capacity row
 let capSuppressClick   = false;   // set on long-press; trailing emulated click is swallowed in capture phase, no time limit
 let capPageClimber = null;        // climber whose top-10 page is open
 let capPageDisc    = 'In Boulder';// discipline shown on the top-10 page
@@ -3844,7 +3808,7 @@ function renderCapacityBoard() {
                     <div class="lb-grade-val">${dot}${escapeHTML(prog.current)}</div>
                     <div class="lb-grade-pct">${pctText}</div>
                 </div>
-            </div>${r.climber === capExpandedClimber ? renderCapTop10Panel(r.climber) : ''}`;
+            </div>`;
         }).join('');
     } else {
         html += '<div class="lb-empty">No one\'s qualified yet. Log 10 sends in this discipline.</div>';
@@ -3870,7 +3834,7 @@ function renderCapacityBoard() {
                 <div class="lb-grade">
                     <div class="lb-grade-val">${dot}~${escapeHTML(prog.current)}</div>
                 </div>
-            </div>${r.climber === capExpandedClimber ? renderCapTop10Panel(r.climber) : ''}`;
+            </div>`;
         }).join('');
     }
     
@@ -3902,15 +3866,7 @@ function renderCapacityBoard() {
             showProfile(climber);
         }, true);
     });
-    document.querySelectorAll('#capacity-board [data-cap-close]').forEach(el => {
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            haptic('tap');
-            capExpandedClimber = null;
-            renderCapacityBoard();
-        });
-    });
-}
+    }
 
 document.getElementById('capacity-info').addEventListener('click', () => {
     haptic('tap');
@@ -4203,16 +4159,6 @@ function renderTop10Rows(climbs) {
             <span class="top10-expiry ${expiryClass}">${escapeHTML(expiryText)}</span>
         </div>`;
     }).join('');
-}
-
-// Top-10 panel rendered inline under an expanded capacity row.
-function renderCapTop10Panel(climber) {
-    const climbs = computeTop10For(climber, activeBoardDiscipline, activeCapacityMode);
-    const close = '<button class="cap-detail-close" data-cap-close="1">×</button>';
-    if (climbs.length === 0) {
-        return `<div class="cap-top10-detail">${close}<div class="lb-empty" style="border:none">No qualifying sends.</div></div>`;
-    }
-    return `<div class="cap-top10-detail">${close}<div class="top10-list">${renderTop10Rows(climbs)}</div></div>`;
 }
 
 // Sliding 60-day-window snapshots of one climber's capacity, sampled weekly across ~6 months.
