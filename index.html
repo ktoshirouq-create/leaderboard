@@ -5528,6 +5528,7 @@ function renderPeakChart(seriesList, discipline, chartId, legendId) {
     const container = document.getElementById(chartId);
     const legendEl = document.getElementById(legendId);
     if (!container) return;
+    if (discipline === 'all') { renderPeakBumpChart(seriesList, container, legendEl); return; }
     const allScores = [];
     seriesList.forEach(s => s.series.forEach(p => { if (p.score !== null) allScores.push(p.score); }));
     if (allScores.length < 2) {
@@ -5599,6 +5600,78 @@ function renderPeakChart(seriesList, discipline, chartId, legendId) {
             const isActive = s.climber === State.activeUser;
             const color = isActive ? PEAK_MINT : palette[pj++ % palette.length];
             return `<span class="peak-leg ${isActive ? 'me' : ''}"><span class="peak-leg-dot" style="background:${color}"></span>${escapeHTML(s.climber)}</span>`;
+        }).join('') + '</div>';
+    }
+}
+
+function peakStandings(seriesList) {
+    const len = (seriesList[0] && seriesList[0].series.length) || 0;
+    const standing = seriesList.map(() => new Array(len).fill(null));
+    for (let i = 0; i < len; i++) {
+        const active = seriesList
+            .map((s, idx) => ({ idx, climber: s.climber, score: s.series[i].score }))
+            .filter(x => x.score !== null)
+            .sort((a, b) => b.score - a.score || a.climber.localeCompare(b.climber));
+        active.forEach((x, pos) => { standing[x.idx][i] = pos + 1; });
+    }
+    return standing;
+}
+
+function renderPeakBumpChart(seriesList, container, legendEl) {
+    const N = seriesList.length;
+    const dates = (seriesList[0] && seriesList[0].series.map(p => p.date)) || [];
+    const len = dates.length;
+    const anyData = seriesList.some(s => s.series.some(p => p.score !== null));
+    if (N < 2 || len < 2 || !anyData) {
+        container.innerHTML = '<div class="cap-chart"><div class="lb-empty" style="border:none;padding:20px 8px">Not enough climbers yet — keep logging.</div></div>';
+        if (legendEl) legendEl.innerHTML = '';
+        return;
+    }
+    const standing = peakStandings(seriesList);
+    const W = 320, H = 170, padL = 34, padR = 14, padT = 14, padB = 26;
+    const innerW = W - padL - padR, innerH = H - padT - padB;
+    const yAt = pos => padT + ((pos - 1) / Math.max(1, N - 1)) * innerH;
+    const xAt = i => padL + (len <= 1 ? innerW / 2 : (i / (len - 1)) * innerW);
+    const ordinal = n => ({ 1: '1st', 2: '2nd', 3: '3rd' }[n] || n + 'th');
+    const palette = ['#f59e0b', '#06b6d4', '#a855f7', '#f43f5e', '#cbd5e1', '#fbbf24'];
+    let pc = 0;
+    const colorFor = seriesList.map(s => s.climber === State.activeUser ? PEAK_MINT : palette[pc++ % palette.length]);
+    let yTickSvg = '';
+    for (let p = 1; p <= N; p++) {
+        const y = yAt(p);
+        yTickSvg += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="#1f1f1f" stroke-width="1"/><text x="${padL - 6}" y="${(y + 3).toFixed(1)}" font-size="9" fill="#737373" text-anchor="end" font-family="Inter, sans-serif" font-weight="700">${ordinal(p)}</text>`;
+    }
+    let paths = '', dots = '';
+    seriesList.forEach((s, idx) => {
+        const isActive = s.climber === State.activeUser;
+        const color = colorFor[idx], width = isActive ? 2.5 : 1.5;
+        let dPath = '', pen = false, lastPt = null;
+        standing[idx].forEach((pos, i) => {
+            if (pos === null) { pen = false; return; }
+            const x = xAt(i), y = yAt(pos);
+            dPath += pen ? ` L ${x.toFixed(1)} ${y.toFixed(1)}` : `M ${x.toFixed(1)} ${y.toFixed(1)}`;
+            pen = true; lastPt = { x, y };
+        });
+        if (dPath) {
+            paths += `<path d="${dPath}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${isActive ? 1 : 0.85}"/>`;
+            if (lastPt) dots += `<circle cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" r="${isActive ? 3 : 2.5}" fill="${color}"/>`;
+        }
+    });
+    let xLabelSvg = '';
+    const xi = len > 2 ? [0, Math.floor(len / 2), len - 1] : [0, len - 1];
+    xi.forEach(i => {
+        xLabelSvg += `<text x="${xAt(i).toFixed(1)}" y="${H - 8}" font-size="9" fill="#737373" text-anchor="middle" font-family="Inter, sans-serif" font-weight="600">${escapeHTML(dates[i].slice(5))}</text>`;
+    });
+    container.innerHTML = `<div class="cap-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block">${yTickSvg}${paths}${dots}${xLabelSvg}</svg></div>`;
+    if (legendEl) {
+        const order = seriesList.map((s, idx) => {
+            const lastPos = [...standing[idx]].reverse().find(p => p !== null);
+            return { climber: s.climber, idx, pos: (lastPos == null ? 999 : lastPos) };
+        }).sort((a, b) => a.pos - b.pos);
+        legendEl.innerHTML = '<div class="peak-legend">' + order.map(o => {
+            const isActive = o.climber === State.activeUser;
+            const rankTxt = o.pos === 999 ? '–' : o.pos;
+            return `<span class="peak-leg ${isActive ? 'me' : ''}">${rankTxt}<span class="peak-leg-dot" style="background:${colorFor[o.idx]}"></span>${escapeHTML(o.climber)}</span>`;
         }).join('') + '</div>';
     }
 }
