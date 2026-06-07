@@ -1952,6 +1952,33 @@ document.querySelectorAll('#board-mode-toggle .seg-item').forEach(el => {
     });
 });
 
+// Long-press the Capacity tab → open your own capacity page (same deep-dive as
+// long-pressing a climber's capacity row).
+(function () {
+    const tab = document.querySelector('#board-mode-toggle .seg-item[data-mode="capacity"]');
+    if (!tab) return;
+    let timer = null, suppressClick = false;
+    const start = () => {
+        timer = setTimeout(() => {
+            if (!State.activeUser) { showToast('Pick your name first'); return; }
+            suppressClick = true;
+            haptic('commit');
+            showCapTop10(State.activeUser);
+        }, LONG_PRESS_MS);
+    };
+    const cancel = () => clearTimeout(timer);
+    tab.addEventListener('touchstart', start, { passive: true });
+    tab.addEventListener('touchmove', cancel, { passive: true });
+    tab.addEventListener('touchend', cancel);
+    tab.addEventListener('touchcancel', cancel);
+    tab.addEventListener('mousedown', start);
+    tab.addEventListener('mouseup', cancel);
+    tab.addEventListener('mouseleave', cancel);
+    tab.addEventListener('click', (e) => {
+        if (suppressClick) { e.preventDefault(); e.stopImmediatePropagation(); suppressClick = false; }
+    }, true);
+})();
+
 function showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(`view-${name}`).classList.add('active');
