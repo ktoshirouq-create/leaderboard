@@ -3170,10 +3170,29 @@ function groupIntoSessions(logs) {
     });
     // Set primary `where` for backwards compatibility (first location in the list)
     map.forEach(session => { session.where = session.wheres[0]; });
-    // Sort sessions by newest send first
     return Array.from(map.values())
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
+
+// ===== highlight detection (Bundle 1: inert helpers, no UI yet) =====
+const WARMUP_DAYS = 14, STANDOUT_MIN_SENDS = 6;
+function dDiff(a, b) { return (new Date(a) - new Date(b)) / 864e5; }
+function baseScoreOf(grade, disc) { return getScoredValue(grade, 'Send', disc); }
+function gradeIdx(score, disc) { return AppConfig.grades[disc].labels.indexOf(gradeProgress(score, disc).current); }
+function firstLogDate(c) { let m = null; State.logs.forEach(l => { if (l.ClimberName !== c) return; const d = getCleanDate(l.Date); if (m === null || d < m) m = d; }); return m; }
+function sessionMaxBase(c, disc, date) { let mx = 0, g = null; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; if (getCleanDate(l.Date) !== date) return; const s = baseScoreOf(l.Grade, disc); if (s > mx) { mx = s; g = l.Grade; } }); return { score: mx, grade: g }; }
+function priorBestBase(c, disc, before) { let mx = 0; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; if (getCleanDate(l.Date) >= before) return; const s = baseScoreOf(l.Grade, disc); if (s > mx) mx = s; }); return mx; }
+function sessionCount(c, disc, date) { let n = 0; State.logs.forEach(l => { if (l.ClimberName === c && l.Discipline === disc && getCleanDate(l.Date) === date) n++; }); return n; }
+function maxSessionCount30(c, disc, excl) { const bd = {}; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc) return; const d = getCleanDate(l.Date); if (d === excl) return; const df = dDiff(excl, d); if (df < 0 || df > 30) return; bd[d] = (bd[d] || 0) + 1; }); const v = Object.values(bd); return v.length ? Math.max(...v) : 0; }
+function max30Base(c, disc, date) { let mx = 0; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; const df = dDiff(date, getCleanDate(l.Date)); if (df < 0 || df > 30) return; const s = baseScoreOf(l.Grade, disc); if (s > mx) mx = s; }); return mx; }
+function capacityAsOf(c, disc, asOf) { const sc = []; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; const d = getCleanDate(l.Date); if (d > asOf) return; if (dDiff(asOf, d) > CAPACITY_WINDOW_DAYS) return; const v = getScoredValue(l.Grade, l.Style, disc); if (v > 0) sc.push(v); }); if (sc.length < CAPACITY_THRESHOLD) return null; sc.sort((a, b) => b - a); const t = sc.slice(0, 10); return t.reduce((s, x) => s + x, 0) / t.length; }
+function prevSessionDate(c, disc, before) { let m = null; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; if (getScoredValue(l.Grade, l.Style, disc) <= 0) return; const d = getCleanDate(l.Date); if (d < before && (m === null || d > m)) m = d; }); return m; }
+function rankAsOf(c, disc, asOf) { const mine = capacityAsOf(c, disc, asOf); if (mine === null) return null; const seen = {}; State.logs.forEach(l => { if (l.Discipline === disc && !isTopRope(l.Style)) seen[l.ClimberName] = 1; }); let higher = 0; Object.keys(seen).forEach(cl => { if (cl === c) return; const cap = capacityAsOf(cl, disc, asOf); if (cap !== null && cap > mine) higher++; }); return 1 + higher; }
+function detectPR(c, disc, date) { const sm = sessionMaxBase(c, disc, date); if (sm.score <= 0) return null; const prior = priorBestBase(c, disc, date); if (prior <= 0) return null; if (sm.score <= prior) return null; const fl = firstLogDate(c); if (fl && dDiff(date, fl) < WARMUP_DAYS) return null; return { kind: 'pr', grade: sm.grade, label: disc.includes('Boulder') ? 'NEW MAX' : 'NEW LEAD MAX' }; }
+function detectLevelUp(c, disc, date) { const pd = prevSessionDate(c, disc, date); if (!pd) return null; const now = capacityAsOf(c, disc, date), prev = capacityAsOf(c, disc, pd); if (now === null || prev === null) return null; if (gradeIdx(now, disc) <= gradeIdx(prev, disc)) return null; return { kind: 'levelup', from: gradeProgress(prev, disc).current, to: gradeProgress(now, disc).current }; }
+function detectBoardMove(c, disc, date) { const pd = prevSessionDate(c, disc, date); const rNow = rankAsOf(c, disc, date), rPrev = pd ? rankAsOf(c, disc, pd) : null; if (rNow !== null && rPrev === null) return { kind: 'board', label: 'ON THE BOARD' }; if (rNow !== null && rPrev !== null && rNow < rPrev) { const cn = capacityAsOf(c, disc, date), cp = capacityAsOf(c, disc, pd); if (!(cn > cp)) return null; if (rNow === 1) return { kind: 'board', label: 'TOOK #1' }; if (rNow <= 3 && rPrev > 3) return { kind: 'board', label: 'INTO TOP 3' }; if (rNow <= 5 && rPrev > 5) return { kind: 'board', label: 'INTO TOP 5' }; return null; } return null; }
+function detectStandout(c, disc, date) { const cnt = sessionCount(c, disc, date); if (cnt >= STANDOUT_MIN_SENDS && cnt > maxSessionCount30(c, disc, date)) return { kind: 'standout', label: 'BIG DAY', n: cnt }; const sm = sessionMaxBase(c, disc, date); if (sm.score > 0 && sm.score === max30Base(c, disc, date)) return { kind: 'standout', label: 'LIMIT DAY', grade: sm.grade }; return null; }
+function detectHighlight(c, disc, date) { return detectPR(c, disc, date) || detectBoardMove(c, disc, date) || detectLevelUp(c, disc, date) || detectStandout(c, disc, date); }
 
 // Sort sends within a session: highest score first
 function sortSendsByScore(sends, discipline) {
