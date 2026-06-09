@@ -163,7 +163,8 @@ h1.screen-title {
     font-weight: 600;
     margin-top: 3px;
 }
-/* PR eyebrow — above the name, inherits the card's discipline colour + tint */
+/* PR eyebrow — above the name. No text-transform: labels are already uppercase,
+   and grades (6a+) must stay lowercase. */
 .hl-eyebrow {
     align-self: flex-start;
     display: inline-flex;
@@ -172,13 +173,34 @@ h1.screen-title {
     font-size: 0.62rem;
     font-weight: 800;
     letter-spacing: 0.8px;
-    text-transform: uppercase;
     color: var(--disc-color, var(--primary));
     background: var(--disc-tint, rgba(255,255,255,0.05));
     padding: 3px 8px;
     border-radius: 6px;
     line-height: 1;
 }
+/* Level-up banner — spans the card top, discipline colour + a static sheen */
+.hl-banner {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 18px;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--disc-color, var(--primary));
+    background: linear-gradient(105deg,
+        var(--disc-tint, rgba(255,255,255,0.05)) 0%,
+        rgba(255,255,255,0.10) 48%,
+        var(--disc-tint, rgba(255,255,255,0.05)) 100%);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.hl-rosette {
+    font-size: 0.82rem;
+    line-height: 1;
+    filter: drop-shadow(0 0 4px var(--disc-tint, transparent));
+}
+.hl-banner-text { line-height: 1; }
 .s-where {
     font-size: 0.78rem;
     color: #d4d4d4;
@@ -3220,6 +3242,16 @@ function highlightMarkup(session) {
     return '';
 }
 
+// Bundle 3: banner-tier highlights (span the card top). Level-up wired now; board-move next.
+function bannerMarkup(session) {
+    const hl = detectHighlight(session.climber, session.discipline, session.date);
+    if (!hl) return '';
+    if (hl.kind === 'levelup') {
+        return `<div class="hl-banner hl-banner-levelup"><span class="hl-rosette">✦</span><span class="hl-banner-text">LEVELED UP · ${escapeHTML(hl.from)}→${escapeHTML(hl.to)}</span></div>`;
+    }
+    return '';
+}
+
 // Sort sends within a session: highest score first
 function sortSendsByScore(sends, discipline) {
     return [...sends].sort((a, b) => {
@@ -3677,6 +3709,7 @@ function renderSessionCard(session, idx) {
 
     return `
     <div class="session-card ${stateClass}" data-disc="${escapeHTML(session.discipline)}" data-idx="${idx}">
+        ${bannerMarkup(session)}
         <div class="session-header">
             <div class="s-name-block">
                 ${highlightMarkup(session)}
