@@ -1634,11 +1634,11 @@ body.modal-open { overflow: hidden; }
 .cal-l4 { background: #10b981; color: #000; }
 .cal-today { box-shadow: 0 0 0 2px var(--primary); }
 
-/* Disco mode (easter egg) — persistent + alive. Hue runs on .container, NOT body,
+/* Disco mode (easter egg) — fast, finite party burst. Hue on .container only,
    so fixed nav/FAB/modals keep their viewport positioning. */
-body.disco .container { animation: disco-hue 6s linear infinite; }
+body.disco .container { animation: disco-hue 1.5s linear infinite; }
 @keyframes disco-hue { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
-body.disco .fab { animation: disco-pulse 1.1s ease-in-out infinite; }
+body.disco .fab { animation: disco-pulse 0.7s ease-in-out infinite; }
 @keyframes disco-pulse {
     0%,100% { box-shadow: 0 10px 30px rgba(16,185,129,0.4), 0 0 0 0 rgba(16,185,129,0.5); }
     50%     { box-shadow: 0 10px 36px rgba(16,185,129,0.7), 0 0 0 12px rgba(16,185,129,0); }
@@ -1646,16 +1646,23 @@ body.disco .fab { animation: disco-pulse 1.1s ease-in-out infinite; }
 body.disco .lb-bar-fill, body.disco .histo-bar, body.disco .dist-bar {
     background-image: linear-gradient(100deg, rgba(255,255,255,0) 35%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 65%);
     background-size: 200% 100%;
-    animation: disco-shimmer 1.4s linear infinite;
+    animation: disco-shimmer 0.9s linear infinite;
 }
 @keyframes disco-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* Your own name lights up during the party */
+body.disco .disco-me {
+    color: #fff !important;
+    text-shadow: 0 0 10px var(--primary), 0 0 22px var(--primary);
+    animation: disco-name 0.5s ease-in-out infinite;
+}
+@keyframes disco-name { 0%,100% { transform: scale(1); } 50% { transform: scale(1.07); } }
 .disco-ball {
     position: fixed; top: 6px; left: 50%; transform: translateX(-50%);
     width: 30px; height: 30px; border-radius: 50%;
     background: radial-gradient(circle at 32% 28%, #ffffff, #94a3b8 60%, #475569);
     box-shadow: 0 0 14px rgba(255,255,255,0.5);
     z-index: 1400; pointer-events: none;
-    animation: disco-spin 2.2s linear infinite;
+    animation: disco-spin 1.1s linear infinite;
 }
 @keyframes disco-spin { from { transform: translateX(-50%) rotate(0deg); } to { transform: translateX(-50%) rotate(360deg); } }
 
@@ -5059,27 +5066,35 @@ document.getElementById('spots-back').addEventListener('click', () => { haptic('
         }
     });
 })();
-function setDisco(on) {
-    document.body.classList.toggle('disco', on);
-    try { localStorage.setItem('leaderboard.disco', on ? '1' : '0'); } catch {}
-    let ball = document.getElementById('disco-ball');
-    if (on && !ball) {
-        ball = document.createElement('div');
+let discoTimer = null;
+function markDiscoMe(on) {
+    const me = (State.activeUser || '').toLowerCase();
+    document.querySelectorAll('.s-name, .profile-name').forEach(el => {
+        el.classList.toggle('disco-me', !!(on && me && el.textContent.trim().toLowerCase() === me));
+    });
+}
+function stopDisco() {
+    clearTimeout(discoTimer); discoTimer = null;
+    document.body.classList.remove('disco');
+    markDiscoMe(false);
+    const ball = document.getElementById('disco-ball');
+    if (ball) ball.remove();
+}
+function triggerDisco() {
+    haptic('commit');
+    showToast('🪩 disco mode');
+    document.body.classList.add('disco');
+    if (!document.getElementById('disco-ball')) {
+        const ball = document.createElement('div');
         ball.id = 'disco-ball';
         ball.className = 'disco-ball';
         document.body.appendChild(ball);
-    } else if (!on && ball) {
-        ball.remove();
     }
+    markDiscoMe(true);
+    clearTimeout(discoTimer);
+    discoTimer = setTimeout(stopDisco, 8000);
 }
-function triggerDisco() {
-    const on = !document.body.classList.contains('disco');
-    haptic('commit');
-    showToast(on ? '🪩 disco mode' : 'disco off');
-    setDisco(on);
-}
-// Restore persisted disco state on load
-if (localStorage.getItem('leaderboard.disco') === '1') setDisco(true);
+try { localStorage.removeItem('leaderboard.disco'); } catch {}
 
 /* ============== PB CONFETTI ============== */
 function fireConfetti() {
