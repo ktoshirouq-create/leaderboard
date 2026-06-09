@@ -179,26 +179,34 @@ h1.screen-title {
     border-radius: 6px;
     line-height: 1;
 }
-/* Level-up banner — spans the card top, discipline colour + a static sheen */
+/* Standout — lowest tier: faint muted text, no pill. */
+.hl-eyebrow.hl-eyebrow-faint {
+    color: var(--text-muted);
+    background: transparent;
+    padding: 0;
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+}
+/* Highlight banner — a crisp dark top strip (mirrors the expand bar at the bottom),
+   discipline-coloured text. Reads as a deliberate badge, not extra card padding. */
 .hl-banner {
     display: flex;
     align-items: center;
     gap: 7px;
-    padding: 7px 18px;
+    padding: 8px 18px;
     font-size: 0.64rem;
     font-weight: 800;
     letter-spacing: 1px;
     color: var(--disc-color, var(--primary));
-    background: linear-gradient(105deg,
-        var(--disc-tint, rgba(255,255,255,0.05)) 0%,
-        rgba(255,255,255,0.10) 48%,
-        var(--disc-tint, rgba(255,255,255,0.05)) 100%);
+    background: rgba(0,0,0,0.28);
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
+/* Pull the name up under the strip so there's no dead gap above it */
+.hl-banner + .session-header { padding-top: 12px; }
 .hl-rosette {
     font-size: 0.82rem;
     line-height: 1;
-    filter: drop-shadow(0 0 4px var(--disc-tint, transparent));
+    filter: drop-shadow(0 0 5px var(--disc-color, transparent));
 }
 .hl-banner-text { line-height: 1; }
 .s-where {
@@ -3232,12 +3240,16 @@ function detectBoardMove(c, disc, date) { const pd = prevSessionDate(c, disc, da
 function detectStandout(c, disc, date) { const cnt = sessionCount(c, disc, date); if (cnt >= STANDOUT_MIN_SENDS && cnt > maxSessionCount30(c, disc, date)) return { kind: 'standout', label: 'BIG DAY', n: cnt }; const sm = sessionMaxBase(c, disc, date); if (sm.score > 0 && sm.score === max30Base(c, disc, date)) return { kind: 'standout', label: 'LIMIT DAY', grade: sm.grade }; return null; }
 function detectHighlight(c, disc, date) { return detectPR(c, disc, date) || detectBoardMove(c, disc, date) || detectLevelUp(c, disc, date) || detectStandout(c, disc, date); }
 
-// Bundle 2: render a highlight as card markup. Only PR is wired now; other tiers come later.
+// Eyebrow-tier highlights (inline, above the name): PR (coloured pill) + standout (faint).
 function highlightMarkup(session) {
     const hl = detectHighlight(session.climber, session.discipline, session.date);
     if (!hl) return '';
     if (hl.kind === 'pr') {
         return `<div class="hl-eyebrow">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</div>`;
+    }
+    if (hl.kind === 'standout') {
+        const detail = hl.label === 'BIG DAY' ? `${hl.n} sends` : escapeHTML(hl.grade);
+        return `<div class="hl-eyebrow hl-eyebrow-faint">${escapeHTML(hl.label)} · ${detail}</div>`;
     }
     return '';
 }
