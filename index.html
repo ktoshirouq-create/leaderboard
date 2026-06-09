@@ -3363,7 +3363,16 @@ function priorBestBase(c, disc, before) { let mx = 0; State.logs.forEach(l => { 
 function sessionCount(c, disc, date) { let n = 0; State.logs.forEach(l => { if (l.ClimberName === c && l.Discipline === disc && getCleanDate(l.Date) === date) n++; }); return n; }
 function maxSessionCount30(c, disc, excl) { const bd = {}; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc) return; const d = getCleanDate(l.Date); if (d === excl) return; const df = dDiff(excl, d); if (df < 0 || df > 30) return; bd[d] = (bd[d] || 0) + 1; }); const v = Object.values(bd); return v.length ? Math.max(...v) : 0; }
 function max30Base(c, disc, date) { let mx = 0; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; const df = dDiff(date, getCleanDate(l.Date)); if (df < 0 || df > 30) return; const s = baseScoreOf(l.Grade, disc); if (s > mx) mx = s; }); return mx; }
-function capacityAsOf(c, disc, asOf) { const sc = []; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; const d = getCleanDate(l.Date); if (d > asOf) return; if (dDiff(asOf, d) > 60) return; const v = getScoredValue(l.Grade, l.Style, disc); if (v > 0) sc.push(v); }); if (sc.length < 10) return null; sc.sort((a, b) => b - a); const t = sc.slice(0, 10); return t.reduce((s, x) => s + x, 0) / t.length; }
+let _capCache = null;  // a Map() only during a synchronous feed render; null elsewhere = always fresh
+function capacityAsOf(c, disc, asOf) {
+    const ck = c + '|' + disc + '|' + asOf;
+    if (_capCache && _capCache.has(ck)) return _capCache.get(ck);
+    const sc = []; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; const d = getCleanDate(l.Date); if (d > asOf) return; if (dDiff(asOf, d) > 60) return; const v = getScoredValue(l.Grade, l.Style, disc); if (v > 0) sc.push(v); });
+    let out = null;
+    if (sc.length >= 10) { sc.sort((a, b) => b - a); const t = sc.slice(0, 10); out = t.reduce((s, x) => s + x, 0) / t.length; }
+    if (_capCache) _capCache.set(ck, out);
+    return out;
+}
 function prevSessionDate(c, disc, before) { let m = null; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; if (getScoredValue(l.Grade, l.Style, disc) <= 0) return; const d = getCleanDate(l.Date); if (d < before && (m === null || d > m)) m = d; }); return m; }
 function rankAsOf(c, disc, asOf) { const mine = capacityAsOf(c, disc, asOf); if (mine === null) return null; const seen = {}; State.logs.forEach(l => { if (l.Discipline === disc && !isTopRope(l.Style)) seen[l.ClimberName] = 1; }); let higher = 0; Object.keys(seen).forEach(cl => { if (cl === c) return; const cap = capacityAsOf(cl, disc, asOf); if (cap !== null && cap > mine) higher++; }); return 1 + higher; }
 function detectPR(c, disc, date) { const sm = sessionMaxBase(c, disc, date); if (sm.score <= 0) return null; const prior = priorBestBase(c, disc, date); if (prior <= 0) return null; if (sm.score <= prior) return null; const fl = firstLogDate(c); if (fl && dDiff(date, fl) < WARMUP_DAYS) return null; return { kind: 'pr', grade: sm.grade, label: disc.includes('Boulder') ? 'NEW MAX' : 'NEW LEAD MAX' }; }
@@ -3973,7 +3982,9 @@ function renderFeed() {
     const visibleItems = items.slice(0, feedPage * FEED_PAGE_SIZE);
     const remaining = items.length - visibleItems.length;
 
+    _capCache = new Map();
     let html = visibleItems.map((it, i) => it.joint ? renderJointCard(it, i) : renderSessionCard(it, i)).join('');
+    _capCache = null;
     if (remaining > 0) {
         html += `<button class="load-more-btn" id="feed-load-more">Load more · ${remaining} remaining</button>`;
     }
