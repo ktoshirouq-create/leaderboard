@@ -3430,6 +3430,7 @@ function openLocationActionSheet(locationName) {
     summary.innerHTML = `<span class="grade">${escapeHTML(locationName)}</span>`;
     document.getElementById('action-edit').textContent = 'Rename';
     document.getElementById('action-delete').textContent = 'Delete location';
+    document.getElementById('action-delete').style.display = '';
     document.getElementById('action-edit').onclick = () => {
         haptic('tap');
         closeModal('action-sheet-modal');
@@ -3645,6 +3646,31 @@ function attachLongPressToCapacityRow(rowEl, climber) {
     rowEl.addEventListener('contextmenu', (e) => e.preventDefault()); // Block native popup
 }
 
+function openJointActionSheet(group) {
+    const summary = document.getElementById('action-sheet-summary');
+    summary.innerHTML = `<span class="grade">${escapeHTML(group.climbers.join(' & '))}</span>`;
+    const editBtn = document.getElementById('action-edit');
+    const delBtn = document.getElementById('action-delete');
+    editBtn.textContent = 'Split into separate cards';
+    delBtn.style.display = 'none';
+    const restore = () => { editBtn.textContent = 'Edit climb'; delBtn.style.display = ''; };
+    editBtn.onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+        jointSplits.add(group.key);
+        saveJointSplits();
+        restore();
+        renderFeed();
+        showToast('Split into separate cards');
+    };
+    document.getElementById('action-cancel').onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+        restore();
+    };
+    openModal('action-sheet-modal');
+}
+
 function openActionSheet(log) {
     const summary = document.getElementById('action-sheet-summary');
     summary.innerHTML = `<span class="grade">${escapeHTML(log.Grade)}</span>
@@ -3652,6 +3678,7 @@ function openActionSheet(log) {
     // Always set climb labels on open — guards against location flow having renamed them
     document.getElementById('action-edit').textContent = 'Edit climb';
     document.getElementById('action-delete').textContent = 'Delete climb';
+    document.getElementById('action-delete').style.display = '';
     document.getElementById('action-edit').onclick = () => {
         haptic('tap');
         closeModal('action-sheet-modal');
@@ -3925,32 +3952,22 @@ function renderFeed() {
         list.innerHTML = '<div class="empty-msg">No sends yet. Tap + to be the first.</div>';
         return;
     }
-    const sessions = groupIntoSessions(State.logs);
-    const visibleSessions = sessions.slice(0, feedPage * FEED_PAGE_SIZE);
-    const remaining = sessions.length - visibleSessions.length;
-    
-    let html = visibleSessions.map((s, i) => renderSessionCard(s, i)).join('');
+    const items = clusterSessions(groupIntoSessions(State.logs));
+    const visibleItems = items.slice(0, feedPage * FEED_PAGE_SIZE);
+    const remaining = items.length - visibleItems.length;
+
+    let html = visibleItems.map((it, i) => it.joint ? renderJointCard(it, i) : renderSessionCard(it, i)).join('');
     if (remaining > 0) {
         html += `<button class="load-more-btn" id="feed-load-more">Load more · ${remaining} remaining</button>`;
     }
     list.innerHTML = html;
-    
-    list.querySelectorAll('.session-card').forEach((card, cardIdx) => {
-        card.addEventListener('click', () => {
-            haptic('tap');
-            card.classList.toggle('expanded');
-        });
-        const session = visibleSessions[cardIdx];
-        // Tapping the climber's name jumps to their profile (not card expand)
-        const nameEl = card.querySelector('.s-name[data-profile-link]');
-        if (nameEl) {
-            nameEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                haptic('tap');
-                showProfile(session.climber);
-            });
-        }
-        // Tapping a location chip opens that crag/gym page
+
+    const cards = list.querySelectorAll('.session-card');  // DOM order === visibleItems order
+    visibleItems.forEach((item, i) => {
+        const card = cards[i];
+        if (!card) return;
+
+        // location chips (both card types)
         card.querySelectorAll('.s-where-link').forEach(linkEl => {
             linkEl.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -3958,13 +3975,51 @@ function renderFeed() {
                 showLocation(linkEl.dataset.loc, 'feed');
             });
         });
-        const sortedSends = sortSendsByScore(session.sends, session.discipline);
-        card.querySelectorAll('.send-row').forEach((rowEl, sendIdx) => {
-            const log = sortedSends[sendIdx];
-            attachLongPressToSendRow(rowEl, log);
-        });
+
+        if (item.joint) {
+            // long-press the header → split into separate cards
+            const headerEl = card.querySelector('.session-header');
+            if (headerEl) {
+                let timer = null;
+                const start = () => { timer = setTimeout(() => { haptic('commit'); openJointActionSheet(item); }, LONG_PRESS_MS); };
+                const cancel = () => clearTimeout(timer);
+                headerEl.addEventListener('touchstart', start, { passive: true });
+                headerEl.addEventListener('touchmove', cancel, { passive: true });
+                headerEl.addEventListener('touchend', cancel);
+                headerEl.addEventListener('touchcancel', cancel);
+                headerEl.addEventListener('mousedown', start);
+                headerEl.addEventListener('mouseup', cancel);
+                headerEl.addEventListener('mouseleave', cancel);
+            }
+            // per-climber rows: tap to expand, name → profile, own sends long-press to edit
+            card.querySelectorAll('.jc-climber').forEach(climberEl => {
+                const climberName = climberEl.dataset.climber;
+                const member = item.members.find(m => m.climber === climberName);
+                const rowEl = climberEl.querySelector('.jc-row');
+                if (rowEl) rowEl.addEventListener('click', () => { haptic('tap'); climberEl.classList.toggle('expanded'); });
+                const nameEl = climberEl.querySelector('.jc-name[data-profile-link]');
+                if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(climberName); });
+                if (member) {
+                    const sorted = sortSendsByScore(member.sends, member.discipline);
+                    climberEl.querySelectorAll('.jc-sends .send-row').forEach((sr, si) => {
+                        const log = sorted[si];
+                        if (log) attachLongPressToSendRow(sr, log);
+                    });
+                }
+            });
+        } else {
+            // single card (unchanged behavior)
+            card.addEventListener('click', () => { haptic('tap'); card.classList.toggle('expanded'); });
+            const nameEl = card.querySelector('.s-name[data-profile-link]');
+            if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(item.climber); });
+            const sortedSends = sortSendsByScore(item.sends, item.discipline);
+            card.querySelectorAll('.send-row').forEach((rowEl, sendIdx) => {
+                const log = sortedSends[sendIdx];
+                attachLongPressToSendRow(rowEl, log);
+            });
+        }
     });
-    
+
     const loadMoreBtn = document.getElementById('feed-load-more');
     if (loadMoreBtn) {
         loadMoreBtn.addEventListener('click', () => {
