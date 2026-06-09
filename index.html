@@ -3373,8 +3373,8 @@ function detectStandout(c, disc, date) { const cnt = sessionCount(c, disc, date)
 function detectHighlight(c, disc, date) { return detectPR(c, disc, date) || detectBoardMove(c, disc, date) || detectLevelUp(c, disc, date) || detectStandout(c, disc, date); }
 
 // Eyebrow-tier highlights (inline, above the name): PR (coloured pill) + standout (faint).
-function highlightMarkup(session) {
-    const hl = detectHighlight(session.climber, session.discipline, session.date);
+function highlightMarkup(session, hl) {
+    if (hl === undefined) hl = detectHighlight(session.climber, session.discipline, session.date);
     if (!hl) return '';
     if (hl.kind === 'pr') {
         return `<div class="hl-eyebrow">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</div>`;
@@ -3387,8 +3387,8 @@ function highlightMarkup(session) {
 }
 
 // Bundle 3+4: banner-tier highlights (span the card top): board-move and level-up.
-function bannerMarkup(session) {
-    const hl = detectHighlight(session.climber, session.discipline, session.date);
+function bannerMarkup(session, hl) {
+    if (hl === undefined) hl = detectHighlight(session.climber, session.discipline, session.date);
     if (!hl) return '';
     if (hl.kind === 'board') {
         return `<div class="hl-banner hl-banner-board"><span class="hl-rosette">▲</span><span class="hl-banner-text">${escapeHTML(hl.label)}</span></div>`;
@@ -3852,15 +3852,16 @@ function renderSessionCard(session, idx) {
 
     const sortedSends = sortSendsByScore(session.sends, session.discipline);
     const sendsHtml = sortedSends.map(s => sendRowHtml(s, session.discipline)).join('');
+    const cardHl = detectHighlight(session.climber, session.discipline, session.date);
 
     const stateClass = session._failed ? 'failed' : (session._optimistic ? 'syncing' : '');
 
     return `
     <div class="session-card ${stateClass}" data-disc="${escapeHTML(session.discipline)}" data-idx="${idx}">
-        ${bannerMarkup(session)}
+        ${bannerMarkup(session, cardHl)}
         <div class="session-header">
             <div class="s-name-block">
-                ${highlightMarkup(session)}
+                ${highlightMarkup(session, cardHl)}
                 <div class="s-name" data-profile-link>${escapeHTML(session.climber)}</div>
                 <div class="s-time">${escapeHTML(timeText)}${session._splitFrom ? ` <span class="merge-back" data-merge-key="${escapeHTML(session._splitFrom)}">↩ merge back</span>` : ''}</div>
                 ${session.belayers && session.belayers.length ? `<div class="s-with">with ${session.belayers.map(escapeHTML).join(', ')}</div>` : ''}
