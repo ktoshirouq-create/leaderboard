@@ -3241,6 +3241,64 @@ function groupIntoSessions(logs) {
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
 
+// ===== joint-session clustering (inert until renderFeed wires it) =====
+// Rope: merge sessions linked by who-belayed-whom (precise — they were definitely together).
+// Boulder: merge sessions at the same gym/day (loose — that's why a joint card can be split).
+// Splits persist locally.
+const JOINT_SPLIT_KEY = 'leaderboard.jointSplits';
+function loadJointSplits() {
+    try { return new Set(JSON.parse(localStorage.getItem(JOINT_SPLIT_KEY) || '[]')); }
+    catch { return new Set(); }
+}
+let jointSplits = loadJointSplits();
+function saveJointSplits() {
+    try { localStorage.setItem(JOINT_SPLIT_KEY, JSON.stringify([...jointSplits])); } catch {}
+}
+function jointGroupKey(climbers, date, disc) {
+    return `${date}|${disc}|${[...climbers].sort((a, b) => a.localeCompare(b)).join(',')}`;
+}
+function clusterSessions(sessions) {
+    const pools = new Map();
+    sessions.forEach(s => {
+        const k = `${s.date}|${s.discipline}`;
+        if (!pools.has(k)) pools.set(k, []);
+        pools.get(k).push(s);
+    });
+    const lc = n => String(n || '').toLowerCase().trim();
+    const items = [];
+    pools.forEach(pool => {
+        const isBoulder = pool[0].discipline.includes('Boulder');
+        const parent = pool.map((_, i) => i);
+        const find = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+        for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) {
+            const a = pool[i], b = pool[j];
+            const linked = a.belayers.some(n => lc(n) === lc(b.climber)) || b.belayers.some(n => lc(n) === lc(a.climber));
+            const coLoc  = isBoulder && a.wheres.some(w => b.wheres.includes(w));
+            if (linked || coLoc) parent[find(i)] = find(j);
+        }
+        const comps = new Map();
+        pool.forEach((_, i) => { const r = find(i); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(i); });
+        comps.forEach(idxs => {
+            if (idxs.length < 2) { items.push(pool[idxs[0]]); return; }
+            const members = idxs.map(i => pool[i]);
+            const climbers = members.map(m => m.climber);
+            const key = jointGroupKey(climbers, members[0].date, members[0].discipline);
+            if (jointSplits.has(key)) { members.forEach(m => items.push(m)); return; }
+            items.push({
+                joint: true, key, climbers, members,
+                date: members[0].date,
+                discipline: members[0].discipline,
+                wheres: [...new Set(members.flatMap(m => m.wheres))],
+                belayers: [...new Set(members.flatMap(m => m.belayers))],
+                timestamp: members.reduce((mx, m) => new Date(m.timestamp) > new Date(mx) ? m.timestamp : mx, members[0].timestamp),
+                _optimistic: members.some(m => m._optimistic),
+                _failed: members.some(m => m._failed)
+            });
+        });
+    });
+    return items.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
 // ===== highlight detection (Bundle 1: inert helpers, no UI yet) =====
 const WARMUP_DAYS = 14, STANDOUT_MIN_SENDS = 6;
 function dDiff(a, b) { return (new Date(a) - new Date(b)) / 864e5; }
