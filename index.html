@@ -313,6 +313,22 @@ h1.screen-title {
 .jc-sends { display: none; padding: 2px 0 10px 0; }
 .jc-climber.expanded .jc-sends { display: block; animation: fadeIn 0.2s ease; }
 
+/* "merge back" chip on a split-out single card (undo a split) */
+.merge-back {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    color: var(--disc-color, var(--primary));
+    background: var(--disc-tint, rgba(255,255,255,0.06));
+    padding: 2px 9px;
+    border-radius: 10px;
+    cursor: pointer;
+    vertical-align: middle;
+}
+.merge-back:active { transform: scale(0.94); }
+
 .send-row {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -3320,7 +3336,7 @@ function clusterSessions(sessions) {
             const members = idxs.map(i => pool[i]);
             const climbers = members.map(m => m.climber);
             const key = jointGroupKey(climbers, members[0].date, members[0].discipline);
-            if (jointSplits.has(key)) { members.forEach(m => items.push(m)); return; }
+            if (jointSplits.has(key)) { members.forEach(m => { m._splitFrom = key; items.push(m); }); return; }
             items.push({
                 joint: true, key, climbers, members,
                 date: members[0].date,
@@ -3846,7 +3862,7 @@ function renderSessionCard(session, idx) {
             <div class="s-name-block">
                 ${highlightMarkup(session)}
                 <div class="s-name" data-profile-link>${escapeHTML(session.climber)}</div>
-                <div class="s-time">${escapeHTML(timeText)}</div>
+                <div class="s-time">${escapeHTML(timeText)}${session._splitFrom ? ` <span class="merge-back" data-merge-key="${escapeHTML(session._splitFrom)}">↩ merge back</span>` : ''}</div>
                 ${session.belayers && session.belayers.length ? `<div class="s-with">with ${session.belayers.map(escapeHTML).join(', ')}</div>` : ''}
             </div>
             <div class="s-where">${session.wheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ')}</div>
@@ -4012,6 +4028,15 @@ function renderFeed() {
             card.addEventListener('click', () => { haptic('tap'); card.classList.toggle('expanded'); });
             const nameEl = card.querySelector('.s-name[data-profile-link]');
             if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(item.climber); });
+            const mergeBtn = card.querySelector('.merge-back');
+            if (mergeBtn) mergeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                haptic('tap');
+                jointSplits.delete(mergeBtn.dataset.mergeKey);
+                saveJointSplits();
+                renderFeed();
+                showToast('Merged back');
+            });
             const sortedSends = sortSendsByScore(item.sends, item.discipline);
             card.querySelectorAll('.send-row').forEach((rowEl, sendIdx) => {
                 const log = sortedSends[sendIdx];
