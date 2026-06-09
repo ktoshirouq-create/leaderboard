@@ -3242,10 +3242,13 @@ function highlightMarkup(session) {
     return '';
 }
 
-// Bundle 3: banner-tier highlights (span the card top). Level-up wired now; board-move next.
+// Bundle 3+4: banner-tier highlights (span the card top): board-move and level-up.
 function bannerMarkup(session) {
     const hl = detectHighlight(session.climber, session.discipline, session.date);
     if (!hl) return '';
+    if (hl.kind === 'board') {
+        return `<div class="hl-banner hl-banner-board"><span class="hl-rosette">▲</span><span class="hl-banner-text">${escapeHTML(hl.label)}</span></div>`;
+    }
     if (hl.kind === 'levelup') {
         return `<div class="hl-banner hl-banner-levelup"><span class="hl-rosette">✦</span><span class="hl-banner-text">LEVELED UP · ${escapeHTML(hl.from)}→${escapeHTML(hl.to)}</span></div>`;
     }
