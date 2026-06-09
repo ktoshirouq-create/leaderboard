@@ -283,6 +283,36 @@ h1.screen-title {
 .session-card.expanded .expand-arrow { transform: rotate(180deg); }
 .expand-arrow { display: inline-block; transition: transform 0.2s; }
 
+/* ===== JOINT (GROUP) SESSION CARD ===== */
+.session-card.joint .jc-body { padding: 0 18px 8px 18px; }
+.jc-climber { border-top: 1px solid rgba(255,255,255,0.05); }
+.jc-climber:first-child { border-top: none; }
+.jc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 0;
+    cursor: pointer;
+}
+.jc-row:active { opacity: 0.85; }
+.jc-who { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.jc-name { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: -0.2px; }
+.jc-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #a3a3a3;
+    white-space: nowrap;
+}
+.jc-max { color: var(--disc-color); font-weight: 800; }
+.jc-caret { color: var(--text-muted); font-size: 0.7rem; transition: transform 0.2s; display: inline-block; }
+.jc-climber.expanded .jc-caret { transform: rotate(180deg); }
+.jc-sends { display: none; padding: 2px 0 10px 0; }
+.jc-climber.expanded .jc-sends { display: block; animation: fadeIn 0.2s ease; }
+
 .send-row {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -3778,33 +3808,7 @@ function renderSessionCard(session, idx) {
     const timeText = isRelative ? `${dateText} · ${relTime}` : dateText;
 
     const sortedSends = sortSendsByScore(session.sends, session.discipline);
-    const sendsHtml = sortedSends.map(s => {
-        const styleNorm = String(s.Style || '').toLowerCase();
-        const isSpecial = (styleNorm === 'flash' || styleNorm === 'onsight');
-        const tag = isTopRope(s.Style)
-            ? `<span class="send-style-tag tr">TR</span>`
-            : isSpecial
-                ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
-                : `<span style="color:#666; font-weight:600;">${escapeHTML(s.Style)}</span>`;
-        // Grade dot for disciplines with hold colors (currently only Indoor Boulder)
-        const scale = AppConfig.grades[session.discipline];
-        const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
-        const dot = useDot
-            ? (() => {
-                const idx = scale.labels.indexOf(getBaseGrade(s.Grade));
-                return idx >= 0
-                    ? `<span class="grade-dot" style="background:${scale.colors[idx]}"></span>`
-                    : '';
-            })()
-            : '';
-                const routeNamePart = s.RouteName
-            ? `<span class="send-route-inline">${escapeHTML(s.RouteName)}</span>`
-            : '';
-        return `<div class="send-row">
-            <div class="send-meta">${routeNamePart}${tag}</div>
-            <div class="send-grade">${dot}${escapeHTML(s.Grade)}</div>
-        </div>`;
-    }).join('');
+    const sendsHtml = sortedSends.map(s => sendRowHtml(s, session.discipline)).join('');
 
     const stateClass = session._failed ? 'failed' : (session._optimistic ? 'syncing' : '');
 
@@ -3825,6 +3829,93 @@ function renderSessionCard(session, idx) {
         </div>
         <button class="expand-btn"><span class="expand-arrow">▾</span> View ${sendCount} climb${sendCount > 1 ? 's' : ''}</button>
         <div class="session-children">${sendsHtml}</div>
+    </div>`;
+}
+
+// ===== send-row builder (shared by single + joint cards) =====
+function sendRowHtml(s, discipline) {
+    const styleNorm = String(s.Style || '').toLowerCase();
+    const isSpecial = (styleNorm === 'flash' || styleNorm === 'onsight');
+    const tag = isTopRope(s.Style)
+        ? `<span class="send-style-tag tr">TR</span>`
+        : isSpecial
+            ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
+            : `<span style="color:#666; font-weight:600;">${escapeHTML(s.Style)}</span>`;
+    const scale = AppConfig.grades[discipline];
+    const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
+    const dot = useDot
+        ? (() => {
+            const idx = scale.labels.indexOf(getBaseGrade(s.Grade));
+            return idx >= 0 ? `<span class="grade-dot" style="background:${scale.colors[idx]}"></span>` : '';
+        })()
+        : '';
+    const routeNamePart = s.RouteName ? `<span class="send-route-inline">${escapeHTML(s.RouteName)}</span>` : '';
+    return `<div class="send-row">
+            <div class="send-meta">${routeNamePart}${tag}</div>
+            <div class="send-grade">${dot}${escapeHTML(s.Grade)}</div>
+        </div>`;
+}
+
+// ===== compact per-climber badge for joint cards (all four tiers, inline) =====
+function inlineBadge(climber, disc, date) {
+    const hl = detectHighlight(climber, disc, date);
+    if (!hl) return '';
+    if (hl.kind === 'pr')       return `<span class="hl-eyebrow">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</span>`;
+    if (hl.kind === 'board')    return `<span class="hl-eyebrow"><span class="hl-rosette">▲</span> ${escapeHTML(hl.label)}</span>`;
+    if (hl.kind === 'levelup')  return `<span class="hl-eyebrow"><span class="hl-rosette">✦</span> ${escapeHTML(hl.from)}→${escapeHTML(hl.to)}</span>`;
+    if (hl.kind === 'standout') {
+        const detail = hl.label === 'BIG DAY' ? `${hl.n} sends` : escapeHTML(hl.grade);
+        return `<span class="hl-eyebrow hl-eyebrow-faint">${escapeHTML(hl.label)} · ${detail}</span>`;
+    }
+    return '';
+}
+
+// ===== joint (group) card render (inert until renderFeed routes to it) =====
+function renderJointCard(group, idx) {
+    const ordered = [...group.members].sort((a, b) => {
+        const am = a.climber === State.activeUser ? 1 : 0;
+        const bm = b.climber === State.activeUser ? 1 : 0;
+        if (am !== bm) return bm - am;
+        return b.sends.length - a.sends.length;
+    });
+    const names = ordered.map(m => m.climber);
+    const title = names.length === 2
+        ? `${escapeHTML(names[0])} &amp; ${escapeHTML(names[1])}`
+        : `${escapeHTML(names[0])}, ${escapeHTML(names[1])} &amp; co`;
+    const relTime = formatRelativeTime(group.timestamp);
+    const whereHtml = group.wheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
+    const rowsHtml = ordered.map(m => {
+        const leadSends = m.sends.filter(s => !isTopRope(s.Style));
+        const leadCount = leadSends.length;
+        const trCount = m.sends.length - leadCount;
+        let maxGrade = null;
+        if (leadCount > 0) maxGrade = sortSendsByScore(leadSends, m.discipline)[0]?.Grade || null;
+        const parts = [];
+        if (leadCount > 0) parts.push(`${leadCount} send${leadCount === 1 ? '' : 's'}`);
+        if (trCount > 0)   parts.push(`${trCount} TR`);
+        if (maxGrade)      parts.push(`max <span class="jc-max">${escapeHTML(maxGrade)}</span>`);
+        const summary = parts.join(' · ');
+        const badge = inlineBadge(m.climber, m.discipline, m.date);
+        const sendsHtml = sortSendsByScore(m.sends, m.discipline).map(s => sendRowHtml(s, m.discipline)).join('');
+        return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
+            <div class="jc-row">
+                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${escapeHTML(m.climber)}</span></div>
+                <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
+            </div>
+            <div class="jc-sends">${sendsHtml}</div>
+        </div>`;
+    }).join('');
+    const stateClass = group._failed ? 'failed' : (group._optimistic ? 'syncing' : '');
+    return `
+    <div class="session-card joint ${stateClass}" data-disc="${escapeHTML(group.discipline)}" data-idx="${idx}" data-joint-key="${escapeHTML(group.key)}">
+        <div class="session-header">
+            <div class="s-name-block">
+                <div class="s-name">${title}</div>
+                <div class="s-time">${escapeHTML(relTime)}</div>
+            </div>
+            <div class="s-where">${whereHtml}</div>
+        </div>
+        <div class="jc-body">${rowsHtml}</div>
     </div>`;
 }
 
