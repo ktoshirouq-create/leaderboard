@@ -2006,7 +2006,7 @@ body.disco .disco-me {
 <div class="modal-overlay" id="rename-modal">
     <div class="modal-sheet">
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
-        <div class="modal-title">Rename location</div>
+        <div class="modal-title" id="rename-title">Rename location</div>
         <div class="modal-subtitle" id="rename-subtitle">—</div>
         <input type="text" class="add-name-input" id="rename-input" maxlength="30" style="margin-bottom:12px">
         <button class="btn-main" id="rename-save">Save</button>
@@ -2180,7 +2180,7 @@ document.querySelector('.nav-btn[data-view="profile"]').addEventListener('click'
                 renderFeed();
                 if (State.activeView === 'profile') showProfile(name);
                 if (State.activeView === 'boards') applyBoardMode();
-            }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false });
+            }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false, onLongPress: openRenameClimber });
             openModal('switcher-modal');
         }, LONG_PRESS_MS);
     };
@@ -2443,7 +2443,22 @@ function renderPillList(containerId, names, onPick, addRowId, addInputId, addSav
     ).join('');
     container.innerHTML = pillsHtml + (allowAdd ? '<button class="pill add-btn" data-add="1">+ Add</button>' : '');
     container.querySelectorAll('[data-name]').forEach(el => {
+        let lpTimer = null, lpFired = false;
+        const lpStart = () => {
+            if (!opts.onLongPress) return;
+            lpFired = false;
+            lpTimer = setTimeout(() => { lpFired = true; haptic('commit'); opts.onLongPress(el.dataset.name); }, LONG_PRESS_MS);
+        };
+        const lpCancel = () => clearTimeout(lpTimer);
+        el.addEventListener('touchstart', lpStart, { passive: true });
+        el.addEventListener('touchmove', lpCancel, { passive: true });
+        el.addEventListener('touchend', lpCancel);
+        el.addEventListener('touchcancel', lpCancel);
+        el.addEventListener('mousedown', lpStart);
+        el.addEventListener('mouseup', lpCancel);
+        el.addEventListener('mouseleave', lpCancel);
         el.addEventListener('click', () => {
+            if (lpFired) { lpFired = false; return; }  // long-press handled it
             haptic('tap');
             onPick(el.dataset.name);
         });
@@ -2518,7 +2533,7 @@ function openSwitcher() {
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
-    }, 'add-name-row', 'add-name-input', 'add-name-save');
+    }, 'add-name-row', 'add-name-input', 'add-name-save', { onLongPress: openRenameClimber });
     openModal('switcher-modal');
 }
 
@@ -3595,6 +3610,7 @@ function openLocationActionSheet(locationName) {
 }
 
 function openRenameLocation(locationName) {
+    document.getElementById('rename-title').textContent = 'Rename location';
     document.getElementById('rename-subtitle').textContent = `Currently: ${locationName}`;
     const inp = document.getElementById('rename-input');
     inp.value = locationName;
@@ -3666,6 +3682,80 @@ async function performRenameLocation(oldName, newName) {
         renderWherePills();
         haptic('error');
         showToast('Could not rename');
+    }
+}
+
+function openRenameClimber(oldName) {
+    document.getElementById('rename-title').textContent = 'Rename climber';
+    document.getElementById('rename-subtitle').textContent = `Currently: ${oldName}`;
+    const inp = document.getElementById('rename-input');
+    inp.value = oldName;
+    const save = () => {
+        const newName = normalizeName(inp.value);
+        if (!newName || newName === oldName) { closeModal('rename-modal'); return; }
+        haptic('tap');
+        closeModal('rename-modal');
+        performRenameClimber(oldName, newName);
+    };
+    document.getElementById('rename-save').onclick = save;
+    document.getElementById('rename-cancel').onclick = () => { haptic('tap'); closeModal('rename-modal'); };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+    openModal('rename-modal');
+    setTimeout(() => { inp.focus(); inp.select(); }, 50);
+}
+
+async function performRenameClimber(oldName, newName) {
+    // Optimistic collision guard (backend re-checks). Case-fix on the same entry is allowed.
+    const clash = State.roster.some(r => r.Name
+        && r.Name.toLowerCase() === newName.toLowerCase()
+        && r.Name.toLowerCase() !== oldName.toLowerCase());
+    if (clash) { showToast(`There's already a ${newName}`); return; }
+
+    const prevNames = State.roster.map(r => r.Name);   // snapshot for revert
+    const touched = [];                                 // [log, field] pairs changed
+    State.roster.forEach(r => { if (r.Name === oldName) r.Name = newName; });
+    State.logs.forEach(l => {
+        if (l.ClimberName === oldName) { l.ClimberName = newName; touched.push([l, 'ClimberName']); }
+        if (l.Belayer === oldName)     { l.Belayer = newName;     touched.push([l, 'Belayer']); }
+    });
+    const wasActive = State.activeUser === oldName;
+    if (wasActive) setActiveUser(newName);
+    if (profileClimber === oldName) profileClimber = newName;
+
+    const refreshSwitcher = () => {
+        const sw = document.getElementById('switcher-modal');
+        if (sw && sw.classList.contains('active')) openSwitcher();
+    };
+    renderFeed();
+    if (State.activeView === 'boards') applyBoardMode();
+    if (State.activeView === 'profile' && profileClimber) showProfile(profileClimber);
+    updateNavLabel();
+    refreshSwitcher();
+    haptic('commit');
+
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'renameClimber', oldName, newName })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Server error');
+        showToast('✓ Renamed');
+    } catch (err) {
+        State.roster.forEach((r, i) => { r.Name = prevNames[i]; });   // revert
+        touched.forEach(([l, field]) => { l[field] = oldName; });
+        if (wasActive) setActiveUser(oldName);
+        if (profileClimber === newName) profileClimber = oldName;
+        renderFeed();
+        if (State.activeView === 'boards') applyBoardMode();
+        if (State.activeView === 'profile' && profileClimber) showProfile(profileClimber);
+        updateNavLabel();
+        refreshSwitcher();
+        haptic('error');
+        showToast(String(err.message || '').toLowerCase().includes('exist')
+            ? `There's already a ${newName}`
+            : 'Could not rename');
     }
 }
 
@@ -4979,6 +5069,7 @@ document.getElementById('profile-switcher').addEventListener('click', () => {
         // Re-render feed so long-press handlers reflect the new user
         renderFeed();
         updateNavLabel();
+    }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false, onLongPress: openRenameClimber });
     }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false });
     openModal('switcher-modal');
 });
