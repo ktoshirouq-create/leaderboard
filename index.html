@@ -1735,7 +1735,7 @@ body.disco .disco-me {
 <div class="container">
 
     <div class="view active" id="view-feed">
-        <h1 class="screen-title">Feed</h1>
+        <h1 class="screen-title" style="display:flex;align-items:center;justify-content:center;gap:8px;">Feed<button class="info-icon" id="feed-info">i</button></h1>
         <div id="feed-list">
             <div class="empty-msg">Loading…</div>
         </div>
@@ -2953,6 +2953,19 @@ function openInfoModal(title, rows) {
 document.getElementById('info-close').addEventListener('click', () => closeModal('info-modal'));
 document.getElementById('info-modal').addEventListener('click', e => {
     if (e.target.id === 'info-modal') closeModal('info-modal');
+});
+
+// Feed badge legend — explains the highlight eyebrows/banners
+document.getElementById('feed-info').addEventListener('click', () => {
+    haptic('tap');
+    openInfoModal('What the badges mean', [
+        { term: 'New max', def: 'Your hardest-ever send in that discipline — a personal best. Lead only; top-rope never counts. (Shows as "new lead max" on ropes.)' },
+        { term: 'Leveled up', def: 'Your working capacity moved up a grade band since your last session in that discipline.' },
+        { term: 'On the board · Top 5 · Top 3 · #1', def: 'Your capacity ranking climbed — you just qualified for, or moved up, that discipline\'s leaderboard.' },
+        { term: 'Big day', def: 'Six or more sends in a day, and more than any single day in your last 30.' },
+        { term: 'Limit day', def: 'Your hardest send that day matched your hardest of the last 30 days — climbing right at your ceiling.' },
+        { term: 'One badge per card', def: 'A card shows only its top badge, in this order: new max, ranking move, level up, then big/limit day.' }
+    ]);
 });
 
 document.getElementById('style-info').addEventListener('click', (e) => {
