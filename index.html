@@ -2926,16 +2926,23 @@ document.getElementById('info-modal').addEventListener('click', e => {
 document.getElementById('style-info').addEventListener('click', (e) => {
     e.stopPropagation();
     haptic('tap');
-    // Autobelay only exists indoors — drop the mention for outdoor rope
-    const trDef = LoggerState.discipline === 'In Rope'
-        ? 'A clean top-rope or autobelay ascent — no rests, hangs, or falls.'
-        : 'A clean top-rope ascent — no rests, hangs, or falls.';
-    openInfoModal('Style', [
-        { term: 'Send / Redpoint', def: 'A clean lead from bottom to top with no falls, rests, or hanging on the rope. Counts no matter how many attempts it took before.' },
-        { term: 'Flash',   def: 'Clean first-try ascent on lead, with prior beta or watching others.' },
-        { term: 'Onsight', def: 'Clean first-try ascent on lead — no prior info, never seen anyone on it.' },
-        { term: 'Top-rope', def: trDef }
-    ]);
+    const disc = LoggerState.discipline;
+    const isBoulderDisc = disc.includes('Boulder');
+    const defs = {
+        'Send':    isBoulderDisc ? 'A clean top-out with no falls or rests. Counts no matter how many tries it took before.'
+                                 : 'A clean lead from bottom to top with no falls, rests, or hanging on the rope. Counts no matter how many attempts it took before.',
+        'Flash':   isBoulderDisc ? 'Clean first-try ascent, with prior beta or watching others.'
+                                 : 'Clean first-try ascent on lead, with prior beta or watching others.',
+        'Onsight': isBoulderDisc ? 'Clean first-try ascent with no prior info — never seen anyone on it.'
+                                 : 'Clean first-try ascent on lead — no prior info, never seen anyone on it.',
+        'Top-rope': disc === 'In Rope' ? 'A clean top-rope or autobelay ascent — no rests, hangs, or falls.'
+                                       : 'A clean top-rope ascent — no rests, hangs, or falls.'
+    };
+    const styles = AppConfig.stylesForDiscipline[disc] || ['Send', 'Flash', 'Onsight', 'Top-rope'];
+    openInfoModal('Style', styles.map(s => ({
+        term: s === 'Send' ? (isBoulderDisc ? 'Send' : 'Send / Redpoint') : s,
+        def: defs[s] || ''
+    })));
 });
 
 /* ----- Grade conversion (French ↔ Norway, rope only) ----- */
