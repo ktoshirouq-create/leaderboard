@@ -3173,6 +3173,45 @@ async function submitLog() {
     }
 }
 
+async function retrySend(row) {
+    if (!row || !row._failed) return;
+    haptic('tap');
+    row._failed = false;
+    row._optimistic = true;          // show as syncing again
+    renderFeed();
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'logSend',
+                climber:    row.ClimberName,
+                discipline: row.Discipline,
+                where:      row.Where,
+                grade:      row.Grade,
+                style:      row.Style,
+                date:       row.Date,
+                routeName:  row.RouteName || '',
+                belayer:    row.Belayer || ''
+            })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Server error');
+        if (json.logId) row.LogId = json.logId;
+        delete row._optimistic;
+        renderFeed();
+        if (State.activeView === 'boards') applyBoardMode();
+        showToast('✓ Logged');
+        fetchData();
+    } catch (err) {
+        row._optimistic = false;
+        row._failed = true;
+        renderFeed();
+        haptic('error');
+        showToast("Still couldn't save — tap to retry");
+    }
+}
+
 document.getElementById('submit-log').addEventListener('click', submitLog);
 
 /* ----- Open logger ----- */
@@ -4036,8 +4075,12 @@ function renderFeed() {
                 }
             });
         } else {
-            // single card (unchanged behavior)
-            card.addEventListener('click', () => { haptic('tap'); card.classList.toggle('expanded'); });
+            // single card: a failed (un-synced) card retries on tap; otherwise expand/collapse
+            card.addEventListener('click', () => {
+                if (item._failed) { item.sends.filter(s => s._failed).forEach(retrySend); return; }
+                haptic('tap');
+                card.classList.toggle('expanded');
+            });
             const nameEl = card.querySelector('.s-name[data-profile-link]');
             if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(item.climber); });
             const mergeBtn = card.querySelector('.merge-back');
