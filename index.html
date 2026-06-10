@@ -5769,23 +5769,24 @@ document.getElementById('view-location').addEventListener('click', (e) => {
 });
 
 /* ============== SPECIAL BOARDS ============== */
-const SPECIAL_WINDOW_DAYS = 30;
+const SPECIAL_WINDOW_DAYS = 60;   // Hot Spots · Most Addicted · Outdoor Days
+const HARDEST_WINDOW_DAYS = 30;   // "right now" trophy — kept short, stays aligned with the Peak chart
 let activeSpecialBoard = localStorage.getItem('leaderboard.lastSpecialBoard') || 'hardest';
 if (!['hardest', 'hotspots', 'addicted', 'outdoor'].includes(activeSpecialBoard)) activeSpecialBoard = 'hardest';
 let hotSpotsExpanded = false;
 
 const BOARD_SUBTITLES = {
     hardest:  'Highest single send, last 30 days',
-    hotspots: 'Most visited · last 30 days',
-    addicted: 'Distinct climbing days, last 30 days',
-    outdoor:  'Distinct outdoor days, last 30 days'
+    hotspots: 'Most visited · last 60 days',
+    addicted: 'Distinct climbing days, last 60 days',
+    outdoor:  'Distinct outdoor days, last 60 days'
 };
 
 // Hardest: highest-scoring single send per climber, cross-discipline
 function computeHardest() {
     const byClimber = new Map();
     State.logs.forEach(log => {
-        if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
+        if (!isWithinWindow(log.Date, HARDEST_WINDOW_DAYS)) return;
         if (isTopRope(log.Style)) return;  // Hardest is the lead trophy — TR never counts here
         const disc = log.Discipline;
         if (!AppConfig.disciplines.includes(disc)) return;
