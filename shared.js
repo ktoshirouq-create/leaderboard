@@ -31,9 +31,10 @@ const AppConfig = {
     // Trimmed grade scales (per design doc)
     grades: {
         'In Boulder': {
-            labels: ["4","5","6A","6B","6C","7A","7B"],
-            scores: [400,500,600,633,667,700,733],
-            colors: ["#ffffff","#22c55e","#3b82f6","#eab308","#ef4444","#3f3f46","#a855f7"]
+            // Canonical union of both gym circuits — every existing grade keeps its score; mint(4+), grey(7B+), pink(7C) added. Colours here are HOUSE colours for aggregate views (histogram/pyramid) that mix gyms; per-gym colours live in boulderCircuits below.
+            labels: ["4","4+","5","6A","6B","6C","7A","7B","7B+","7C"],
+            scores: [400,450,500,600,633,667,700,733,750,767],
+            colors: ["#ffffff","#5eead4","#22c55e","#3b82f6","#eab308","#ef4444","#3f3f46","#a855f7","#a1a1aa","#ec4899"]
         },
         'In Rope': {
             labels: ["4b","4c","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c"],
@@ -59,7 +60,7 @@ const AppConfig = {
     
     // Default grade for first-ever log per discipline
     defaultGradeIndex: {
-        'In Boulder':  2,  // 6A
+        'In Boulder':  3,  // 6A (index shifted by the new mint 4+ tier)
         'In Rope':     8,  // 6a
         'Out Rope':    11, // 6a
         'Out Boulder': 4,  // 6A
@@ -73,6 +74,42 @@ const AppConfig = {
         'In Rope':     10,
         'Out Rope':    10,
         'Trad':        10
+    },
+
+    // Indoor-boulder gym circuits. Each colour maps to a CANONICAL grade label (scored via grades['In Boulder']).
+    // Order is easy -> hard; the logger shows exactly this colour ladder for the selected gym.
+    boulderCircuits: {
+        oks: { name: 'OKS', ladder: [
+            { color: '#ffffff', grade: '4'  },
+            { color: '#5eead4', grade: '4+' },  // mint
+            { color: '#22c55e', grade: '5'  },
+            { color: '#3b82f6', grade: '6A' },
+            { color: '#eab308', grade: '6B' },
+            { color: '#ef4444', grade: '6C' },
+            { color: '#3f3f46', grade: '7A' },
+            { color: '#a855f7', grade: '7B' },  // purple
+            { color: '#ec4899', grade: '7C' }   // pink
+        ] },
+        klatreverket: { name: 'Klatreverket', ladder: [
+            { color: '#ffffff', grade: '4'   },
+            { color: '#22c55e', grade: '5'   },
+            { color: '#3b82f6', grade: '6A'  },
+            { color: '#eab308', grade: '6B'  },
+            { color: '#ef4444', grade: '6C'  },
+            { color: '#3f3f46', grade: '7A'  },
+            { color: '#a1a1aa', grade: '7B+' }  // grey (black -> grey; no 7B tier here)
+        ] }
+    },
+
+    // Which circuit each indoor-boulder gym runs (keys are lowercased location names). Unknown gyms default to OKS.
+    boulderLocationCircuit: {
+        'bryn': 'klatreverket',
+        'torshov': 'klatreverket',
+        'løkka': 'klatreverket',
+        'lokka': 'klatreverket',
+        'drammen': 'klatreverket',
+        'oks': 'oks',
+        'gneiss': 'oks'
     }
 };
 
@@ -112,6 +149,25 @@ const formatShortDate = (dStr) => {
 
 // Get scoring scale for a discipline
 const getScaleConfig = (disc) => AppConfig.grades[disc];
+
+// Indoor-boulder circuit object ({name, ladder}) for a gym — defaults to the OKS ladder for unknown gyms
+const circuitForLocation = (loc) => {
+    const key = String(loc || '').trim().toLowerCase();
+    return AppConfig.boulderCircuits[AppConfig.boulderLocationCircuit[key]] || AppConfig.boulderCircuits.oks;
+};
+
+// Ordered colour/grade ladder to render in the logger for a given gym (In Boulder only)
+const boulderLadderForLocation = (loc) => circuitForLocation(loc).ladder;
+
+// Colour for an indoor-boulder grade AS SHOWN AT A GIVEN GYM; falls back to the canonical house colour
+const boulderColorForGrade = (grade, loc) => {
+    const g = getBaseGrade(grade);
+    const hit = circuitForLocation(loc).ladder.find(x => x.grade === g);
+    if (hit) return hit.color;
+    const scale = AppConfig.grades['In Boulder'];
+    const i = scale.labels.indexOf(g);
+    return i >= 0 ? scale.colors[i] : '#888';
+};
 
 // Compute scored value with flash/onsight bonus applied
 const getScoredValue = (grade, style, discipline) => {
