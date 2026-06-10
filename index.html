@@ -2511,7 +2511,7 @@ function openIdentityPrompt() {
     renderPillList('identity-pills', names, (name) => {
         setActiveUser(name);
         closeModal('identity-prompt');
-        openLogger();
+        renderFeed();   // land on the feed and browse — don't open the logger
     }, 'identity-add-row', 'identity-add-input', 'identity-add-save');
     openModal('identity-prompt');
 }
