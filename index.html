@@ -1651,6 +1651,12 @@ body.modal-open { overflow: hidden; }
 .nerd-line .k { color: var(--text-muted); font-weight: 600; }
 .nerd-line .v { color: #fff; font-weight: 800; }
 
+/* Secret-stats period-vs-previous deltas */
+.sd-delta { display: inline-block; margin-top: 5px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 6px; }
+.sd-delta.up   { color: var(--primary); background: rgba(16,185,129,0.12); }
+.sd-delta.down { color: var(--danger);  background: rgba(239,68,68,0.12); }
+.sd-delta.flat { color: var(--text-muted); background: rgba(255,255,255,0.05); }
+
 /* Secret stats activity heatmap */
 .hm-wrap { display: flex; gap: 3px; overflow-x: auto; padding: 10px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius); scrollbar-width: none; }
 .hm-wrap::-webkit-scrollbar { display: none; }
@@ -1812,7 +1818,13 @@ body.disco .disco-me {
         <button class="seg-item active" data-win="all">All</button>
     </div>
 
-    <div class="profile-section-title" style="margin-top:0">Grade pyramid</div>
+    <div class="profile-section-title" style="margin-top:0">This window vs previous</div>
+    <div id="secret-deltas"></div>
+
+    <div class="profile-section-title">Trends</div>
+    <div id="secret-trend"></div>
+
+    <div class="profile-section-title">Grade pyramid</div>
     <div class="histogram-tabs" id="secret-pyramid-tabs"></div>
     <div id="secret-pyramid"></div>
 
@@ -5035,6 +5047,9 @@ let secretPyramidDisc = 'In Boulder';
 let secretPyramidMode = 'lead';  // 'lead' | 'tr' — rope disciplines only
 let secretWindow = 'all';      // '30' | '90' | '365' | 'all'
 let secretHeatMonth = null;    // first-of-month Date shown in the calendar
+let secretTrendMetric = 'capacity';  // 'capacity' | 'hardest'
+let secretTrendDisc = 'In Boulder';
+let secretTrendMode = 'lead';        // 'lead' | 'tr' — rope disciplines only
 
 function showSecretStats(climber) {
     if (!climber) return;
@@ -5042,7 +5057,7 @@ function showSecretStats(climber) {
     const recent = State.logs
         .filter(l => l.ClimberName === climber && AppConfig.disciplines.includes(l.Discipline))
         .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))[0];
-    if (recent) secretPyramidDisc = recent.Discipline;
+    if (recent) { secretPyramidDisc = recent.Discipline; secretTrendDisc = recent.Discipline; }
     secretWindow = 'all';
     const n = new Date();
     secretHeatMonth = new Date(n.getFullYear(), n.getMonth(), 1);
@@ -5058,11 +5073,151 @@ function renderSecretStats() {
     const win = secretWindow;
     const windowed = win === 'all' ? allLogs : allLogs.filter(l => isWithinWindow(l.Date, parseInt(win, 10)));
     document.querySelectorAll('#secret-window .seg-item').forEach(el => el.classList.toggle('active', el.dataset.win === win));
+    renderSecretDeltas(allLogs, win);
+    renderSecretTrend();
     renderSecretPyramid(windowed);
     renderSecretVolume(windowed, win);
     renderSecretSpots(windowed);
     renderSecretFlash(windowed);
     renderSecretHeatmap(allLogs);   // calendar browses by month, independent of the window
+}
+
+function secretMetricsFor(logs) {
+    const days = new Set(logs.map(l => getCleanDate(l.Date))).size;
+    const lead = logs.filter(l => !isTopRope(l.Style));
+    const fl = lead.filter(l => { const s = String(l.Style || '').toLowerCase(); return s === 'flash' || s === 'onsight'; }).length;
+    const flashRate = lead.length ? Math.round(fl / lead.length * 100) : 0;
+    let hScore = -1, hGrade = null;
+    lead.forEach(l => { const sc = getScoredValue(l.Grade, l.Style, l.Discipline); if (sc > hScore) { hScore = sc; hGrade = l.Grade; } });
+    return { sends: logs.length, days, flashRate, hScore, hGrade };
+}
+
+function deltaChip(cur, prev, kind) {
+    if (prev === null || prev === undefined) return '';
+    const d = cur - prev;
+    if (d === 0) return `<div class="sd-delta flat">no change</div>`;
+    const up = d > 0;
+    let mag;
+    if (kind === 'pts')      mag = Math.abs(d) + 'pt';
+    else if (kind === 'pct') mag = Math.abs(Math.round(d / (prev || 1) * 100)) + '%';
+    else                     mag = Math.abs(d);
+    return `<div class="sd-delta ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${mag}</div>`;
+}
+
+function renderSecretDeltas(allLogs, win) {
+    const el = document.getElementById('secret-deltas');
+    if (!el) return;
+    const today = getCleanDate(new Date());
+    const age = l => dDiff(today, getCleanDate(l.Date));
+    let curLogs, prevLogs = null;
+    if (win === 'all') {
+        curLogs = allLogs;
+    } else {
+        const N = parseInt(win, 10);
+        curLogs  = allLogs.filter(l => { const a = age(l); return a >= 0 && a < N; });
+        prevLogs = allLogs.filter(l => { const a = age(l); return a >= N && a < 2 * N; });
+    }
+    const c = secretMetricsFor(curLogs);
+    const p = prevLogs ? secretMetricsFor(prevLogs) : null;
+    let hardestChip = '';
+    if (p) {
+        if (p.hScore < 0 && c.hScore >= 0)      hardestChip = `<div class="sd-delta up">▲ new</div>`;
+        else if (c.hScore < 0)                  hardestChip = `<div class="sd-delta flat">no sends</div>`;
+        else if (c.hScore > p.hScore)           hardestChip = `<div class="sd-delta up">▲ up</div>`;
+        else if (c.hScore < p.hScore)           hardestChip = `<div class="sd-delta down">▼ down</div>`;
+        else                                    hardestChip = `<div class="sd-delta flat">no change</div>`;
+    }
+    el.innerHTML = `
+        <div class="nerd-grid">
+            <div class="nerd-cell"><div class="nerd-val">${c.sends}</div><div class="nerd-label">Sends</div>${p ? deltaChip(c.sends, p.sends, 'count') : ''}</div>
+            <div class="nerd-cell"><div class="nerd-val">${c.days}</div><div class="nerd-label">Climbing days</div>${p ? deltaChip(c.days, p.days, 'count') : ''}</div>
+            <div class="nerd-cell"><div class="nerd-val accent">${escapeHTML(c.hGrade || '—')}</div><div class="nerd-label">Hardest (lead)</div>${hardestChip}</div>
+            <div class="nerd-cell"><div class="nerd-val">${c.flashRate}%</div><div class="nerd-label">Flash rate</div>${p ? deltaChip(c.flashRate, p.flashRate, 'pts') : ''}</div>
+        </div>
+        ${win === 'all' ? '<div class="board-subtitle" style="margin-top:4px">All-time totals — pick a window to see period-on-period change.</div>' : ''}`;
+}
+
+function drawGradeLineChart(snapshots, discipline, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const withData = snapshots.filter(s => s.score !== null);
+    if (withData.length < 2) {
+        container.innerHTML = '<div class="cap-chart"><div class="lb-empty" style="border:none;padding:20px 8px">Not enough history yet — keep logging.</div></div>';
+        return;
+    }
+    const scale = AppConfig.grades[discipline];
+    if (!scale) { container.innerHTML = ''; return; }
+    const scores = withData.map(s => s.score);
+    const yMin = Math.min(...scores) - 4;
+    const yMax = Math.max(...scores) + 4;
+    const yRange = Math.max(1, yMax - yMin);
+    const W = 320, H = 150;
+    const padL = 34, padR = 12, padT = 14, padB = 26;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+    const allTicks = [];
+    scale.scores.forEach((sc, i) => { if (sc >= yMin && sc <= yMax) allTicks.push({ label: scale.labels[i], score: sc }); });
+    const stride = allTicks.length > 6 ? Math.ceil(allTicks.length / 5) : 1;
+    const yTicks = allTicks.filter((_, i) => i % stride === 0).map(t => ({ ...t, y: padT + ((yMax - t.score) / yRange) * innerH }));
+    const points = snapshots.map((s, i) => {
+        const x = padL + (snapshots.length === 1 ? innerW / 2 : (i / (snapshots.length - 1)) * innerW);
+        if (s.score === null) return { x, y: null };
+        return { x, y: padT + ((yMax - s.score) / yRange) * innerH, score: s.score };
+    });
+    let pathD = '', pen = false;
+    points.forEach(p => { if (p.y === null) { pen = false; return; } pathD += pen ? ` L ${p.x.toFixed(1)} ${p.y.toFixed(1)}` : `M ${p.x.toFixed(1)} ${p.y.toFixed(1)}`; pen = true; });
+    const discColors = { 'In Boulder': '#f59e0b', 'In Rope': '#06b6d4', 'Out Rope': '#10b981', 'Out Boulder': '#a855f7', 'Trad': '#f43f5e' };
+    const lineColor = discColors[discipline] || '#10b981';
+    const xLabels = [{ x: padL, label: formatShortDate(snapshots[0].date) }];
+    if (snapshots.length > 2) { const midIdx = Math.floor(snapshots.length / 2); xLabels.push({ x: padL + (midIdx / (snapshots.length - 1)) * innerW, label: formatShortDate(snapshots[midIdx].date) }); }
+    xLabels.push({ x: padL + innerW, label: formatShortDate(snapshots[snapshots.length - 1].date) });
+    const lastPt = points.slice().reverse().find(p => p.y !== null);
+    const yTickSvg = yTicks.map(t => `
+        <line x1="${padL}" y1="${t.y.toFixed(1)}" x2="${W - padR}" y2="${t.y.toFixed(1)}" stroke="#1f1f1f" stroke-width="1"/>
+        <text x="${padL - 6}" y="${(t.y + 3).toFixed(1)}" font-size="9" fill="#737373" text-anchor="end" font-family="Inter, sans-serif" font-weight="700">${escapeHTML(t.label)}</text>
+    `).join('');
+    const xLabelSvg = xLabels.map(l => `
+        <text x="${l.x.toFixed(1)}" y="${H - 8}" font-size="9" fill="#737373" text-anchor="middle" font-family="Inter, sans-serif" font-weight="600">${escapeHTML(l.label)}</text>
+    `).join('');
+    const lastDotSvg = lastPt ? `<circle cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" r="3" fill="${lineColor}"/>` : '';
+    container.innerHTML = `<div class="cap-chart">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; display:block">
+            ${yTickSvg}
+            <path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            ${lastDotSvg}
+            ${xLabelSvg}
+        </svg>
+    </div>`;
+}
+
+function renderSecretTrend() {
+    const climber = secretClimber;
+    const container = document.getElementById('secret-trend');
+    if (!climber || !container) return;
+    const trendHasTR = ['In Rope', 'Out Rope'].includes(secretTrendDisc);
+    if (!trendHasTR) secretTrendMode = 'lead';
+    const metricToggle = `<div class="seg-ctrl" style="margin-bottom:10px">
+        <button class="seg-item ${secretTrendMetric === 'capacity' ? 'active' : ''}" data-trend-metric="capacity">Capacity</button>
+        <button class="seg-item ${secretTrendMetric === 'hardest' ? 'active' : ''}" data-trend-metric="hardest">Hardest</button>
+    </div>`;
+    const discTabs = `<div class="histogram-tabs">` + AppConfig.disciplines.map(d =>
+        `<button class="pill ${d === secretTrendDisc ? 'active' : ''}" data-trend-disc="${d}">${d}</button>`).join('') + `</div>`;
+    const modeToggle = trendHasTR ? `<div class="seg-ctrl" style="margin-bottom:10px">
+        <button class="seg-item ${secretTrendMode === 'lead' ? 'active' : ''}" data-trend-mode="lead">Lead</button>
+        <button class="seg-item ${secretTrendMode === 'tr' ? 'active' : ''}" data-trend-mode="tr">Top-rope</button>
+    </div>` : '';
+    const note = secretTrendMetric === 'capacity'
+        ? 'Top-10 rolling 60-day average · weekly'
+        : 'Hardest single send · rolling 30 days · weekly';
+    container.innerHTML = metricToggle + discTabs + modeToggle +
+        `<div class="board-subtitle" style="margin:2px 0 8px">${note}</div><div id="secret-trend-chart"></div>`;
+    container.querySelectorAll('[data-trend-metric]').forEach(el => el.addEventListener('click', () => { haptic('tap'); secretTrendMetric = el.dataset.trendMetric; renderSecretTrend(); }));
+    container.querySelectorAll('[data-trend-disc]').forEach(el => el.addEventListener('click', () => { haptic('tap'); secretTrendDisc = el.dataset.trendDisc; renderSecretTrend(); }));
+    container.querySelectorAll('[data-trend-mode]').forEach(el => el.addEventListener('click', () => { haptic('tap'); secretTrendMode = el.dataset.trendMode; renderSecretTrend(); }));
+    const snaps = secretTrendMetric === 'capacity'
+        ? computeCapacityHistory(climber, secretTrendDisc, secretTrendMode)
+        : computeHardestHistory(climber, secretTrendDisc, secretTrendMode);
+    drawGradeLineChart(snaps, secretTrendDisc, 'secret-trend-chart');
 }
 
 function renderSecretPyramid(logs) {
@@ -5907,7 +6062,7 @@ function renderPeakPage() {
     renderPeakChart(peakSeriesFor(peakDisc), peakDisc, 'peak-chart', 'peak-legend');
 }
 
-function computeHardestHistory(climber, discipline) {
+function computeHardestHistory(climber, discipline, mode = 'lead') {
     const today = new Date(getCleanDate(new Date()));
     const start = new Date(today); start.setDate(today.getDate() - 180);
     const firstSunday = new Date(start);
@@ -5916,7 +6071,7 @@ function computeHardestHistory(climber, discipline) {
         if (l.ClimberName !== climber) return false;
         if (discipline !== 'all' && l.Discipline !== discipline) return false;
         if (!AppConfig.disciplines.includes(l.Discipline)) return false;
-        if (isTopRope(l.Style)) return false;
+        if (mode === 'tr' ? !isTopRope(l.Style) : isTopRope(l.Style)) return false;
         return getScoredValue(l.Grade, l.Style, l.Discipline) > 0;
     });
     const snaps = [];
