@@ -2711,6 +2711,8 @@ function renderWherePills() {
             localStorage.setItem(stickyKey, LoggerState.where);
             renderWherePills();
             populateRouteSuggestions();
+            // In Boulder the colour ladder is per-gym — refresh grades on gym change
+            if (LoggerState.discipline === 'In Boulder') renderGradePills();
         });
         attachLongPressToWherePill(el, el.dataset.where);
     });
@@ -2837,18 +2839,46 @@ function renderGradePills() {
     const gradeInfo = document.getElementById('grade-info');
     if (gradeInfo) gradeInfo.classList.toggle('hidden', !isRope);
     
-    const scale = AppConfig.grades[LoggerState.discipline];
-    const stickyKey = `leaderboard.lastGrade.${LoggerState.discipline}`;
+    const disc = LoggerState.discipline;
+    const stickyKey = `leaderboard.lastGrade.${disc}`;
     const sticky = localStorage.getItem(stickyKey);
-    if (!scale.labels.includes(LoggerState.grade)) {
-        LoggerState.grade = scale.labels.includes(sticky)
-            ? sticky
-            : scale.labels[AppConfig.defaultGradeIndex[LoggerState.discipline]];
+
+    // pills = [{ grade, color }]; empty color renders no dot
+    let pills;
+    if (disc === 'In Boulder') {
+        // Per-gym circuit: show exactly the selected gym's colour ladder
+        const canon = AppConfig.grades['In Boulder'];
+        const ladder = boulderLadderForLocation(LoggerState.where);
+        pills = ladder.map(x => ({ grade: x.grade, color: x.color }));
+        let ladderGrades = pills.map(p => p.grade);
+        // Edit mode: keep a logged grade that's off this gym's ladder as an extra
+        // pill (inserted in canonical order) so editing can't silently change it
+        if (editingLogId && LoggerState.grade && canon.labels.includes(LoggerState.grade)
+                && !ladderGrades.includes(LoggerState.grade)) {
+            const ci = canon.labels.indexOf(LoggerState.grade);
+            let at = pills.findIndex(p => canon.labels.indexOf(p.grade) > ci);
+            if (at < 0) at = pills.length;
+            pills.splice(at, 0, { grade: LoggerState.grade, color: canon.colors[ci] });
+            ladderGrades = pills.map(p => p.grade);
+        }
+        if (!ladderGrades.includes(LoggerState.grade)) {
+            LoggerState.grade = ladderGrades.includes(sticky)
+                ? sticky
+                : (ladderGrades.includes('6A') ? '6A' : ladderGrades[0]);
+        }
+    } else {
+        const scale = AppConfig.grades[disc];
+        if (!scale.labels.includes(LoggerState.grade)) {
+            LoggerState.grade = scale.labels.includes(sticky)
+                ? sticky
+                : scale.labels[AppConfig.defaultGradeIndex[disc]];
+        }
+        const useDots = scale.colors && scale.colors.length === scale.labels.length;
+        pills = scale.labels.map((g, i) => ({ grade: g, color: useDots ? scale.colors[i] : '' }));
     }
-    const useDots = scale.colors && scale.colors.length === scale.labels.length;
-    c.innerHTML = scale.labels.map((g, i) => {
-        const dot = useDots ? `<span class="grade-dot" style="background:${scale.colors[i]}"></span>` : '';
-        return `<button class="pill ${g === LoggerState.grade ? 'active' : ''}" data-grade="${g}">${dot}${g}</button>`;
+    c.innerHTML = pills.map(p => {
+        const dot = p.color ? `<span class="grade-dot" style="background:${p.color}"></span>` : '';
+        return `<button class="pill ${p.grade === LoggerState.grade ? 'active' : ''}" data-grade="${p.grade}">${dot}${p.grade}</button>`;
     }).join('');
     c.querySelectorAll('[data-grade]').forEach(el => {
         el.addEventListener('click', () => {
@@ -3970,14 +4000,19 @@ function sendRowHtml(s, discipline) {
         : isSpecial
             ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
             : `<span style="color:#666; font-weight:600;">${escapeHTML(s.Style)}</span>`;
-    const scale = AppConfig.grades[discipline];
-    const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
-    const dot = useDot
-        ? (() => {
+    // In Boulder: per-gym circuit colour keyed off this send's gym. Other disciplines
+    // have no colour scale, so they render no dot — unchanged.
+    let dot = '';
+    if (discipline === 'In Boulder') {
+        dot = `<span class="grade-dot" style="background:${boulderColorForGrade(s.Grade, s.Where)}"></span>`;
+    } else {
+        const scale = AppConfig.grades[discipline];
+        const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
+        if (useDot) {
             const idx = scale.labels.indexOf(getBaseGrade(s.Grade));
-            return idx >= 0 ? `<span class="grade-dot" style="background:${scale.colors[idx]}"></span>` : '';
-        })()
-        : '';
+            if (idx >= 0) dot = `<span class="grade-dot" style="background:${scale.colors[idx]}"></span>`;
+        }
+    }
     const routeNamePart = s.RouteName ? `<span class="send-route-inline">${escapeHTML(s.RouteName)}</span>` : '';
     return `<div class="send-row">
             <div class="send-meta">${routeNamePart}${tag}</div>
@@ -4789,13 +4824,11 @@ function renderProfileSessions(climber) {
         const dateStr = formatShortDate(getCleanDate(log.Date));
         const styleNorm = String(log.Style || '').toLowerCase();
         const styleClass = isTopRope(log.Style) ? 'tr' : ((styleNorm === 'flash' || styleNorm === 'onsight') ? styleNorm : '');
-        const scale = AppConfig.grades[log.Discipline];
-        const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
-        const dotIdx = useDot ? scale.labels.indexOf(getBaseGrade(log.Grade)) : -1;
-        // Use discipline color dot for non-Indoor-Boulder, hold color for Indoor Boulder
-        let dotColor = null;
-        if (log.Discipline === 'In Boulder' && dotIdx >= 0) {
-            dotColor = scale.colors[dotIdx];
+        // In Boulder: per-gym circuit colour for this log's gym. Other disciplines
+        // use their flat accent colour (a per-log dot, not the house grade colour).
+        let dotColor;
+        if (log.Discipline === 'In Boulder') {
+            dotColor = boulderColorForGrade(log.Grade, log.Where);
         } else {
             dotColor = ({
                 'In Boulder':  '#f59e0b',
@@ -5745,7 +5778,11 @@ function renderGradeDistribution(sends) {
     const cols = present.map(g => {
         const idx = scale.labels.indexOf(g);
         const h = Math.max(10, Math.round((counts[g] / maxC) * 80));  // cap 80% → leaves headroom for the count above
-        const color = gradeBarColor(g, domDisc, idx);
+        // Single-gym page → this gym's circuit colour for In Boulder. Cross-gym
+        // pyramids (profile/secret) keep gradeBarColor's house colours untouched.
+        const color = domDisc === 'In Boulder'
+            ? boulderColorForGrade(g, locationName)
+            : gradeBarColor(g, domDisc, idx);
         return `<div class="dist-col">
             <div class="dist-bar-track">
                 <div class="dist-bar" style="height:${h}%;background:${color}"></div>
