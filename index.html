@@ -209,6 +209,9 @@ h1.screen-title {
     filter: drop-shadow(0 0 5px var(--disc-color, transparent));
 }
 .hl-banner-text { line-height: 1; }
+/* Level-up grade jump: SVG arrow stays optically centred across fonts */
+.lvl-jump { display: inline-flex; align-items: center; gap: 3px; }
+.lvl-arrow { width: 0.82em; height: 0.82em; flex: none; }
 .s-where {
     font-size: 0.78rem;
     color: #d4d4d4;
@@ -3528,6 +3531,12 @@ function highlightMarkup(session, hl) {
     return '';
 }
 
+// Level-up grade jump with a vector arrow — renders identically regardless of the
+// device's fallback font (a text "→" sits off-centre on some Androids).
+function lvlJump(from, to) {
+    return `<span class="lvl-jump">${escapeHTML(from)}<svg class="lvl-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h12.5M12 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>${escapeHTML(to)}</span>`;
+}
+
 // Bundle 3+4: banner-tier highlights (span the card top): board-move and level-up.
 function bannerMarkup(session, hl) {
     if (hl === undefined) hl = detectHighlight(session.climber, session.discipline, session.date);
@@ -3536,7 +3545,7 @@ function bannerMarkup(session, hl) {
         return `<div class="hl-banner hl-banner-board"><span class="hl-rosette">▲</span><span class="hl-banner-text">${escapeHTML(hl.label)}</span></div>`;
     }
     if (hl.kind === 'levelup') {
-        return `<div class="hl-banner hl-banner-levelup"><span class="hl-rosette">✦</span><span class="hl-banner-text">LEVELED UP · ${escapeHTML(hl.from)}→${escapeHTML(hl.to)}</span></div>`;
+        return `<div class="hl-banner hl-banner-levelup"><span class="hl-rosette">✦</span><span class="hl-banner-text">LEVELED UP · ${lvlJump(hl.from, hl.to)}</span></div>`;
     }
     return '';
 }
@@ -4129,7 +4138,7 @@ function inlineBadge(climber, disc, date) {
     if (!hl) return '';
     if (hl.kind === 'pr')       return `<span class="hl-eyebrow">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</span>`;
     if (hl.kind === 'board')    return `<span class="hl-eyebrow"><span class="hl-rosette">▲</span> ${escapeHTML(hl.label)}</span>`;
-    if (hl.kind === 'levelup')  return `<span class="hl-eyebrow"><span class="hl-rosette">✦</span> ${escapeHTML(hl.from)}→${escapeHTML(hl.to)}</span>`;
+    if (hl.kind === 'levelup')  return `<span class="hl-eyebrow"><span class="hl-rosette">✦</span> ${lvlJump(hl.from, hl.to)}</span>`;
     if (hl.kind === 'standout') {
         const detail = hl.label === 'BIG DAY' ? `${hl.n} sends` : escapeHTML(hl.grade);
         return `<span class="hl-eyebrow hl-eyebrow-faint">${escapeHTML(hl.label)} · ${detail}</span>`;
@@ -6122,13 +6131,13 @@ function renderHotSpotsBoard() {
     const maxCount = all[0].count || 1;
     let html = shown.map(r => {
         const type = getLocationType(r.where);
-        const badge = `<span class="loc-badge ${type}" style="margin-left:8px">${type === 'crag' ? 'Crag' : 'Gym'}</span>`;
+        const badge = `<span class="loc-badge ${type}">${type === 'crag' ? 'Crag' : 'Gym'}</span>`;
         const fillPct = Math.round((r.count / maxCount) * 100);
         return `
         <div class="lb-row" data-loc="${escapeHTML(r.where)}">
             <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
             <div class="lb-bar-wrap">
-                <div class="lb-name">${escapeHTML(r.where)}${badge}</div>
+                <div class="lb-name" style="display:flex;align-items:center;gap:8px">${escapeHTML(r.where)}${badge}</div>
                 <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
             </div>
             <div class="lb-grade">
