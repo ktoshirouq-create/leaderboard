@@ -3359,32 +3359,45 @@ function clusterSessions(sessions) {
     const lc = n => String(n || '').toLowerCase().trim();
     const items = [];
     pools.forEach(pool => {
-        const isBoulder = pool[0].discipline.includes('Boulder');
-        const parent = pool.map((_, i) => i);
+        // Un-synced (optimistic/failed) sessions never cluster — keep them standalone so the
+        // single-card tap-to-retry always applies and a pending send isn't buried in a group.
+        pool.filter(s => s._optimistic || s._failed).forEach(s => items.push(s));
+        const stable = pool.filter(s => !(s._optimistic || s._failed));
+        if (stable.length === 0) return;
+
+        const isBoulder = stable[0].discipline.includes('Boulder');
+        const parent = stable.map((_, i) => i);
         const find = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
-        for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) {
-            const a = pool[i], b = pool[j];
+        for (let i = 0; i < stable.length; i++) for (let j = i + 1; j < stable.length; j++) {
+            const a = stable[i], b = stable[j];
             const linked = a.belayers.some(n => lc(n) === lc(b.climber)) || b.belayers.some(n => lc(n) === lc(a.climber));
             const coLoc  = isBoulder && a.wheres.some(w => b.wheres.includes(w));
             if (linked || coLoc) parent[find(i)] = find(j);
         }
         const comps = new Map();
-        pool.forEach((_, i) => { const r = find(i); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(i); });
+        stable.forEach((_, i) => { const r = find(i); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(i); });
         comps.forEach(idxs => {
-            if (idxs.length < 2) { items.push(pool[idxs[0]]); return; }
-            const members = idxs.map(i => pool[i]);
+            if (idxs.length < 2) { items.push(stable[idxs[0]]); return; }
+            const members = idxs.map(i => stable[i]);
             const climbers = members.map(m => m.climber);
-            const key = jointGroupKey(climbers, members[0].date, members[0].discipline);
-            if (jointSplits.has(key)) { members.forEach(m => { m._splitFrom = key; items.push(m); }); return; }
+            const date = members[0].date, disc = members[0].discipline;
+            const key = jointGroupKey(climbers, date, disc);
+            // Per-member split flags (date|disc|climber). If ANY member is flagged split for
+            // this day+discipline, emit them all as singles. Stable under backfill: a newly
+            // added climber can't silently un-split the group the way the old group-key did.
+            const dk = `${date}|${disc}`;
+            if (members.some(m => jointSplits.has(`${dk}|${m.climber}`))) {
+                members.forEach(m => { m._splitFrom = dk; items.push(m); });
+                return;
+            }
             items.push({
                 joint: true, key, climbers, members,
-                date: members[0].date,
-                discipline: members[0].discipline,
+                date, discipline: disc,
                 wheres: [...new Set(members.flatMap(m => m.wheres))],
                 belayers: [...new Set(members.flatMap(m => m.belayers))],
                 timestamp: members.reduce((mx, m) => new Date(m.timestamp) > new Date(mx) ? m.timestamp : mx, members[0].timestamp),
-                _optimistic: members.some(m => m._optimistic),
-                _failed: members.some(m => m._failed)
+                _optimistic: false,
+                _failed: false
             });
         });
     });
@@ -3721,7 +3734,8 @@ function openJointActionSheet(group) {
     editBtn.onclick = () => {
         haptic('tap');
         closeModal('action-sheet-modal');
-        jointSplits.add(group.key);
+        const dk = `${group.date}|${group.discipline}`;
+        group.climbers.forEach(c => jointSplits.add(`${dk}|${c}`));
         saveJointSplits();
         restore();
         renderFeed();
@@ -4087,7 +4101,8 @@ function renderFeed() {
             if (mergeBtn) mergeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 haptic('tap');
-                jointSplits.delete(mergeBtn.dataset.mergeKey);
+                const dk = mergeBtn.dataset.mergeKey;   // "date|discipline"
+                [...jointSplits].forEach(k => { if (k === dk || k.startsWith(dk + '|')) jointSplits.delete(k); });
                 saveJointSplits();
                 renderFeed();
                 showToast('Merged back');
