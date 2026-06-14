@@ -208,7 +208,8 @@ h1.screen-title {
     line-height: 1;
     filter: drop-shadow(0 0 5px var(--disc-color, transparent));
 }
-.hl-banner-text { line-height: 1; }
+.hl-banner-text{line-height:1}
+.grade-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle;border:1px solid rgba(0,0,0,0.25);flex:none}
 /* Level-up grade jump: SVG arrow stays optically centred across fonts */
 .lvl-jump { display: inline-flex; align-items: center; gap: 3px; }
 .lvl-arrow { width: 0.82em; height: 0.82em; flex: none; }
@@ -2574,28 +2575,66 @@ function updateBelayerVisibility() {
     if (show) renderBelayerPills();
 }
 
+// Rank candidate names by the active user's usage: the 2 most-recently-used first,
+// then the rest by frequency (count desc, recency tiebreak), then never-used alphabetical.
+// stats = { name: { count, last } } where last is a 'YYYY-MM-DD' climb date (or '').
+function rankByUsage(candidates, stats) {
+    const used   = candidates.filter(n => stats[n]);
+    const unused = candidates.filter(n => !stats[n]).sort((a, b) => a.localeCompare(b));
+    const byRecency = [...used].sort((a, b) =>
+        (stats[b].last > stats[a].last ? 1 : stats[b].last < stats[a].last ? -1 : 0)
+        || stats[b].count - stats[a].count
+        || a.localeCompare(b));
+    const recentTwo = byRecency.slice(0, 2);
+    const rest = byRecency.slice(2).sort((a, b) =>
+        stats[b].count - stats[a].count
+        || (stats[b].last > stats[a].last ? 1 : stats[b].last < stats[a].last ? -1 : 0)
+        || a.localeCompare(b));
+    return [...recentTwo, ...rest, ...unused];
+}
+
+// The active user's most recent log in the current discipline on the date being logged.
+function mostRecentLogThisSession() {
+    const dateISO = getSelectedDateISO();
+    let best = null, bestT = -1;
+    State.logs.forEach(l => {
+        if (l.ClimberName !== State.activeUser) return;
+        if (l.Discipline !== LoggerState.discipline) return;
+        if (getCleanDate(l.Date) !== dateISO) return;
+        const t = new Date(l.Timestamp).getTime() || 0;
+        if (t > bestT) { bestT = t; best = l; }
+    });
+    return best;
+}
+
+// Session-aware logger defaults
+function computeSessionBelayer() {
+    if (!isRopeDiscipline(LoggerState.discipline)) return '';
+    const last = mostRecentLogThisSession();
+    return (last && last.Belayer) ? last.Belayer : '';
+}
+function computeSessionStyle() {
+    const last = mostRecentLogThisSession();
+    return (last && isTopRope(last.Style)) ? 'Top-rope' : 'Send';
+}
+
 function renderBelayerPills() {
     const c = document.getElementById('logger-belayer');
     if (!c) return;
-    // Tally this user's past belayers: how often, and how recently
+    // Tally this user's past belayers: how often, and how recently (by climb date)
     const stats = {};
     State.logs.forEach(l => {
         if (l.ClimberName !== State.activeUser || !l.Belayer) return;
-        const s = stats[l.Belayer] || (stats[l.Belayer] = { count: 0, last: 0 });
+        const s = stats[l.Belayer] || (stats[l.Belayer] = { count: 0, last: '' });
         s.count++;
-        const t = new Date(l.Timestamp).getTime() || 0;
-        if (t > s.last) s.last = t;
+        const d = getCleanDate(l.Date);
+        if (d > s.last) s.last = d;
     });
     // Candidates = roster ∪ anyone you've belayed with before (so typed names persist as pills)
-    const names = [...new Set([...State.roster.map(r => r.Name), ...Object.keys(stats)])]
-        .filter(n => n && n !== State.activeUser)
-        .sort((a, b) => {
-            const sa = stats[a], sb = stats[b];
-            if (sa && sb) return sb.count - sa.count || sb.last - sa.last;
-            if (sa) return -1;
-            if (sb) return 1;
-            return a.localeCompare(b);
-        });
+    // Order: 2 most-recent partners first, then by frequency, then never-belayed-with alphabetical.
+    const candidates = [...new Set([...State.roster.map(r => r.Name), ...Object.keys(stats)])]
+        .filter(n => n && n !== State.activeUser);
+    const names = rankByUsage(candidates, stats);
     if (LoggerState.belayer && !names.includes(LoggerState.belayer)) names.unshift(LoggerState.belayer);
     const addBtn = '<button class="pill add-btn" data-belayer-add="1">+ Add</button>';
     const pills = names.map(n =>
@@ -2917,9 +2956,8 @@ function renderGradePills() {
 function renderStylePills() {
     const c = document.getElementById('logger-style');
     const styles = AppConfig.stylesForDiscipline[LoggerState.discipline];
-    const sticky = localStorage.getItem('leaderboard.lastStyle');
     if (!styles.includes(LoggerState.style)) {
-        LoggerState.style = styles.includes(sticky) ? sticky : 'Send';
+        LoggerState.style = 'Send';
     }
     c.innerHTML = styles.map(s => {
         // Indoor rope can use autobelay; outdoor never can — label accordingly
@@ -3186,6 +3224,7 @@ async function submitLog() {
     // CREATE MODE — original flow
     const submittedDate = getSelectedDateISO();
     localStorage.setItem('leaderboard.lastLogDate', submittedDate);
+    localStorage.setItem('leaderboard.lastLogAt', String(Date.now()));
     const routeName = document.getElementById('logger-route-name').value.trim();
 
     // Personal-best check — compare BEFORE this send is added to State.logs
@@ -3310,6 +3349,10 @@ function openLogger() {
     // If it was a custom date that has since become stale (no longer today/yesterday), 
     // promote to Custom pill with the date pre-filled.
     const stickyDate = localStorage.getItem('leaderboard.lastLogDate'); // ISO string of last submitted date
+    const lastLogAt  = parseInt(localStorage.getItem('leaderboard.lastLogAt') || '0', 10);
+    // "mid-batch" = logged something in the last 5 min, so you're likely still entering
+    // a run of sends for an older date. Otherwise default to Today (don't promote stale dates).
+    const midBatch = lastLogAt && (Date.now() - lastLogAt) < 5 * 60 * 1000;
     const today = getCleanDate(new Date());
     const yest = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return getCleanDate(d); })();
     
@@ -3317,26 +3360,31 @@ function openLogger() {
     const customInput = document.getElementById('logger-date-custom');
     customInput.max = today;  // re-set max each open in case day changed
     
-    if (!stickyDate || stickyDate === today) {
-        document.querySelector('#logger-date [data-date="today"]').classList.add('active');
-        LoggerState.date = 'today';
-        customInput.classList.add('hidden');
-    } else if (stickyDate === yest) {
-        document.querySelector('#logger-date [data-date="yesterday"]').classList.add('active');
-        LoggerState.date = 'yesterday';
-        customInput.classList.add('hidden');
-    } else {
-        // Stale custom date — keep it but show as Custom
+    if (midBatch && stickyDate && stickyDate !== today && stickyDate !== yest) {
+        // still backfilling an older date — keep it on Custom
         document.querySelector('#logger-date [data-date="custom"]').classList.add('active');
         LoggerState.date = 'custom';
         customInput.value = stickyDate;
         customInput.classList.remove('hidden');
+    } else if (midBatch && stickyDate === yest) {
+        document.querySelector('#logger-date [data-date="yesterday"]').classList.add('active');
+        LoggerState.date = 'yesterday';
+        customInput.classList.add('hidden');
+    } else {
+        document.querySelector('#logger-date [data-date="today"]').classList.add('active');
+        LoggerState.date = 'today';
+        customInput.classList.add('hidden');
     }
     
     document.getElementById('logger-route-name').value = '';
     updateRouteNameVisibility();
 
-    LoggerState.belayer = '';   // start empty — don't assume a belayer
+    // Style: fresh sessions default to Send; carry Top-rope only if you're mid-TR-session
+    LoggerState.style = computeSessionStyle();
+    renderStylePills();
+
+    // Belayer: carry your partner mid-session (same date + discipline), else empty
+    LoggerState.belayer = computeSessionBelayer();
     updateBelayerVisibility();
     
     openModal('logger-modal');
@@ -4793,8 +4841,11 @@ function renderTop10Rows(climbs) {
         const topLine  = c.RouteName || c.Where;
         const dateText = formatShortDate(getCleanDate(c.Date));
         const subLine  = c.RouteName ? `${dateText} · ${c.Where}` : dateText;
+        const gdot = c.Discipline === 'In Boulder'
+            ? `<span class="grade-dot" style="background:${boulderColorForGrade(c.Grade, c.Where)}"></span>`
+            : '';
         return `<div class="top10-row" data-disc="${escapeHTML(c.Discipline)}">
-            <span class="top10-grade">${escapeHTML(c.Grade)}</span>
+            <span class="top10-grade">${gdot}${escapeHTML(c.Grade)}</span>
             <div class="top10-info">
                 <div class="top10-route">${escapeHTML(topLine)}</div>
                 <div class="top10-meta">${escapeHTML(subLine)}</div>
@@ -5829,8 +5880,11 @@ function renderGymHardest(sends) {
     return `<div class="loc-list">` + scored.map(({ s }) => {
         const sn = String(s.Style || '').toLowerCase();
         const sc = (sn === 'flash' || sn === 'onsight') ? sn : '';
+        const gdot = s.Discipline === 'In Boulder'
+            ? `<span class="grade-dot" style="background:${boulderColorForGrade(s.Grade, s.Where)}"></span>`
+            : '';
         return `<div class="loc-list-row">
-            <span class="loc-list-grade">${escapeHTML(s.Grade)}</span>
+            <span class="loc-list-grade">${gdot}${escapeHTML(s.Grade)}</span>
             <span class="loc-list-climber" data-loc-climber="${escapeHTML(s.ClimberName)}">${escapeHTML(s.ClimberName)}</span>
             <span class="gb-tick-style ${sc}">${escapeHTML(s.Style)}</span>
         </div>`;
@@ -5844,11 +5898,14 @@ function renderLocationRecentList(sends) {
     return `<div class="loc-list">` + recent.map(l => {
         const dateStr = formatShortDate(getCleanDate(l.Date));
         const route = l.RouteName ? escapeHTML(l.RouteName) : '';
+        const gdot = l.Discipline === 'In Boulder'
+            ? `<span class="grade-dot" style="background:${boulderColorForGrade(l.Grade, l.Where)}"></span>`
+            : '';
         return `<div class="loc-recent-row">
             <span class="loc-recent-date">${escapeHTML(dateStr)}</span>
             <span class="loc-recent-climber" data-loc-climber="${escapeHTML(l.ClimberName)}">${escapeHTML(l.ClimberName)}</span>
             <span class="loc-recent-route">${route}</span>
-            <span class="loc-recent-grade">${escapeHTML(l.Grade)}</span>
+            <span class="loc-recent-grade">${gdot}${escapeHTML(l.Grade)}</span>
         </div>`;
     }).join('') + `</div>`;
 }
