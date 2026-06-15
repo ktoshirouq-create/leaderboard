@@ -2259,6 +2259,15 @@ function closeModal(id) {
     const idx = modalStack.lastIndexOf(id);
     if (idx >= 0) modalStack.splice(idx, 1);
     if (modalStack.length === 0) document.body.classList.remove('modal-open');
+    // Unified close side-effects: run here so EVERY close path (×, tap-out, swipe, back button)
+    // gets them — the back button used to bypass these and leave edit mode stuck.
+    if (id === 'logger-modal' && editingLogId) exitEditMode();
+    if (id === 'action-sheet-modal' || id === 'rename-modal') {
+        const ae = document.getElementById('action-edit');
+        const ad = document.getElementById('action-delete');
+        if (ae) ae.textContent = 'Edit climb';
+        if (ad) { ad.textContent = 'Delete climb'; ad.style.display = ''; }
+    }
 }
 
 /* ============== SWIPE-DOWN TO DISMISS ============== */
@@ -2346,14 +2355,10 @@ function attachSwipeToClose(overlayId) {
 // Back button: close topmost modal if any are open
 window.addEventListener('popstate', () => {
     if (modalStack.length > 0) {
-        const topId = modalStack[modalStack.length - 1];
-        const el = document.getElementById(topId);
-        if (el) {
-            el.classList.remove('active');
-            modalStack.pop();
-        }
-        if (modalStack.length === 0) document.body.classList.remove('modal-open');
-        // Push a sentinel back so the next back press doesn't exit immediately
+        // Route through closeModal so the back button runs the same close side-effects
+        // (exit edit mode, restore action labels, clear the sheet transform) as every other path.
+        closeModal(modalStack[modalStack.length - 1]);
+        // Re-arm so the next back press doesn't fall straight through and exit.
         history.pushState({ sentinel: true }, '');
     }
 });
