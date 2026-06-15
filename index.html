@@ -209,7 +209,6 @@ h1.screen-title {
     filter: drop-shadow(0 0 5px var(--disc-color, transparent));
 }
 .hl-banner-text{line-height:1}
-.grade-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle;border:1px solid rgba(0,0,0,0.25);flex:none}
 /* Level-up grade jump: SVG arrow stays optically centred across fonts */
 .lvl-jump { display: inline-flex; align-items: center; gap: 3px; }
 .lvl-arrow { width: 0.82em; height: 0.82em; flex: none; }
@@ -1421,6 +1420,10 @@ h1.screen-title {
     background: transparent;
     border: 1px dashed rgba(16,185,129,0.3);
 }
+/* Where pills: clip to 2 rows, controls sit on their own row below */
+.pill-wrap { position: relative; overflow: hidden; }
+.where-controls { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.where-more { color: var(--text-muted); background: transparent; border: 1px dashed rgba(255,255,255,0.12); }
 
 /* ===== ACTION SHEET ===== */
 .action-sheet-list {
@@ -1904,7 +1907,7 @@ body.disco .disco-me {
         <div class="pill-row" id="logger-discipline"></div>
 
         <div class="field-label" id="where-label">Where</div>
-        <div class="pill-row" id="logger-where"></div>
+        <div id="logger-where"></div>
         <div class="add-name-row hidden" id="where-add-row">
             <input type="text" class="add-name-input" id="where-add-input" placeholder="Gym or crag name" maxlength="30">
             <button class="add-name-save" id="where-add-save">Save</button>
@@ -2747,7 +2750,9 @@ function renderDisciplinePills() {
 }
 
 /* ----- Where pills ----- */
+let whereExpanded = false;
 function renderWherePills() {
+    whereExpanded = false;  // fresh render starts collapsed
     const c = document.getElementById('logger-where');
     // Dynamic label + placeholder: Crag for outdoor, Gym for indoor
     const isOut = isOutdoor(LoggerState.discipline);
@@ -2757,7 +2762,7 @@ function renderWherePills() {
     if (addInputEl) addInputEl.placeholder = isOut ? 'Crag name' : 'Gym name';
     const stickyKey = `leaderboard.lastWhere.${LoggerState.discipline}`;
     const sticky = localStorage.getItem(stickyKey);
-    const locations = getLocationsForDiscipline(LoggerState.discipline);
+    let locations = getLocationsForDiscipline(LoggerState.discipline);
     // EDIT MODE: if the climb's location isn't a registered Location, keep it
     // as a pill so editing doesn't silently swap it to a different crag/gym.
     if (editingLogId && LoggerState.where && !locations.includes(LoggerState.where)) {
@@ -2766,10 +2771,31 @@ function renderWherePills() {
     if (!locations.includes(LoggerState.where)) {
         LoggerState.where = locations.includes(sticky) ? sticky : (locations[0] || null);
     }
+    // Order like belayer: your 2 most-recent spots in this discipline first, then by
+    // frequency, then never-logged alphabetical. Stats scoped to this discipline + you.
+    const stats = {};
+    State.logs.forEach(l => {
+        if (l.ClimberName !== State.activeUser || l.Discipline !== LoggerState.discipline || !l.Where) return;
+        const s = stats[l.Where] || (stats[l.Where] = { count: 0, last: '' });
+        s.count++;
+        const d = getCleanDate(l.Date);
+        if (d > s.last) s.last = d;
+    });
+    locations = rankByUsage(locations, stats);
+    // Pin the selected spot to the front so the 2-row cap never hides your current choice.
+    if (LoggerState.where) {
+        const i = locations.indexOf(LoggerState.where);
+        if (i > 0) { locations.splice(i, 1); locations.unshift(LoggerState.where); }
+    }
     const pillsHtml = locations.map(loc =>
         `<button class="pill ${loc === LoggerState.where ? 'active' : ''}" data-where="${escapeHTML(loc)}">${escapeHTML(loc)}</button>`
     ).join('');
-    c.innerHTML = pillsHtml + '<button class="pill add-btn" data-add-where="1">+ Add</button>';
+    c.innerHTML =
+        `<div class="pill-row pill-wrap" id="where-pill-wrap">${pillsHtml}</div>` +
+        `<div class="where-controls">` +
+            `<button class="pill add-btn" data-add-where="1">+ Add</button>` +
+            `<button class="pill where-more hidden" id="where-more"></button>` +
+        `</div>`;
     c.querySelectorAll('[data-where]').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
@@ -2792,6 +2818,33 @@ function renderWherePills() {
             inp.click();
         }, 100);
     });
+    const moreBtn = document.getElementById('where-more');
+    if (moreBtn) moreBtn.addEventListener('click', () => {
+        haptic('tap');
+        whereExpanded = !whereExpanded;
+        capWherePills();
+    });
+    capWherePills();
+}
+
+// Clip the where pills to 2 rows (measured, because crag names vary in width); the control
+// row below gets a "+N more" / "Less" toggle. The selected pill is pinned front (above), so
+// collapsing never hides your choice.
+function capWherePills() {
+    const wrap = document.getElementById('where-pill-wrap');
+    const moreBtn = document.getElementById('where-more');
+    if (!wrap || !moreBtn) return;
+    wrap.style.maxHeight = 'none';                       // measure full height first
+    const pills = [...wrap.children];
+    if (pills.length === 0) { moreBtn.classList.add('hidden'); return; }
+    const rowTops = [...new Set(pills.map(p => p.offsetTop))].sort((a, b) => a - b);
+    if (rowTops.length <= 2) { moreBtn.classList.add('hidden'); return; }  // fits in 2 rows
+    if (whereExpanded) { moreBtn.textContent = 'Less'; moreBtn.classList.remove('hidden'); return; }
+    const pillH = pills[0].offsetHeight;
+    wrap.style.maxHeight = (rowTops[1] + pillH) + 'px';  // clip at the bottom of row 2
+    const hidden = pills.filter(p => p.offsetTop > rowTops[1]).length;
+    moreBtn.textContent = `+${hidden} more`;
+    moreBtn.classList.remove('hidden');
 }
 
 /* ----- Add Where flow (mirrors addClimber) ----- */
