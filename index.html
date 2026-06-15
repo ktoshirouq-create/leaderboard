@@ -213,6 +213,15 @@ h1.screen-title {
 /* Level-up grade jump: SVG arrow stays optically centred across fonts */
 .lvl-jump { display: inline-flex; align-items: center; gap: 3px; }
 .lvl-arrow { width: 0.82em; height: 0.82em; flex: none; }
+/* Multi-badge secondary chips */
+.hl-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 18px 0 18px; }
+.hl-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.6px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 6px; line-height: 1; }
+.hl-chip .hl-rosette { font-size: 0.7rem; filter: none; }
+.hl-chip .lvl-arrow { width: 0.8em; height: 0.8em; }
+/* Boulder session texture: one circuit-coloured dot per send */
+.dot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 18px 14px 18px; }
+.sdot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex: none; }
+.sdot-more { font-size: 0.68rem; font-weight: 800; color: var(--text-muted); margin-left: 2px; }
 .s-where {
     font-size: 0.78rem;
     color: #d4d4d4;
@@ -3020,7 +3029,8 @@ document.getElementById('feed-info').addEventListener('click', () => {
         { term: 'On the board · Top 5 · Top 3 · #1', def: 'Your capacity ranking climbed — you just qualified for, or moved up, that discipline\'s leaderboard.' },
         { term: 'Big day', def: 'Six or more sends in a day, and more than any single day in your last 30.' },
         { term: 'Limit day', def: 'Your hardest send that day matched your hardest of the last 30 days — climbing right at your ceiling.' },
-        { term: 'One badge per card', def: 'A card shows only its top badge, in this order: new max, ranking move, level up, then big/limit day.' }
+        { term: 'Multiple badges', def: 'The top badge leads in full; any others show as small chips beside it. Priority: new max, ranking move, level up, big day, limit day.' },
+        { term: 'Colour dots', def: 'On indoor-boulder cards, a row of dots shows each send in its gym circuit colour, hardest first — the shape of the session at a glance.' }
     ]);
 });
 
@@ -3562,8 +3572,22 @@ function rankAsOf(c, disc, asOf) { const mine = capacityAsOf(c, disc, asOf); if 
 function detectPR(c, disc, date) { const sm = sessionMaxBase(c, disc, date); if (sm.score <= 0) return null; const prior = priorBestBase(c, disc, date); if (prior <= 0) return null; if (sm.score <= prior) return null; const fl = firstLogDate(c); if (fl && dDiff(date, fl) < WARMUP_DAYS) return null; return { kind: 'pr', grade: sm.grade, label: disc.includes('Boulder') ? 'NEW MAX' : 'NEW LEAD MAX' }; }
 function detectLevelUp(c, disc, date) { const pd = prevSessionDate(c, disc, date); if (!pd) return null; const now = capacityAsOf(c, disc, date), prev = capacityAsOf(c, disc, pd); if (now === null || prev === null) return null; if (gradeIdx(now, disc) <= gradeIdx(prev, disc)) return null; return { kind: 'levelup', from: gradeProgress(prev, disc).current, to: gradeProgress(now, disc).current }; }
 function detectBoardMove(c, disc, date) { const pd = prevSessionDate(c, disc, date); const rNow = rankAsOf(c, disc, date), rPrev = pd ? rankAsOf(c, disc, pd) : null; if (rNow !== null && rPrev === null) return { kind: 'board', label: 'ON THE BOARD' }; if (rNow !== null && rPrev !== null && rNow < rPrev) { const cn = capacityAsOf(c, disc, date), cp = capacityAsOf(c, disc, pd); if (!(cn > cp)) return null; if (rNow === 1) return { kind: 'board', label: 'TOOK #1' }; if (rNow <= 3 && rPrev > 3) return { kind: 'board', label: 'INTO TOP 3' }; if (rNow <= 5 && rPrev > 5) return { kind: 'board', label: 'INTO TOP 5' }; return null; } return null; }
-function detectStandout(c, disc, date) { const cnt = sessionCount(c, disc, date); if (cnt >= STANDOUT_MIN_SENDS && cnt > maxSessionCount30(c, disc, date)) return { kind: 'standout', label: 'BIG DAY', n: cnt }; const sm = sessionMaxBase(c, disc, date); if (sm.score > 0 && sm.score === max30Base(c, disc, date)) return { kind: 'standout', label: 'LIMIT DAY', grade: sm.grade }; return null; }
+function detectBigDay(c, disc, date) { const cnt = sessionCount(c, disc, date); if (cnt >= STANDOUT_MIN_SENDS && cnt > maxSessionCount30(c, disc, date)) return { kind: 'standout', label: 'BIG DAY', n: cnt }; return null; }
+function detectLimitDay(c, disc, date) { const sm = sessionMaxBase(c, disc, date); if (sm.score > 0 && sm.score === max30Base(c, disc, date)) return { kind: 'standout', label: 'LIMIT DAY', grade: sm.grade }; return null; }
+function detectStandout(c, disc, date) { return detectBigDay(c, disc, date) || detectLimitDay(c, disc, date); }
 function detectHighlight(c, disc, date) { return detectPR(c, disc, date) || detectBoardMove(c, disc, date) || detectLevelUp(c, disc, date) || detectStandout(c, disc, date); }
+// All applicable highlights in priority order; [0] === detectHighlight. A PR already
+// implies a limit day (the new max ties the 30-day max), so limit day is dropped when a PR fires.
+function detectAllHighlights(c, disc, date) {
+    const pr = detectPR(c, disc, date);
+    return [
+        pr,
+        detectBoardMove(c, disc, date),
+        detectLevelUp(c, disc, date),
+        detectBigDay(c, disc, date),
+        pr ? null : detectLimitDay(c, disc, date)
+    ].filter(Boolean);
+}
 
 // Eyebrow-tier highlights (inline, above the name): PR (coloured pill) + standout (faint).
 function highlightMarkup(session, hl) {
@@ -3596,6 +3620,34 @@ function bannerMarkup(session, hl) {
         return `<div class="hl-banner hl-banner-levelup"><span class="hl-rosette">✦</span><span class="hl-banner-text">LEVELED UP · ${lvlJump(hl.from, hl.to)}</span></div>`;
     }
     return '';
+}
+
+// Secondary highlights → small muted chips beside the primary badge.
+function chipMarkup(hl) {
+    if (hl.kind === 'pr')      return `<span class="hl-chip">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</span>`;
+    if (hl.kind === 'board')   return `<span class="hl-chip"><span class="hl-rosette">▲</span> ${escapeHTML(hl.label)}</span>`;
+    if (hl.kind === 'levelup') return `<span class="hl-chip">✦ ${lvlJump(hl.from, hl.to)}</span>`;
+    if (hl.kind === 'standout') {
+        const detail = hl.label === 'BIG DAY' ? `${hl.n} sends` : escapeHTML(hl.grade);
+        return `<span class="hl-chip">${escapeHTML(hl.label)} · ${detail}</span>`;
+    }
+    return '';
+}
+function secondaryChips(list) {
+    if (!list || list.length === 0) return '';
+    return `<div class="hl-chips">${list.map(chipMarkup).join('')}</div>`;
+}
+
+// Boulder only: one circuit-coloured dot per send, hardest first, capped with +N.
+function sessionDotRow(session) {
+    if (session.discipline !== 'In Boulder') return '';
+    const sorted = sortSendsByScore(session.sends, session.discipline);
+    const CAP = 12;
+    const shown = sorted.slice(0, CAP);
+    const extra = sorted.length - shown.length;
+    const dots = shown.map(s => `<span class="sdot" style="background:${boulderColorForGrade(s.Grade, s.Where)}"></span>`).join('');
+    const more = extra > 0 ? `<span class="sdot-more">+${extra}</span>` : '';
+    return `<div class="dot-row">${dots}${more}</div>`;
 }
 
 // Sort sends within a session: highest score first
@@ -4128,6 +4180,7 @@ function renderSessionCard(session, idx) {
     const sortedSends = sortSendsByScore(session.sends, session.discipline);
     const sendsHtml = sortedSends.map(s => sendRowHtml(s, session.discipline)).join('');
     const cardHl = detectHighlight(session.climber, session.discipline, session.date);
+    const moreHl = detectAllHighlights(session.climber, session.discipline, session.date).slice(1);
 
     const stateClass = session._failed ? 'failed' : (session._optimistic ? 'syncing' : '');
 
@@ -4143,9 +4196,11 @@ function renderSessionCard(session, idx) {
             </div>
             <div class="s-where">${session.wheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ')}</div>
         </div>
+        ${secondaryChips(moreHl)}
         <div class="s-summary">
             ${summaryHtml}
         </div>
+        ${sessionDotRow(session)}
         <button class="expand-btn"><span class="expand-arrow">▾</span> View ${sendCount} climb${sendCount > 1 ? 's' : ''}</button>
         <div class="session-children">${sendsHtml}</div>
     </div>`;
