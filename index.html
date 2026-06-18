@@ -2174,7 +2174,7 @@ function showView(name) {
 document.querySelector('.nav-btn[data-view="profile"]').addEventListener('click', (e) => {
     e.stopImmediatePropagation();
     haptic('tap');
-    showProfile(State.activeUser || null);
+    navTab('profile');
 }, true); // capture phase so it fires before the generic showView listener
 
 // Long-press the Me nav button → open user switcher (faster than going to profile first)
@@ -2220,7 +2220,7 @@ document.querySelector('.nav-btn[data-view="profile"]').addEventListener('click'
 document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         haptic('tap');
-        showView(btn.dataset.view);
+        navTab(btn.dataset.view);
     });
 });
 
@@ -2231,8 +2231,66 @@ function showToast(msg) {
     setTimeout(() => t.classList.remove('show'), 1800);
 }
 
-/* ============== MODAL HELPERS ============== */
-const modalStack = []; // tracks which modals are open, newest last
+/* ============== UNIFIED NAVIGATION ============== */
+// One stack drives BOTH views and modals. navStack[0] is always feed (the page-load
+// entry — no history push for it). Every screen above it = one history entry, tagged
+// with its depth in history.state.d. Back (popstate) → reconcile() syncs the UI to the
+// depth the browser landed on. Each entry's param is enough to RESTORE the screen, so
+// feed→profile(Magnus)→profile(Sara)→back lands on Magnus.
+let navStack = [{ kind: 'view', view: 'feed', param: null }];
+let navApplying = false;                 // true while restoring — suppresses re-recording
+const modalStack = [];                   // ids of open modals (body class + topmost lookup)
+history.replaceState({ d: 0 }, '');      // tag the root entry
+
+function navTop() { return navStack[navStack.length - 1]; }
+function navPush(entry) {
+    navStack.push(entry);
+    history.pushState({ d: navStack.length - 1 }, '');
+}
+function navReplaceTop(entry) {
+    navStack[navStack.length - 1] = entry;
+    history.replaceState({ d: navStack.length - 1 }, '');
+}
+function navBack() { history.back(); }
+
+// Tail of every drill-in show*(): record a forward view nav. Suppressed while restoring.
+function navRecordView(view, param) {
+    if (navApplying) return;
+    navPush({ kind: 'view', view, param: param ?? null });
+}
+
+// Render a view entry WITHOUT recording history (reconcile + tabs use this).
+function applyViewEntry(entry) {
+    navApplying = true;
+    try {
+        switch (entry.view) {
+            case 'feed':     showView('feed'); break;
+            case 'boards':   showView('boards'); break;
+            case 'profile':  showProfile(entry.param); break;
+            case 'location': showLocation(entry.param.name, entry.param.from); break;
+            case 'secret':   showSecretStats(entry.param); break;
+            case 'spots':    showSpotsDirectory(); break;
+            case 'captop10': showCapTop10(entry.param); break;
+            case 'peak':     showPeak(); break;
+        }
+    } finally { navApplying = false; }
+}
+
+// Bottom-tab tap. feed=root(0); Boards/Me=depth1; switching tabs replaces depth1;
+// from deeper, collapse (history.go) to depth1 — or depth0 for Feed.
+function navTab(view) {
+    const depth = navStack.length - 1;
+    const entry = { kind: 'view', view, param: view === 'profile' ? (State.activeUser || null) : null };
+    if (view === 'feed') {
+        if (depth === 0) { applyViewEntry(entry); return; }
+        navStack.length = 1;
+        history.go(-depth);                 // popstate → reconcile renders feed
+        return;
+    }
+    if (depth === 0)      { navPush(entry); applyViewEntry(entry); }
+    else if (depth === 1) { navReplaceTop(entry); applyViewEntry(entry); }
+    else { navStack = [navStack[0], entry]; history.go(-(depth - 1)); }  // reconcile renders entry
+}
 
 function openModal(id) {
     const el = document.getElementById(id);
@@ -2240,26 +2298,38 @@ function openModal(id) {
     el.classList.add('active');
     modalStack.push(id);
     document.body.classList.add('modal-open');
-    history.pushState({ modal: id }, '');
+    navPush({ kind: 'modal', id });
 }
-function closeModal(id) {
+
+// Swap the current top modal for another screen in ONE synchronous step (no back()),
+// so the dismissed modal never lingers in the back stack. Used by action-sheet→logger,
+// action-sheet→confirm, location-sheet→rename/delete, nerd→secret(view).
+function replaceTopScreen(oldId, entry, render) {
+    closeModalDom(oldId);
+    if (entry.kind === 'modal') {
+        const el = document.getElementById(entry.id);
+        el.classList.add('active');
+        if (!modalStack.includes(entry.id)) modalStack.push(entry.id);
+        document.body.classList.add('modal-open');
+    }
+    navReplaceTop(entry);
+    if (render) { navApplying = true; try { render(); } finally { navApplying = false; } }
+}
+
+// DOM close + side-effects ONLY — never touches history. Every close ends here.
+function closeModalDom(id) {
     const el = document.getElementById(id);
-    if (!el.classList.contains('active')) return;
+    if (!el || !el.classList.contains('active')) return;
     el.classList.remove('active');
-    // Reset drag state — but defer the transform clear so the close
-    // animation runs from current position rather than snapping.
     const sheet = el.querySelector('.modal-sheet');
     if (sheet) {
         sheet.classList.remove('dragging');
         sheet.classList.remove('snap-back');
-        // Clear transform after the close transition has consumed it
         setTimeout(() => { sheet.style.transform = ''; }, 350);
     }
     const idx = modalStack.lastIndexOf(id);
     if (idx >= 0) modalStack.splice(idx, 1);
     if (modalStack.length === 0) document.body.classList.remove('modal-open');
-    // Unified close side-effects: run here so EVERY close path (×, tap-out, swipe, back button)
-    // gets them — the back button used to bypass these and leave edit mode stuck.
     if (id === 'logger-modal' && editingLogId) exitEditMode();
     if (id === 'action-sheet-modal' || id === 'rename-modal') {
         const ae = document.getElementById('action-edit');
@@ -2267,6 +2337,28 @@ function closeModal(id) {
         if (ae) ae.textContent = 'Edit climb';
         if (ad) { ad.textContent = 'Delete climb'; ad.style.display = ''; }
     }
+}
+
+// Public closeModal = user dismiss. If this modal is the stack top, step back through
+// history and let reconcile() close it; otherwise just close the DOM (defensive).
+function closeModal(id) {
+    if (navApplying) { closeModalDom(id); return; }
+    const t = navTop();
+    if (t.kind === 'modal' && t.id === id) navBack();
+    else closeModalDom(id);
+}
+
+// Sync UI to the browser's current history depth (truncate the stack, close orphaned
+// modals, render the top view).
+function reconcile(e) {
+    const targetDepth = (e && e.state && typeof e.state.d === 'number') ? e.state.d : 0;
+    while (navStack.length - 1 > targetDepth) navStack.pop();
+    [...modalStack].forEach(id => {
+        const stillOpen = navStack.some(en => en.kind === 'modal' && en.id === id);
+        if (!stillOpen) closeModalDom(id);
+    });
+    const top = navTop();
+    if (top.kind === 'view') applyViewEntry(top);
 }
 
 /* ============== SWIPE-DOWN TO DISMISS ============== */
@@ -2351,16 +2443,8 @@ function attachSwipeToClose(overlayId) {
 ['logger-modal', 'switcher-modal', 'identity-prompt', 'info-modal',  
  'nerd-modal', 'action-sheet-modal', 'confirm-modal', 'rename-modal'].forEach(attachSwipeToClose);
 
-// Back button: close topmost modal if any are open
-window.addEventListener('popstate', () => {
-    if (modalStack.length > 0) {
-        // Route through closeModal so the back button runs the same close side-effects
-        // (exit edit mode, restore action labels, clear the sheet transform) as every other path.
-        closeModal(modalStack[modalStack.length - 1]);
-        // Re-arm so the next back press doesn't fall straight through and exit.
-        history.pushState({ sentinel: true }, '');
-    }
-});
+// Back button (popstate): reconcile the UI to wherever the browser history now sits.
+window.addEventListener('popstate', reconcile);
 
 document.getElementById('logger-close').addEventListener('click', () => {
     closeModal('logger-modal');
@@ -3782,13 +3866,11 @@ function openLocationActionSheet(locationName) {
     document.getElementById('action-delete').style.display = '';
     document.getElementById('action-edit').onclick = () => {
         haptic('tap');
-        closeModal('action-sheet-modal');
-        openRenameLocation(locationName);
+        replaceTopScreen('action-sheet-modal', { kind: 'modal', id: 'rename-modal' }, () => openRenameLocation(locationName));
     };
     document.getElementById('action-delete').onclick = () => {
         haptic('tap');
-        closeModal('action-sheet-modal');
-        openConfirmDeleteLocation(locationName);
+        replaceTopScreen('action-sheet-modal', { kind: 'modal', id: 'confirm-modal' }, () => openConfirmDeleteLocation(locationName));
     };
     document.getElementById('action-cancel').onclick = () => {
         haptic('tap');
@@ -4106,13 +4188,11 @@ function openActionSheet(log) {
     document.getElementById('action-delete').style.display = '';
     document.getElementById('action-edit').onclick = () => {
         haptic('tap');
-        closeModal('action-sheet-modal');
-        openLoggerInEditMode(log);
+        replaceTopScreen('action-sheet-modal', { kind: 'modal', id: 'logger-modal' }, () => openLoggerInEditMode(log));
     };
     document.getElementById('action-delete').onclick = () => {
         haptic('tap');
-        closeModal('action-sheet-modal');
-        openConfirmDelete(log);
+        replaceTopScreen('action-sheet-modal', { kind: 'modal', id: 'confirm-modal' }, () => openConfirmDelete(log));
     };
     document.getElementById('action-cancel').onclick = () => {
         haptic('tap');
@@ -4717,6 +4797,7 @@ function showCapTop10(climber) {
     document.getElementById('captop10-name').textContent = climber.toUpperCase();
     showView('captop10');
     renderCapTop10Page();
+    navRecordView('captop10', climber);
 }
 
 function renderCapTop10Page() {
@@ -4798,7 +4879,7 @@ function capBarRow(climbs, discipline) {
 
 document.getElementById('captop10-back').addEventListener('click', () => {
     haptic('tap');
-    showView('boards');
+    navBack();
 });
 /* ============== PROFILE ============== */
 const PROFILE_HISTO_WINDOW_DAYS = 60;
@@ -5247,12 +5328,13 @@ function showProfile(climber) {
     const isOwnProfile = (climber === State.activeUser);
     document.getElementById('profile-back').style.display = isOwnProfile ? 'none' : 'inline-flex';
     document.getElementById('profile-switcher').classList.toggle('hidden', !isOwnProfile);
+    navRecordView('profile', climber);
     
    }
 
 document.getElementById('profile-back').addEventListener('click', () => {
     haptic('tap');
-    showView('boards');
+    navBack();
 });
 
 document.getElementById('profile-switcher').addEventListener('click', () => {
@@ -5357,8 +5439,7 @@ function openNerdStats(climber) {
     openModal('nerd-modal');
     document.getElementById('nerd-fullbreakdown').addEventListener('click', () => {
         haptic('tap');
-        closeModal('nerd-modal');
-        showSecretStats(climber);
+        replaceTopScreen('nerd-modal', { kind: 'view', view: 'secret', param: climber }, () => showSecretStats(climber));
     });
 }
 
@@ -5406,6 +5487,7 @@ function showSecretStats(climber) {
     document.getElementById('secret-name').textContent = climber.toUpperCase();
     showView('secret');
     renderSecretStats();
+    navRecordView('secret', climber);
 }
 
 function renderSecretStats() {
@@ -5732,7 +5814,7 @@ function renderSecretHeatmap(logs) {
 
 document.getElementById('secret-back').addEventListener('click', () => {
     haptic('tap');
-    showView('profile');
+    navBack();
 });
 document.querySelectorAll('#secret-window .seg-item').forEach(el => {
     el.addEventListener('click', () => { haptic('tap'); secretWindow = el.dataset.win; renderSecretStats(); });
@@ -5764,8 +5846,9 @@ function renderSpotsDirectory() {
 function showSpotsDirectory() {
     showView('spots');
     renderSpotsDirectory();
+    navRecordView('spots', null);
 }
-document.getElementById('spots-back').addEventListener('click', () => { haptic('tap'); showView('boards'); });
+document.getElementById('spots-back').addEventListener('click', () => { haptic('tap'); navBack(); });
 (function () {
     const pill = document.querySelector('#board-tabs .pill[data-board="hotspots"]');
     if (!pill) return;
@@ -5884,6 +5967,7 @@ function showLocation(name, fromView) {
     locationLens = 'hardest';
     showView('location');
     renderLocationPage();
+    navRecordView('location', { name: locationName, from: locationBackView });
 }
 
 function renderLocationPage() {
@@ -6110,7 +6194,7 @@ document.querySelectorAll('#location-scope .seg-item').forEach(el => {
 });
 document.getElementById('location-back').addEventListener('click', () => {
     haptic('tap');
-    showView(locationBackView || 'feed');
+    navBack();
 });
 document.getElementById('view-location').addEventListener('click', (e) => {
     const t = e.target.closest('[data-loc-climber]');
@@ -6393,6 +6477,7 @@ function showPeak() {
     peakDisc = 'all';
     showView('peak');
     renderPeakPage();
+    navRecordView('peak', null);
 }
 
 function renderPeakPage() {
@@ -6629,7 +6714,7 @@ function renderPeakBumpChart(seriesList, container, legendEl) {
 
 (function () {
     const _pb = document.getElementById('peak-back');
-    if (_pb) _pb.addEventListener('click', () => { haptic('tap'); showView('boards'); });
+    if (_pb) _pb.addEventListener('click', () => { haptic('tap'); navBack(); });
 })();
 
 (function () {
