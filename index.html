@@ -1420,9 +1420,8 @@ h1.screen-title {
     background: transparent;
     border: 1px dashed rgba(16,185,129,0.3);
 }
-/* Where pills: clip to 2 rows, controls sit on their own row below */
+/* Where pills: + Add and "+N more" sit inline; the whole row clips to 2 rows */
 .pill-wrap { position: relative; overflow: hidden; }
-.where-controls { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .where-more { color: var(--text-muted); background: transparent; border: 1px dashed rgba(255,255,255,0.12); }
 
 /* ===== ACTION SHEET ===== */
@@ -2795,9 +2794,10 @@ function renderWherePills() {
     const pillsHtml = locations.map(loc =>
         `<button class="pill ${loc === LoggerState.where ? 'active' : ''}" data-where="${escapeHTML(loc)}">${escapeHTML(loc)}</button>`
     ).join('');
+    // + Add and "+N more" live INSIDE the wrap now, so they count toward the 2-row cap.
     c.innerHTML =
-        `<div class="pill-row pill-wrap" id="where-pill-wrap">${pillsHtml}</div>` +
-        `<div class="where-controls">` +
+        `<div class="pill-row pill-wrap" id="where-pill-wrap">` +
+            pillsHtml +
             `<button class="pill add-btn" data-add-where="1">+ Add</button>` +
             `<button class="pill where-more hidden" id="where-more"></button>` +
         `</div>`;
@@ -2806,7 +2806,8 @@ function renderWherePills() {
             haptic('tap');
             LoggerState.where = el.dataset.where;
             localStorage.setItem(stickyKey, LoggerState.where);
-            renderWherePills();
+            // Highlight in place — don't re-render (which would reorder/pin and make the pill jump).
+            c.querySelectorAll('[data-where]').forEach(p => p.classList.toggle('active', p === el));
             populateRouteSuggestions();
             // In Boulder the colour ladder is per-gym — refresh grades on gym change
             if (LoggerState.discipline === 'In Boulder') renderGradePills();
@@ -2832,24 +2833,47 @@ function renderWherePills() {
     capWherePills();
 }
 
-// Clip the where pills to 2 rows (measured, because crag names vary in width); the control
-// row below gets a "+N more" / "Less" toggle. The selected pill is pinned front (above), so
-// collapsing never hides your choice.
+// Clip the where pills to 2 rows (measured, because crag/gym names vary in width). + Add and
+// "+N more" now live INSIDE the wrap, so we hide trailing location pills until those controls
+// fit within row 2 — that keeps the expander reachable instead of pushing it to a 3rd row.
+// The selected pill is pinned to the front (in renderWherePills), so collapsing never hides it.
 function capWherePills() {
     const wrap = document.getElementById('where-pill-wrap');
     const moreBtn = document.getElementById('where-more');
     if (!wrap || !moreBtn) return;
-    wrap.style.maxHeight = 'none';                       // measure full height first
-    const pills = [...wrap.children];
-    if (pills.length === 0) { moreBtn.classList.add('hidden'); return; }
-    const rowTops = [...new Set(pills.map(p => p.offsetTop))].sort((a, b) => a - b);
-    if (rowTops.length <= 2) { moreBtn.classList.add('hidden'); return; }  // fits in 2 rows
-    if (whereExpanded) { moreBtn.textContent = 'Less'; moreBtn.classList.remove('hidden'); return; }
-    const pillH = pills[0].offsetHeight;
-    wrap.style.maxHeight = (rowTops[1] + pillH) + 'px';  // clip at the bottom of row 2
-    const hidden = pills.filter(p => p.offsetTop > rowTops[1]).length;
-    moreBtn.textContent = `+${hidden} more`;
+    const locPills = [...wrap.querySelectorAll('[data-where]')];
+    locPills.forEach(p => p.style.display = '');         // reset to full set
+    wrap.style.maxHeight = 'none';                       // measure unclipped
+
+    const visTops = () => [...new Set(
+        [...wrap.children].filter(el => el.style.display !== 'none').map(el => el.offsetTop)
+    )].sort((a, b) => a - b);
+
+    // Expanded: show everything; "Less" only if there's actually an overflow to collapse.
+    if (whereExpanded) {
+        moreBtn.classList.add('hidden');                 // measure the full set without the toggle
+        if (visTops().length > 2) { moreBtn.classList.remove('hidden'); moreBtn.textContent = 'Less'; }
+        return;
+    }
+
+    // Collapsed: does it already fit in 2 rows (with + Add inline)? Then no "+more" needed.
+    moreBtn.classList.add('hidden');
+    if (visTops().length <= 2) return;
+
+    // Overflow: reserve the widest possible label, then hide trailing location pills until
+    // + Add and + more sit within row 2.
     moreBtn.classList.remove('hidden');
+    moreBtn.textContent = `+${locPills.length} more`;
+    let hidden = 0;
+    for (let i = locPills.length - 1; i >= 0; i--) {
+        if (visTops().length <= 2) break;
+        locPills[i].style.display = 'none';
+        hidden++;
+    }
+    const tops = visTops();
+    const pillH = wrap.children[0].offsetHeight;
+    wrap.style.maxHeight = (tops[Math.min(1, tops.length - 1)] + pillH) + 'px';
+    moreBtn.textContent = `+${hidden} more`;
 }
 
 /* ----- Add Where flow (mirrors addClimber) ----- */
