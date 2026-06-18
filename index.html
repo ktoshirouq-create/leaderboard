@@ -209,6 +209,11 @@ h1.screen-title {
     filter: drop-shadow(0 0 5px var(--disc-color, transparent));
 }
 .hl-banner-text{line-height:1}
+/* Crew #1 — gold over the discipline tint, faint shimmer. Loudest tier. */
+.hl-banner-crown { color: var(--gold); background: linear-gradient(90deg, rgba(251,191,36,0.20), rgba(0,0,0,0.30) 72%); border-bottom-color: rgba(251,191,36,0.28); position: relative; overflow: hidden; }
+.hl-banner-crown .hl-rosette { filter: drop-shadow(0 0 6px rgba(251,191,36,0.75)); }
+.hl-banner-crown::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 35%, rgba(251,191,36,0.22) 50%, transparent 65%); background-size: 220% 100%; animation: crown-shimmer 2.6s ease-in-out infinite; pointer-events: none; }
+@keyframes crown-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -120% 0; } }
 /* Level-up grade jump: SVG arrow stays optically centred across fonts */
 .lvl-jump { display: inline-flex; align-items: center; gap: 3px; }
 .lvl-arrow { width: 0.82em; height: 0.82em; flex: none; }
@@ -3448,6 +3453,12 @@ async function submitLog() {
         const _pbLines = ['NEW PB. Absolute unit.', 'PB! Buying the beers?', 'New best — send train rolling.', 'Personal best. Casual.'];
         showToast(_pbLines[Math.floor(Math.random() * _pbLines.length)]);
     }
+    // Crew leaderboard-move celebration on your own send — crown/podium get the big treatment
+    const _mv = detectRankMoves(State.activeUser, submittedDate);
+    const _crownMv = _mv.find(m => m.tier === 'crown');
+    const _podMv   = _mv.find(m => m.tier === 'podium');
+    if (_crownMv) { fireConfetti(); showToast('👑 ' + rankLabel(_crownMv)); }
+    else if (_podMv) { if (!_isPB) fireConfetti(); showToast(rankLabel(_podMv)); }
 
     try {
         const res = await fetch(AppConfig.api, {
@@ -3741,19 +3752,205 @@ function detectBoardMove(c, disc, date) { const pd = prevSessionDate(c, disc, da
 function detectBigDay(c, disc, date) { const cnt = sessionCount(c, disc, date); if (cnt >= STANDOUT_MIN_SENDS && cnt > maxSessionCount30(c, disc, date)) return { kind: 'standout', label: 'BIG DAY', n: cnt }; return null; }
 function detectLimitDay(c, disc, date) { const sm = sessionMaxBase(c, disc, date); if (sm.score > 0 && sm.score === max30Base(c, disc, date)) return { kind: 'standout', label: 'LIMIT DAY', grade: sm.grade }; return null; }
 function detectStandout(c, disc, date) { return detectBigDay(c, disc, date) || detectLimitDay(c, disc, date); }
-function detectHighlight(c, disc, date) { return detectPR(c, disc, date) || detectBoardMove(c, disc, date) || detectLevelUp(c, disc, date) || detectStandout(c, disc, date); }
-// All applicable highlights in priority order; [0] === detectHighlight. A PR already
-// implies a limit day (the new max ties the 30-day max), so limit day is dropped when a PR fires.
-function detectAllHighlights(c, disc, date) {
-    const pr = detectPR(c, disc, date);
-    return [
-        pr,
-        detectBoardMove(c, disc, date),
-        detectLevelUp(c, disc, date),
-        detectBigDay(c, disc, date),
-        pr ? null : detectLimitDay(c, disc, date)
-    ].filter(Boolean);
+/* ===== crew-relative leaderboard-move detection (as-of-date) ===== */
+// Floors: performance boards celebrate top 5, volume boards top 3. Tiers: 1=crown,
+// 2-3=podium, 4-5=top5. Fires only on a tier UPGRADE vs your previous session.
+const RANK_BOARDS = { hardest: { floor: 5 }, capacity: { floor: 5 }, addicted: { floor: 3 }, outdoor: { floor: 3 } };
+const RANK_MIN_FIELD = { crown: 4, podium: 5, top5: 6 };   // a position needs a real field beneath it
+const RANK_OUTDOOR_DISCS = ['Out Rope', 'Out Boulder', 'Trad'];
+const RANK_CROWN_SVG = '<svg class="lvl-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.2 3.5L12 4l4.8 7.5L21 8l-1.8 10.5H4.8z" fill="currentColor"/></svg>';
+let _rankCache = null;       // render-scoped: board[:disc]|date → cross-climber score map
+let _rankMoveCache = null;   // render-scoped: climber|date → rank-move events
+
+function rankTier(rank) { return rank === 1 ? 'crown' : rank <= 3 ? 'podium' : rank <= 5 ? 'top5' : null; }
+
+function allClimbers() {
+    if (_rankCache && _rankCache.has('@climbers')) return _rankCache.get('@climbers');
+    const seen = {};
+    State.logs.forEach(l => { if (l.ClimberName) seen[l.ClimberName] = 1; });
+    const out = Object.keys(seen);
+    if (_rankCache) _rankCache.set('@climbers', out);
+    return out;
 }
+
+// Cross-climber score map as of `asOf`: hardest=top lead score in 30d; addicted/outdoor=distinct days in 60d.
+function boardScoreMapAsOf(board, asOf) {
+    const key = board + '|' + asOf;
+    if (_rankCache && _rankCache.has(key)) return _rankCache.get(key);
+    const map = {};
+    if (board === 'hardest') {
+        State.logs.forEach(l => {
+            if (isTopRope(l.Style) || !AppConfig.disciplines.includes(l.Discipline)) return;
+            const d = getCleanDate(l.Date);
+            if (d > asOf || dDiff(asOf, d) > HARDEST_WINDOW_DAYS) return;
+            const sc = getScoredValue(l.Grade, l.Style, l.Discipline);
+            if (sc > 0 && sc > (map[l.ClimberName] || 0)) map[l.ClimberName] = sc;
+        });
+    } else {
+        const outdoor = board === 'outdoor';
+        const days = {};
+        State.logs.forEach(l => {
+            if (!AppConfig.disciplines.includes(l.Discipline)) return;
+            if (outdoor && !RANK_OUTDOOR_DISCS.includes(l.Discipline)) return;
+            const d = getCleanDate(l.Date);
+            if (d > asOf || dDiff(asOf, d) > SPECIAL_WINDOW_DAYS) return;
+            (days[l.ClimberName] = days[l.ClimberName] || new Set()).add(d);
+        });
+        Object.keys(days).forEach(c => { map[c] = days[c].size; });
+    }
+    if (_rankCache) _rankCache.set(key, map);
+    return map;
+}
+
+function capacityScoreMapAsOf(disc, asOf) {
+    const key = 'cap:' + disc + '|' + asOf;
+    if (_rankCache && _rankCache.has(key)) return _rankCache.get(key);
+    const map = {};
+    allClimbers().forEach(c => { const v = capacityAsOf(c, disc, asOf); if (v !== null && v > 0) map[c] = v; });
+    if (_rankCache) _rankCache.set(key, map);
+    return map;
+}
+
+// Competition rank of `climber`: {rank, fieldSize, tieCount (incl self)}
+function rankInField(scoreMap, climber) {
+    const mine = scoreMap[climber];
+    if (mine == null || mine <= 0) return null;
+    let higher = 0, tie = 0, field = 0;
+    Object.values(scoreMap).forEach(v => { if (v > 0) { field++; if (v > mine) higher++; else if (v === mine) tie++; } });
+    return { rank: higher + 1, fieldSize: field, tieCount: tie };
+}
+
+function hardestGradeAsOf(c, asOf) {
+    let mx = 0, g = null;
+    State.logs.forEach(l => {
+        if (l.ClimberName !== c || isTopRope(l.Style) || !AppConfig.disciplines.includes(l.Discipline)) return;
+        const d = getCleanDate(l.Date);
+        if (d > asOf || dDiff(asOf, d) > HARDEST_WINDOW_DAYS) return;
+        const sc = getScoredValue(l.Grade, l.Style, l.Discipline);
+        if (sc > mx) { mx = sc; g = l.Grade; }
+    });
+    return g;
+}
+
+function prevClimbDate(c, before) {
+    let m = null;
+    State.logs.forEach(l => {
+        if (l.ClimberName !== c || !AppConfig.disciplines.includes(l.Discipline)) return;
+        const d = getCleanDate(l.Date);
+        if (d < before && (m === null || d > m)) m = d;
+    });
+    return m;
+}
+function prevOutdoorDate(c, before) {
+    let m = null;
+    State.logs.forEach(l => {
+        if (l.ClimberName !== c || !RANK_OUTDOOR_DISCS.includes(l.Discipline)) return;
+        const d = getCleanDate(l.Date);
+        if (d < before && (m === null || d > m)) m = d;
+    });
+    return m;
+}
+
+// Which discipline a cross-board move displays on: the day's hardest lead send, else most-logged disc.
+function dayHeadlineDisc(c, date) {
+    let best = -1, bestDisc = null; const cnt = {};
+    State.logs.forEach(l => {
+        if (l.ClimberName !== c || getCleanDate(l.Date) !== date) return;
+        cnt[l.Discipline] = (cnt[l.Discipline] || 0) + 1;
+        if (isTopRope(l.Style)) return;
+        const sc = getScoredValue(l.Grade, l.Style, l.Discipline);
+        if (sc > best) { best = sc; bestDisc = l.Discipline; }
+    });
+    if (bestDisc) return bestDisc;
+    let mx = -1, d = null;
+    Object.keys(cnt).forEach(k => { if (cnt[k] > mx) { mx = cnt[k]; d = k; } });
+    return d;
+}
+
+function rankLabel(ev) {
+    const t = ev.tier;
+    if (ev.board === 'hardest') {
+        const base = ev.tiedTop ? 'TIED HARDEST' : t === 'crown' ? 'HARDEST IN THE CREW' : t === 'podium' ? 'TOP 3 HARDEST' : 'TOP 5 HARDEST';
+        return ev.detail ? `${base} · ${escapeHTML(ev.detail)}` : base;
+    }
+    if (ev.board === 'capacity') {
+        const base = ev.tiedTop ? 'TIED #1 CAPACITY' : t === 'crown' ? '#1 CAPACITY' : t === 'podium' ? 'TOP 3 CAPACITY' : 'TOP 5 CAPACITY';
+        return `${base} · ${escapeHTML(ev.disc)}`;
+    }
+    if (ev.board === 'addicted') {
+        const base = ev.tiedTop ? 'TIED MOST ADDICTED' : t === 'crown' ? 'MOST ADDICTED' : 'TOP 3 ADDICTED';
+        return ev.detail ? `${base} · ${escapeHTML(ev.detail)}` : base;
+    }
+    const base = ev.tiedTop ? 'TIED MOST OUTDOOR' : t === 'crown' ? 'MOST OUTDOOR DAYS' : 'TOP 3 OUTDOOR';
+    return ev.detail ? `${base} · ${escapeHTML(ev.detail)}` : base;
+}
+
+function pushBoardMove(events, board, disc, climber, asOf, prevDate, homeDisc) {
+    const cfg = RANK_BOARDS[board];
+    const nowMap = board === 'capacity' ? capacityScoreMapAsOf(disc, asOf) : boardScoreMapAsOf(board, asOf);
+    const now = rankInField(nowMap, climber);
+    if (!now || now.rank > cfg.floor) return;
+    const tiedTop = (now.rank === 1 && now.tieCount > 1);
+    const tier = tiedTop ? 'podium' : rankTier(now.rank);
+    if (!tier) return;
+    if (now.tieCount >= 4) return;                       // big tie clump — not a flex
+    if (now.fieldSize < RANK_MIN_FIELD[tier]) return;    // thin field
+    const ord = { top5: 1, podium: 2, crown: 3 };
+    let prevOrd = 0;
+    if (prevDate) {
+        const pm = board === 'capacity' ? capacityScoreMapAsOf(disc, prevDate) : boardScoreMapAsOf(board, prevDate);
+        const p = rankInField(pm, climber);
+        if (p && p.rank <= cfg.floor) {
+            const pTied = (p.rank === 1 && p.tieCount > 1);
+            const pt = pTied ? 'podium' : rankTier(p.rank);
+            prevOrd = pt ? ord[pt] : 0;
+        }
+    }
+    if (ord[tier] <= prevOrd) return;                    // only fire on a tier upgrade
+    let detail = '';
+    if (board === 'hardest')       detail = hardestGradeAsOf(climber, asOf) || '';
+    else if (board === 'capacity') detail = gradeProgress(nowMap[climber], disc).current;
+    else                           detail = nowMap[climber] + (board === 'outdoor' ? ' outdoor days' : ' days');
+    events.push({ kind: 'rank', board, disc: disc || null, tier, rank: now.rank, tiedTop, detail, homeDisc });
+}
+
+function detectRankMoves(c, date) {
+    const ck = c + '|' + date;
+    if (_rankMoveCache && _rankMoveCache.has(ck)) return _rankMoveCache.get(ck);
+    const events = [];
+    const headline = dayHeadlineDisc(c, date);
+    const prevAny = prevClimbDate(c, date);
+    const prevOut = prevOutdoorDate(c, date);
+    pushBoardMove(events, 'hardest',  null, c, date, prevAny, headline);
+    pushBoardMove(events, 'addicted', null, c, date, prevAny, headline);
+    pushBoardMove(events, 'outdoor',  null, c, date, prevOut, headline);
+    AppConfig.disciplines.forEach(disc => { pushBoardMove(events, 'capacity', disc, c, date, prevSessionDate(c, disc, date), disc); });
+    if (_rankMoveCache) _rankMoveCache.set(ck, events);
+    return events;
+}
+
+function rankPriority(ev) {
+    if (ev.kind === 'rank') {
+        const base = { crown: 0, podium: 100, top5: 300 }[ev.tier];
+        const bw = { hardest: 0, capacity: 1, addicted: 2, outdoor: 3 }[ev.board];
+        return base + bw;
+    }
+    if (ev.kind === 'pr')      return 200;   // NEW MAX: below podium, above top-5
+    if (ev.kind === 'levelup') return 400;
+    if (ev.kind === 'standout') return ev.label === 'BIG DAY' ? 500 : 600;
+    return 700;
+}
+
+// Ordered highlights for one session card — crew rank-moves (this disc only) + personal — highest first.
+function sessionHighlights(c, disc, date) {
+    const pr = detectPR(c, disc, date);
+    const personal = [pr, detectLevelUp(c, disc, date), detectBigDay(c, disc, date), pr ? null : detectLimitDay(c, disc, date)].filter(Boolean);
+    const ranks = detectRankMoves(c, date).filter(ev => ev.homeDisc === disc);
+    return [...ranks, ...personal].sort((a, b) => rankPriority(a) - rankPriority(b));
+}
+
+function detectHighlight(c, disc, date) { return sessionHighlights(c, disc, date)[0] || null; }
+function detectAllHighlights(c, disc, date) { return sessionHighlights(c, disc, date); }
 
 // Eyebrow-tier highlights (inline, above the name): PR (coloured pill) + standout (faint).
 function highlightMarkup(session, hl) {
@@ -3761,6 +3958,9 @@ function highlightMarkup(session, hl) {
     if (!hl) return '';
     if (hl.kind === 'pr') {
         return `<div class="hl-eyebrow">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</div>`;
+    }
+    if (hl.kind === 'rank' && hl.tier === 'top5') {
+        return `<div class="hl-eyebrow">${rankLabel(hl)}</div>`;
     }
     if (hl.kind === 'standout') {
         const detail = hl.label === 'BIG DAY' ? `${hl.n} sends` : escapeHTML(hl.grade);
@@ -3779,6 +3979,12 @@ function lvlJump(from, to) {
 function bannerMarkup(session, hl) {
     if (hl === undefined) hl = detectHighlight(session.climber, session.discipline, session.date);
     if (!hl) return '';
+    if (hl.kind === 'rank' && hl.tier === 'crown') {
+        return `<div class="hl-banner hl-banner-crown"><span class="hl-rosette">${RANK_CROWN_SVG}</span><span class="hl-banner-text">${rankLabel(hl)}</span></div>`;
+    }
+    if (hl.kind === 'rank' && hl.tier === 'podium') {
+        return `<div class="hl-banner hl-banner-board"><span class="hl-rosette">▲</span><span class="hl-banner-text">${rankLabel(hl)}</span></div>`;
+    }
     if (hl.kind === 'board') {
         return `<div class="hl-banner hl-banner-board"><span class="hl-rosette">▲</span><span class="hl-banner-text">${escapeHTML(hl.label)}</span></div>`;
     }
@@ -3790,6 +3996,7 @@ function bannerMarkup(session, hl) {
 
 // Secondary highlights → small muted chips beside the primary badge.
 function chipMarkup(hl) {
+    if (hl.kind === 'rank')    return `<span class="hl-chip"><span class="hl-rosette">${hl.tier === 'crown' ? RANK_CROWN_SVG : '▲'}</span> ${rankLabel(hl)}</span>`;
     if (hl.kind === 'pr')      return `<span class="hl-chip">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</span>`;
     if (hl.kind === 'board')   return `<span class="hl-chip"><span class="hl-rosette">▲</span> ${escapeHTML(hl.label)}</span>`;
     if (hl.kind === 'levelup') return `<span class="hl-chip">✦ ${lvlJump(hl.from, hl.to)}</span>`;
@@ -4401,6 +4608,7 @@ function sendRowHtml(s, discipline) {
 function inlineBadge(climber, disc, date) {
     const hl = detectHighlight(climber, disc, date);
     if (!hl) return '';
+    if (hl.kind === 'rank')     return `<span class="hl-eyebrow"><span class="hl-rosette">${hl.tier === 'crown' ? RANK_CROWN_SVG : '▲'}</span> ${rankLabel(hl)}</span>`;
     if (hl.kind === 'pr')       return `<span class="hl-eyebrow">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</span>`;
     if (hl.kind === 'board')    return `<span class="hl-eyebrow"><span class="hl-rosette">▲</span> ${escapeHTML(hl.label)}</span>`;
     if (hl.kind === 'levelup')  return `<span class="hl-eyebrow"><span class="hl-rosette">✦</span> ${lvlJump(hl.from, hl.to)}</span>`;
@@ -4470,9 +4678,9 @@ function renderFeed() {
     const visibleItems = items.slice(0, feedPage * FEED_PAGE_SIZE);
     const remaining = items.length - visibleItems.length;
 
-    _capCache = new Map();
+    _capCache = new Map(); _rankCache = new Map(); _rankMoveCache = new Map();
     let html = visibleItems.map((it, i) => it.joint ? renderJointCard(it, i) : renderSessionCard(it, i)).join('');
-    _capCache = null;
+    _capCache = null; _rankCache = null; _rankMoveCache = null;
     if (remaining > 0) {
         html += `<button class="load-more-btn" id="feed-load-more">Load more · ${remaining} remaining</button>`;
     }
