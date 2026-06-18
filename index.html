@@ -3753,6 +3753,10 @@ function detectBigDay(c, disc, date) { const cnt = sessionCount(c, disc, date); 
 function detectLimitDay(c, disc, date) { const sm = sessionMaxBase(c, disc, date); if (sm.score > 0 && sm.score === max30Base(c, disc, date)) return { kind: 'standout', label: 'LIMIT DAY', grade: sm.grade }; return null; }
 function detectStandout(c, disc, date) { return detectBigDay(c, disc, date) || detectLimitDay(c, disc, date); }
 /* ===== crew-relative leaderboard-move detection (as-of-date) ===== */
+// Window lengths live here (not in Special Boards) because the feed boots and renders
+// before that section's code runs — the rank engine needs them defined this early.
+const HARDEST_WINDOW_DAYS = 30;   // hardest = highest single lead send, last 30 days
+const SPECIAL_WINDOW_DAYS = 60;   // addicted / outdoor = distinct days, last 60 days
 // Floors: performance boards celebrate top 5, volume boards top 3. Tiers: 1=crown,
 // 2-3=podium, 4-5=top5. Fires only on a tier UPGRADE vs your previous session.
 const RANK_BOARDS = { hardest: { floor: 5 }, capacity: { floor: 5 }, addicted: { floor: 3 }, outdoor: { floor: 3 } };
@@ -6412,8 +6416,8 @@ document.getElementById('view-location').addEventListener('click', (e) => {
 });
 
 /* ============== SPECIAL BOARDS ============== */
-const SPECIAL_WINDOW_DAYS = 60;   // Hot Spots · Most Addicted · Outdoor Days
-const HARDEST_WINDOW_DAYS = 30;   // "right now" trophy — kept short, stays aligned with the Peak chart
+// SPECIAL_WINDOW_DAYS (60) and HARDEST_WINDOW_DAYS (30) are declared up in the rank-engine
+// block so the feed can read them at boot; this section uses those same constants.
 let activeSpecialBoard = localStorage.getItem('leaderboard.lastSpecialBoard') || 'hardest';
 if (!['hardest', 'hotspots', 'addicted', 'outdoor'].includes(activeSpecialBoard)) activeSpecialBoard = 'hardest';
 let hotSpotsExpanded = false;
