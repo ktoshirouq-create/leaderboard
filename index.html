@@ -2175,11 +2175,21 @@ function showView(name) {
     }
 }
 
-// "Me" nav button → own profile, or a gentle "pick your name" prompt if no user yet
+// "Me" nav button → own profile, or a gentle "pick your name" prompt if no user yet.
+// Hidden door: 5 fast taps → your full breakdown (secret stats).
+let _meTaps = 0, _meTapTimer = null;
 document.querySelector('.nav-btn[data-view="profile"]').addEventListener('click', (e) => {
     e.stopImmediatePropagation();
     haptic('tap');
     navTab('profile');
+    _meTaps++;
+    clearTimeout(_meTapTimer);
+    _meTapTimer = setTimeout(() => { _meTaps = 0; }, 1500);
+    if (_meTaps >= 5) {
+        _meTaps = 0;
+        clearTimeout(_meTapTimer);
+        if (State.activeUser) { haptic('commit'); openNerdStats(State.activeUser); }
+    }
 }, true); // capture phase so it fires before the generic showView listener
 
 // Long-press the Me nav button → open user switcher (faster than going to profile first)
@@ -5660,23 +5670,8 @@ document.getElementById('nerd-modal').addEventListener('click', e => {
     if (e.target.id === 'nerd-modal') closeModal('nerd-modal');
 });
 
-// Profile name secret: 5 fast taps → Secret stats sheet. The only hidden door; depth is a button from there.
-(function () {
-    const nameEl = document.getElementById('profile-name');
-    if (!nameEl) return;
-    let taps = 0, resetTimer = null;
-    nameEl.addEventListener('click', () => {
-        taps++;
-        clearTimeout(resetTimer);
-        resetTimer = setTimeout(() => { taps = 0; }, 1500);
-        if (taps >= 5) {
-            taps = 0;
-            clearTimeout(resetTimer);
-            haptic('commit');
-            if (profileClimber) openNerdStats(profileClimber);
-        }
-    });
-})();
+// Full breakdown (secret stats) now opens from 5 fast taps on the "Me" nav button
+// (see the nav handler near the top) — easier to find than tapping the name.
 
 /* ============== SECRET STATS PAGE (hidden — long-press the profile name) ============== */
 let secretClimber = null;
