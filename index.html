@@ -3754,9 +3754,9 @@ const CAP_DORMANT_MIN = 2;    // a board needs this many qualifiers, else it's d
 function capacityAsOf(c, disc, asOf) {
     const ck = c + '|' + disc + '|' + asOf;
     if (_capCache && _capCache.has(ck)) return _capCache.get(ck);
-    const sc = []; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; const d = getCleanDate(l.Date); if (d > asOf) return; if (dDiff(asOf, d) > 60) return; const v = getScoredValue(l.Grade, l.Style, disc); if (v > 0) sc.push(v); });
+    const sc = []; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; const d = getCleanDate(l.Date); if (d > asOf) return; if (dDiff(asOf, d) > CAP_WINDOW) return; const v = getScoredValue(l.Grade, l.Style, disc); if (v > 0) sc.push(v); });
     let out = null;
-    if (sc.length >= 10) { sc.sort((a, b) => b - a); const t = sc.slice(0, 10); out = t.reduce((s, x) => s + x, 0) / t.length; }
+    if (sc.length >= CAP_QUALIFY) { sc.sort((a, b) => b - a); const t = sc.slice(0, CAP_POOL); out = t.reduce((s, x) => s + x, 0) / t.length; }
     if (_capCache) _capCache.set(ck, out);
     return out;
 }
