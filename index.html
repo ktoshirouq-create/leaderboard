@@ -4793,8 +4793,7 @@ const hadCache = bootFromCache();
 if (!hadCache) renderFeedSkeleton();
 fetchData();
 /* ============== CAPACITY BOARD ============== */
-const CAPACITY_THRESHOLD = 10;
-const CAPACITY_WINDOW_DAYS = 60;
+// Window/pool/qualify live in the CAP_* constants up top (declared before boot).
 
 let activeBoardDiscipline = localStorage.getItem('leaderboard.lastBoardDisc') || 'In Boulder';
 if (!AppConfig.disciplines.includes(activeBoardDiscipline)) activeBoardDiscipline = 'In Boulder';
@@ -4838,7 +4837,7 @@ function computeCapacity(discipline, mode = 'lead') {
     const byClimber = new Map();
     State.logs.forEach(log => {
         if (log.Discipline !== discipline) return;
-        if (!isWithinWindow(log.Date, CAPACITY_WINDOW_DAYS)) return;
+        if (!isWithinWindow(log.Date, CAP_WINDOW)) return;
         if (mode === 'tr' ? !isTopRope(log.Style) : isTopRope(log.Style)) return;
         const score = getScoredValue(log.Grade, log.Style, discipline);
         if (score <= 0) return;
@@ -4846,26 +4845,27 @@ function computeCapacity(discipline, mode = 'lead') {
         if (!byClimber.has(climber)) byClimber.set(climber, []);
         byClimber.get(climber).push(score);
     });
-    
-    const qualified = [];
-    const provisional = [];
-    
+
+    const ranked = [];    // >= CAP_QUALIFY sends: score-ranked, firming (4-5) or established (6+)
+    const warming = [];   // 1 .. CAP_QUALIFY-1 sends: footer, by count
+
     byClimber.forEach((scores, climber) => {
-        const sortedDesc = [...scores].sort((a, b) => b - a);
-        if (scores.length >= CAPACITY_THRESHOLD) {
-            const top10 = sortedDesc.slice(0, CAPACITY_THRESHOLD);
-            const avgScore = top10.reduce((s, x) => s + x, 0) / top10.length;
-            qualified.push({ climber, avgScore, sendCount: scores.length });
-        } else {
-            const avgScore = sortedDesc.reduce((s, x) => s + x, 0) / sortedDesc.length;
-            provisional.push({ climber, avgScore, sendCount: scores.length });
+        const n = scores.length;
+        if (n >= CAP_QUALIFY) {
+            const top = [...scores].sort((a, b) => b - a).slice(0, CAP_POOL);  // adaptive: all of 4-5, top-6 at 6+
+            const avgScore = top.reduce((s, x) => s + x, 0) / top.length;
+            ranked.push({ climber, avgScore, sendCount: n, tier: n >= CAP_POOL ? 'estab' : 'firm' });
+        } else if (n >= 1) {
+            warming.push({ climber, sendCount: n });
         }
     });
-    
-    qualified.sort((a, b) => b.avgScore - a.avgScore);
-    provisional.sort((a, b) => b.sendCount - a.sendCount);
-    
-    return { qualified, provisional };
+
+    ranked.sort((a, b) => b.avgScore - a.avgScore);
+    warming.sort((a, b) => b.sendCount - a.sendCount);
+    assignTiedRanks(ranked);
+
+    // Dormant: too few qualifiers to be a real board (e.g. Trad, Out Boulder).
+    return { ranked, warming, dormant: ranked.length < CAP_DORMANT_MIN };
 }
 
 function assignTiedRanks(rows) {
