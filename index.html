@@ -3901,6 +3901,12 @@ function dayHeadlineDisc(c, date) {
 function rankLabel(ev) {
     const t = ev.tier;
     if (ev.board === 'hardest') {
+        if (t === 'crown' && ev.dethroned && ev.dethroned.length) {
+            const who = ev.dethroned.length === 1 ? ev.dethroned[0]
+                      : ev.dethroned.length === 2 ? ev.dethroned[0] + ' & ' + ev.dethroned[1] : null;
+            const base = who ? `DETHRONED ${escapeHTML(who)}` : 'HARDEST IN THE CREW';
+            return ev.detail ? `${base} · ${escapeHTML(ev.detail)}` : base;
+        }
         const base = ev.tiedTop ? 'TIED HARDEST' : t === 'crown' ? 'HARDEST IN THE CREW' : t === 'podium' ? 'TOP 3 HARDEST' : 'TOP 5 HARDEST';
         return ev.detail ? `${base} · ${escapeHTML(ev.detail)}` : base;
     }
