@@ -3467,7 +3467,14 @@ async function submitLog() {
     const _mv = detectRankMoves(State.activeUser, submittedDate);
     const _crownMv = _mv.find(m => m.tier === 'crown');
     const _podMv   = _mv.find(m => m.tier === 'podium');
-    if (_crownMv) { fireConfetti(); showToast('👑 ' + rankLabel(_crownMv)); }
+    if (_crownMv) {
+        fireConfetti();
+        let _t = '👑 ' + rankLabel(_crownMv);
+        if (_crownMv.board === 'hardest' && _crownMv.dethroned && _crownMv.dethroned.length && _crownMv.dethroned.length <= 2) {
+            _t = `👑 You dethroned ${_crownMv.dethroned.join(' & ')} — undisputed #1`;
+        }
+        showToast(_t);
+    }
     else if (_podMv) { if (!_isPB) fireConfetti(); showToast(rankLabel(_podMv)); }
 
     try {
