@@ -4894,10 +4894,9 @@ function renderCapacityBoard() {
     capSuppressClick = false;  // fresh render — clear any stale long-press suppression
     const discHasTR = TR_CAPACITY_DISCIPLINES.includes(activeBoardDiscipline);
     if (!discHasTR) activeCapacityMode = 'lead';  // boulder/Trad never have a TR board
-    const { qualified, provisional } = computeCapacity(activeBoardDiscipline, activeCapacityMode);
-    assignTiedRanks(qualified);
+    const { ranked, warming, dormant } = computeCapacity(activeBoardDiscipline, activeCapacityMode);
     
-    const maxAvg = qualified[0]?.avgScore || 1;
+    const maxAvg = ranked[0]?.avgScore || 1;
     
     let html = '';
     
@@ -4924,54 +4923,56 @@ function renderCapacityBoard() {
     const scale = AppConfig.grades[activeBoardDiscipline];
     const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
     
-    if (qualified.length > 0) {
-        html += qualified.slice(0, 10).map(r => {
+    if (dormant) {
+        html += `<div class="lb-empty">Not enough crew sends here yet — needs ${CAP_DORMANT_MIN} climbers with ${CAP_QUALIFY}+ sends in ${CAP_WINDOW} days.</div>`;
+        // still show who HAS logged, faded, so nobody vanishes from a dormant board
+        const seen = [...ranked.map(r => ({ climber: r.climber, sendCount: r.sendCount })), ...warming]
+            .sort((a, b) => b.sendCount - a.sendCount);
+        html += seen.map(r => `
+            <div class="lb-row provisional" data-climber="${escapeHTML(r.climber)}">
+                <div class="lb-rank">—</div>
+                <div class="lb-bar-wrap">
+                    <div class="lb-name">${escapeHTML(r.climber)}</div>
+                    <div class="lb-grade-pct">${r.sendCount} send${r.sendCount === 1 ? '' : 's'}</div>
+                </div>
+                <div class="lb-grade"></div>
+            </div>`).join('');
+    } else {
+        html += ranked.slice(0, 10).map(r => {
             const prog = gradeProgress(r.avgScore, activeBoardDiscipline);
             const fillPct = Math.round((r.avgScore / maxAvg) * 100);
-            const pctText = prog.next ? `${prog.pct}% → ${escapeHTML(prog.next)}` : 'maxed';
+            const firm = r.tier === 'firm';
             const dotIdx = scale.labels.indexOf(prog.current);
             const dot = useDot && dotIdx >= 0
-                ? `<span class="grade-dot" style="background:${scale.colors[dotIdx]}"></span>`
+                ? `<span class="grade-dot" style="background:${scale.colors[dotIdx]}${firm ? '; opacity:0.6' : ''}"></span>`
                 : '';
+            // Established: grade + "% -> next". Firming (4-5): "~grade" + "n/6", no percent.
+            const gradeBlock = firm
+                ? `<div class="lb-grade-val">${dot}~${escapeHTML(prog.current)}</div><div class="lb-grade-pct">${r.sendCount}/${CAP_POOL}</div>`
+                : `<div class="lb-grade-val">${dot}${escapeHTML(prog.current)}</div><div class="lb-grade-pct">${prog.next ? `${prog.pct}% → ${escapeHTML(prog.next)}` : 'maxed'}</div>`;
             return `
-            <div class="lb-row" data-climber="${escapeHTML(r.climber)}">
+            <div class="lb-row ${firm ? 'provisional' : ''}" data-climber="${escapeHTML(r.climber)}">
                 <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
                 <div class="lb-bar-wrap">
                     <div class="lb-name">${escapeHTML(r.climber)}</div>
                     <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
                 </div>
-                <div class="lb-grade">
-                    <div class="lb-grade-val">${dot}${escapeHTML(prog.current)}</div>
-                    <div class="lb-grade-pct">${pctText}</div>
-                </div>
+                <div class="lb-grade">${gradeBlock}</div>
             </div>`;
         }).join('');
-    } else {
-        html += '<div class="lb-empty">No one\'s qualified yet. Log 10 sends in this discipline.</div>';
     }
     
-    if (provisional.length > 0) {
-        html += '<div class="lb-section-title">Provisional</div>';
-        html += provisional.map(r => {
-            const prog = gradeProgress(r.avgScore, activeBoardDiscipline);
-            const fillPct = Math.round((r.avgScore / maxAvg) * 100) || 10;
-            const dotIdx = scale.labels.indexOf(prog.current);
-            const dot = useDot && dotIdx >= 0
-                ? `<span class="grade-dot" style="background:${scale.colors[dotIdx]}; opacity:0.6"></span>`
-                : '';
-            return `
+    if (!dormant && warming.length > 0) {
+        html += '<div class="lb-section-title">Warming up</div>';
+        html += warming.map(r => `
             <div class="lb-row provisional" data-climber="${escapeHTML(r.climber)}">
                 <div class="lb-rank">—</div>
                 <div class="lb-bar-wrap">
                     <div class="lb-name">${escapeHTML(r.climber)}</div>
-                    <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
-                    <div class="lb-grade-pct">${r.sendCount} / 10 sends</div>
+                    <div class="lb-grade-pct">${r.sendCount} / ${CAP_QUALIFY} sends to rank</div>
                 </div>
-                <div class="lb-grade">
-                    <div class="lb-grade-val">${dot}~${escapeHTML(prog.current)}</div>
-                </div>
-            </div>`;
-        }).join('');
+                <div class="lb-grade"></div>
+            </div>`).join('');
     }
     
     document.getElementById('capacity-board').innerHTML = html;
