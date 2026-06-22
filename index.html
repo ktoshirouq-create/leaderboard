@@ -5064,7 +5064,7 @@ function renderCapTop10Page() {
     } else {
         const barHtml = capBarRow(climbs, capPageDisc);
         const chartHtml = '<div class="profile-section-title" style="margin-top:18px">Capacity over time · last 6 months</div><div id="captop10-chart"></div>';
-        const listTitle = '<div class="profile-section-title">Top 10 climbs</div>';
+        const listTitle = `<div class="profile-section-title">Top ${CAP_POOL} feeding capacity</div>`;
         const listHtml = `<div class="top10-list">${renderTop10Rows(climbs)}</div>`;
         document.getElementById('captop10-list').innerHTML = toggle + barHtml + chartHtml + listTitle + listHtml;
         renderCapacityChart(climber, capPageDisc, capPageMode, 'captop10-chart');
@@ -5084,7 +5084,7 @@ function renderCapTop10Page() {
 // board row (grade + progress to next), minus the leaderboard rank.
 function capBarRow(climbs, discipline) {
     if (!climbs || climbs.length === 0) return '';
-    const scores = climbs.map(c => c._score);
+    const scores = climbs.slice(0, CAP_POOL).map(c => c._score);   // capacity bar = top-6 only
     const avg = scores.reduce((s, x) => s + x, 0) / scores.length;
     const prog = gradeProgress(avg, discipline);
     const scale = AppConfig.grades[discipline];
@@ -5264,20 +5264,21 @@ function computeTop10For(climber, discipline, mode) {
     const climbs = State.logs.filter(log => {
         if (log.ClimberName !== climber) return false;
         if (log.Discipline !== discipline) return false;
-        if (!isWithinWindow(log.Date, 60)) return false;
+        if (!isWithinWindow(log.Date, CAP_WINDOW)) return false;
         if (mode === 'tr' ? !isTopRope(log.Style) : isTopRope(log.Style)) return false;
         return getScoredValue(log.Grade, log.Style, discipline) > 0;
     });
     return climbs
         .map(c => ({ ...c, _score: getScoredValue(c.Grade, c.Style, discipline) }))
         .sort((a, b) => b._score - a._score)
-        .slice(0, 10);
+        .slice(0, 12);   // feeders (top CAP_POOL) + a few dimmed for context
 }
 
 // Top-10 rows with "Nd left" expiry, shared between profile and capacity drill-down.
 function renderTop10Rows(climbs) {
     const today = new Date(getCleanDate(new Date()));
-    return climbs.map(c => {
+    return climbs.map((c, _i) => {
+        const _feeder = _i < CAP_POOL;   // first 6 feed capacity; the rest are in-window context, dimmed
         const climbDate = new Date(getCleanDate(c.Date));
         const ageDays = Math.floor((today - climbDate) / 86400000);
         const remaining = Math.max(0, 60 - ageDays);
@@ -5291,7 +5292,7 @@ function renderTop10Rows(climbs) {
         const gdot = c.Discipline === 'In Boulder'
             ? `<span class="grade-dot" style="background:${boulderColorForGrade(c.Grade, c.Where)}"></span>`
             : '';
-        return `<div class="top10-row" data-disc="${escapeHTML(c.Discipline)}">
+        return `<div class="top10-row" data-disc="${escapeHTML(c.Discipline)}" style="${_feeder ? '' : 'opacity:0.45'}">
             <span class="top10-grade">${gdot}${escapeHTML(c.Grade)}</span>
             <div class="top10-info">
                 <div class="top10-route">${escapeHTML(topLine)}</div>
@@ -5320,7 +5321,7 @@ function computeCapacityHistory(climber, discipline, mode) {
     while (cur <= today) {
         const snapDate = new Date(cur);
         const windowStart = new Date(snapDate);
-        windowStart.setDate(snapDate.getDate() - 60);
+        windowStart.setDate(snapDate.getDate() - CAP_WINDOW);
         const scores = [];
         relevant.forEach(log => {
             const logDate = new Date(getCleanDate(log.Date));
@@ -5328,8 +5329,8 @@ function computeCapacityHistory(climber, discipline, mode) {
             scores.push(getScoredValue(log.Grade, log.Style, discipline));
         });
         const sortedDesc = scores.sort((a, b) => b - a);
-        const top10 = sortedDesc.slice(0, 10);
-        const avg = top10.length > 0 ? top10.reduce((s, x) => s + x, 0) / top10.length : null;
+        const pool = sortedDesc.slice(0, CAP_POOL);
+        const avg = sortedDesc.length >= CAP_QUALIFY ? pool.reduce((s, x) => s + x, 0) / pool.length : null;
         snapshots.push({ date: snapDate.toISOString().slice(0, 10), score: avg });
         cur.setDate(cur.getDate() + 7);
     }
