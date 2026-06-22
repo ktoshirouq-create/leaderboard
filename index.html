@@ -3840,6 +3840,17 @@ function rankInField(scoreMap, climber) {
     return { rank: higher + 1, fieldSize: field, tieCount: tie };
 }
 
+// Top scorer(s) in a board map; pass exclude to drop the mover. Powers dethrone + standing crown.
+function topScorers(map, exclude) {
+    let mx = 0; Object.keys(map).forEach(k => { if (k !== exclude && map[k] > mx) mx = map[k]; });
+    if (mx <= 0) return [];
+    return Object.keys(map).filter(k => k !== exclude && map[k] === mx);
+}
+// Current Hardest #1(s) as of today — the reigning king(s), co-kings on a tie.
+function hardestKingsNow() {
+    return topScorers(boardScoreMapAsOf('hardest', getCleanDate(new Date())), null);
+}
+
 function hardestGradeAsOf(c, asOf) {
     let mx = 0, g = null;
     State.logs.forEach(l => {
@@ -3917,6 +3928,7 @@ function pushBoardMove(events, board, disc, climber, asOf, prevDate, homeDisc) {
     if (now.fieldSize < RANK_MIN_FIELD[tier]) return;    // thin field
     const ord = { top5: 1, podium: 2, crown: 3 };
     let prevOrd = 0;
+    let dethroned = null;
     if (prevDate) {
         const pm = board === 'capacity' ? capacityScoreMapAsOf(disc, prevDate) : boardScoreMapAsOf(board, prevDate);
         const p = rankInField(pm, climber);
@@ -3925,13 +3937,14 @@ function pushBoardMove(events, board, disc, climber, asOf, prevDate, homeDisc) {
             const pt = pTied ? 'podium' : rankTier(p.rank);
             prevOrd = pt ? ord[pt] : 0;
         }
+        if (board === 'hardest') dethroned = topScorers(pm, climber);  // who held the crown before this send
     }
     if (ord[tier] <= prevOrd) return;                    // only fire on a tier upgrade
     let detail = '';
     if (board === 'hardest')       detail = hardestGradeAsOf(climber, asOf) || '';
     else if (board === 'capacity') detail = gradeProgress(nowMap[climber], disc).current;
     else                           detail = nowMap[climber] + (board === 'outdoor' ? ' outdoor days' : ' days');
-    events.push({ kind: 'rank', board, disc: disc || null, tier, rank: now.rank, tiedTop, detail, homeDisc });
+    events.push({ kind: 'rank', board, disc: disc || null, tier, rank: now.rank, tiedTop, detail, homeDisc, dethroned });
 }
 
 function detectRankMoves(c, date) {
