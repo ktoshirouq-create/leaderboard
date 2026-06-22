@@ -3745,6 +3745,12 @@ function sessionCount(c, disc, date) { let n = 0; State.logs.forEach(l => { if (
 function maxSessionCount30(c, disc, excl) { const bd = {}; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc) return; const d = getCleanDate(l.Date); if (d === excl) return; const df = dDiff(excl, d); if (df < 0 || df > 30) return; bd[d] = (bd[d] || 0) + 1; }); const v = Object.values(bd); return v.length ? Math.max(...v) : 0; }
 function max30Base(c, disc, date) { let mx = 0; State.logs.forEach(l => { if (l.ClimberName !== c || l.Discipline !== disc || isTopRope(l.Style)) return; const df = dDiff(date, getCleanDate(l.Date)); if (df < 0 || df > 30) return; const s = baseScoreOf(l.Grade, disc); if (s > mx) mx = s; }); return mx; }
 let _capCache = null;  // a Map() only during a synchronous feed render; null elsewhere = always fresh
+// Capacity v2 params — declared here (before the feed boots) because capacityAsOf below,
+// the board, the history chart and the drill-down all read them, and the feed renders at boot.
+const CAP_WINDOW = 90;        // rolling days
+const CAP_POOL = 6;           // average your top-N scored sends
+const CAP_QUALIFY = 4;        // min sends to be ranked (4-5 = firming, 6+ = established)
+const CAP_DORMANT_MIN = 2;    // a board needs this many qualifiers, else it's dormant
 function capacityAsOf(c, disc, asOf) {
     const ck = c + '|' + disc + '|' + asOf;
     if (_capCache && _capCache.has(ck)) return _capCache.get(ck);
