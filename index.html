@@ -1775,7 +1775,7 @@ body.disco .disco-me {
             <span class="board-title">Working Capacity</span>
             <button class="info-icon" id="capacity-info">i</button>
         </div>
-        <div class="board-subtitle">Top 10 climbs in last 60 days</div>
+        <div class="board-subtitle">Top 6 climbs, last 90 days</div>
         <div id="capacity-board"></div>
     </div>
 
@@ -5009,11 +5009,11 @@ document.getElementById('capacity-info').addEventListener('click', () => {
     haptic('tap');
     openInfoModal('Working Capacity', [
         { term: 'What it measures',
-          def: 'Average score of your top 10 sends in the last 60 days. Where you actually live as a climber, not your peak.' },
+          def: 'Average score of your top 6 sends in the last 90 days. Where you actually live as a climber, not your peak.' },
         { term: 'Bonuses',
           def: 'Flash: +10 (rope) or +17 (boulder). Onsight: +10. Plain redpoint sends get no bonus.' },
-        { term: 'Qualifying',
-          def: 'Need 10+ sends in a discipline within 60 days to be ranked. Below that, you\'re provisional and ranked separately.' }
+        { term: 'Getting ranked',
+          def: '4 sends in 90 days puts you on the board (faded until you reach 6); fewer and you\'re warming up with a target. A board stays dormant until 2 climbers qualify.' }
     ]);
 });
 
