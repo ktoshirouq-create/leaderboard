@@ -2209,10 +2209,15 @@ document.querySelector('.nav-btn[data-view="profile"]').addEventListener('click'
             const names = State.roster.map(r => r.Name).filter(Boolean);
             renderPillList('switcher-pills', names, (name) => {
                 setActiveUser(name);
-                closeModal('switcher-modal');
                 renderFeed();
-                if (State.activeView === 'profile') showProfile(name);
-                if (State.activeView === 'boards') applyBoardMode();
+                updateNavLabel();
+                if (State.activeView === 'profile') {
+                    // one-step swap so a switch from the profile view follows the new user
+                    replaceTopScreen('switcher-modal', { kind: 'view', view: 'profile', param: name }, () => showProfile(name));
+                } else {
+                    closeModal('switcher-modal');
+                    if (State.activeView === 'boards') applyBoardMode();
+                }
             }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false, onLongPress: openRenameClimber });
             openModal('switcher-modal');
         }, LONG_PRESS_MS);
