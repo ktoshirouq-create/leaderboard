@@ -5605,20 +5605,13 @@ document.getElementById('profile-back').addEventListener('click', () => {
     navBack();
 });
 
-document.getElementById('profile-switcher').addEventListener('click', () => {
-    haptic('tap');
-    // Reuse the switcher modal but disable + Add (roster managed via logger only)
-    const names = State.roster.map(r => r.Name).filter(Boolean);
-    renderPillList('switcher-pills', names, (name) => {
-        setActiveUser(name);
-        closeModal('switcher-modal');
-        showProfile(name);
-        // Re-render feed so long-press handlers reflect the new user
-        renderFeed();
-        updateNavLabel();
-    }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false, onLongPress: openRenameClimber });
-    openModal('switcher-modal');
-});
+renderPillList('switcher-pills', names, (name) => {
+                setActiveUser(name);
+                closeModal('switcher-modal');
+                renderFeed();
+                if (State.activeView === 'profile') showProfile(name);
+                if (State.activeView === 'boards') applyBoardMode();
+            }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false, onLongPress: openRenameClimber });
 
 /* ============== NERD STATS (hidden — 5 taps on profile name) ============== */
 function openNerdStats(climber) {
