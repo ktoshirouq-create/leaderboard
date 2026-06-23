@@ -3917,10 +3917,8 @@ function dayHeadlineDisc(c, date) {
 function rankLabel(ev) {
     const t = ev.tier;
     if (ev.board === 'hardest') {
-        if (t === 'crown' && ev.dethroned && ev.dethroned.length) {
-            const who = ev.dethroned.length === 1 ? ev.dethroned[0]
-                      : ev.dethroned.length === 2 ? ev.dethroned[0] + ' & ' + ev.dethroned[1] : null;
-            const base = who ? `DETHRONED ${escapeHTML(who)}` : 'HARDEST IN THE CREW';
+        if (t === 'crown' && ev.dethroned && ev.dethroned.length && ev.dethroned.length <= 2) {
+            const base = 'UNDISPUTED #1';                 // lead with the prize; deposed king moves to a chip
             return ev.detail ? `${base} · ${escapeHTML(ev.detail)}` : base;
         }
         const base = ev.tiedTop ? 'TIED HARDEST' : t === 'crown' ? 'HARDEST IN THE CREW' : t === 'podium' ? 'TOP 3 HARDEST' : 'TOP 5 HARDEST';
@@ -4605,6 +4603,11 @@ function renderSessionCard(session, idx) {
     const sendsHtml = sortedSends.map(s => sendRowHtml(s, session.discipline)).join('');
     const cardHl = detectHighlight(session.climber, session.discipline, session.date);
     const moreHl = detectAllHighlights(session.climber, session.discipline, session.date).slice(1);
+    // Coronation: banner leads with UNDISPUTED #1; the deposed king drops to a faint chip.
+    // 1-2 names only (3+ co-kings already falls back to a generic banner with no chip).
+    const dethroneChip = (cardHl && cardHl.kind === 'rank' && cardHl.board === 'hardest' && cardHl.tier === 'crown'
+        && cardHl.dethroned && cardHl.dethroned.length && cardHl.dethroned.length <= 2)
+        ? `<span class="hl-chip">↓ took it from ${escapeHTML(cardHl.dethroned.join(' & '))}</span>` : '';
 
     const stateClass = session._failed ? 'failed' : (session._optimistic ? 'syncing' : '');
 
@@ -4620,7 +4623,7 @@ function renderSessionCard(session, idx) {
             </div>
             <div class="s-where">${session.wheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ')}</div>
         </div>
-        ${secondaryChips(moreHl)}
+        ${(dethroneChip || moreHl.length) ? `<div class="hl-chips">${dethroneChip}${moreHl.map(chipMarkup).join('')}</div>` : ''}
         <div class="s-summary">
             ${summaryHtml}
         </div>
