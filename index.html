@@ -5605,13 +5605,20 @@ document.getElementById('profile-back').addEventListener('click', () => {
     navBack();
 });
 
-renderPillList('switcher-pills', names, (name) => {
-                setActiveUser(name);
-                closeModal('switcher-modal');
-                renderFeed();
-                if (State.activeView === 'profile') showProfile(name);
-                if (State.activeView === 'boards') applyBoardMode();
-            }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false, onLongPress: openRenameClimber });
+// Profile "Switch user ▾" → pick a name, then swap straight to that user's profile in ONE
+// step. replaceTopScreen (not closeModal + showProfile) avoids the history.back()/push race
+// that was snapping the view back to the previous user.
+document.getElementById('profile-switcher').addEventListener('click', () => {
+    haptic('tap');
+    const names = State.roster.map(r => r.Name).filter(Boolean);
+    renderPillList('switcher-pills', names, (name) => {
+        setActiveUser(name);
+        renderFeed();
+        updateNavLabel();
+        replaceTopScreen('switcher-modal', { kind: 'view', view: 'profile', param: name }, () => showProfile(name));
+    }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false, onLongPress: openRenameClimber });
+    openModal('switcher-modal');
+});
 
 /* ============== NERD STATS (hidden — 5 taps on profile name) ============== */
 function openNerdStats(climber) {
