@@ -214,6 +214,9 @@ h1.screen-title {
 .hl-banner-crown .hl-rosette { filter: drop-shadow(0 0 6px rgba(251,191,36,0.75)); }
 .hl-banner-crown::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 35%, rgba(251,191,36,0.22) 50%, transparent 65%); background-size: 220% 100%; animation: crown-shimmer 2.6s ease-in-out infinite; pointer-events: none; }
 @keyframes crown-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -120% 0; } }
+/* Standing crown beside the reigning Hardest #1's name — gold, small, glowing */
+.name-crown { display: inline-flex; align-items: center; color: var(--gold); vertical-align: -0.08em; }
+.name-crown .lvl-arrow { width: 0.66em; height: 0.66em; filter: drop-shadow(0 0 5px rgba(251,191,36,0.7)); }
 /* Level-up grade jump: SVG arrow stays optically centred across fonts */
 .lvl-jump { display: inline-flex; align-items: center; gap: 3px; }
 .lvl-arrow { width: 0.82em; height: 0.82em; flex: none; }
@@ -3857,6 +3860,12 @@ function topScorers(map, exclude) {
 function hardestKingsNow() {
     return topScorers(boardScoreMapAsOf('hardest', getCleanDate(new Date())), null);
 }
+// Small gold crown before the reigning #1's name (feed cards + profile header).
+function nameCrown(climber) {
+    return hardestKingsNow().includes(climber)
+        ? `<span class="name-crown" aria-hidden="true">${RANK_CROWN_SVG}</span> `
+        : '';
+}
 
 function hardestGradeAsOf(c, asOf) {
     let mx = 0, g = null;
@@ -4605,7 +4614,7 @@ function renderSessionCard(session, idx) {
         <div class="session-header">
             <div class="s-name-block">
                 ${highlightMarkup(session, cardHl)}
-                <div class="s-name" data-profile-link>${hardestKingsNow().includes(session.climber) ? '👑 ' : ''}${escapeHTML(session.climber)}</div>
+                <div class="s-name" data-profile-link>${nameCrown(session.climber)}${escapeHTML(session.climber)}</div>
                 <div class="s-time">${escapeHTML(timeText)}${session._splitFrom ? ` <span class="merge-back" data-merge-key="${escapeHTML(session._splitFrom)}">↩ merge back</span>` : ''}</div>
                 ${session.belayers && session.belayers.length ? `<div class="s-with">with ${session.belayers.map(escapeHTML).join(', ')}</div>` : ''}
             </div>
@@ -4694,7 +4703,7 @@ function renderJointCard(group, idx) {
         const sendsHtml = sortSendsByScore(m.sends, m.discipline).map(s => sendRowHtml(s, m.discipline)).join('');
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
-                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${hardestKingsNow().includes(m.climber) ? '👑 ' : ''}${escapeHTML(m.climber)}</span></div>
+                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span></div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
             <div class="jc-sends">${sendsHtml}</div>
@@ -5569,7 +5578,7 @@ function showProfile(climber) {
         return;
     }
     
-    document.getElementById('profile-name').textContent = (hardestKingsNow().includes(climber) ? '👑 ' : '') + climber.toUpperCase();
+    document.getElementById('profile-name').innerHTML = nameCrown(climber) + escapeHTML(climber.toUpperCase());
     // Default the pyramid to whichever discipline this climber most recently logged
     const recentLog = State.logs
         .filter(log => log.ClimberName === climber && AppConfig.disciplines.includes(log.Discipline))
