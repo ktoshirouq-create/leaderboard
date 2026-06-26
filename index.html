@@ -4975,7 +4975,7 @@ function renderCapacityBoard() {
             <div class="lb-row provisional" data-climber="${escapeHTML(r.climber)}">
                 <div class="lb-rank">—</div>
                 <div class="lb-bar-wrap">
-                    <div class="lb-name">${escapeHTML(r.climber)}</div>
+                    <div class="lb-name">${nameCrown(r.climber)}${escapeHTML(r.climber)}</div>
                     <div class="lb-grade-pct">${r.sendCount} send${r.sendCount === 1 ? '' : 's'}</div>
                 </div>
                 <div class="lb-grade"></div>
@@ -4997,7 +4997,7 @@ function renderCapacityBoard() {
             <div class="lb-row ${firm ? 'provisional' : ''}" data-climber="${escapeHTML(r.climber)}">
                 <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
                 <div class="lb-bar-wrap">
-                    <div class="lb-name">${escapeHTML(r.climber)}</div>
+                    <div class="lb-name">${nameCrown(r.climber)}${escapeHTML(r.climber)}</div>
                     <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
                 </div>
                 <div class="lb-grade">${gradeBlock}</div>
@@ -5011,7 +5011,7 @@ function renderCapacityBoard() {
             <div class="lb-row provisional" data-climber="${escapeHTML(r.climber)}">
                 <div class="lb-rank">—</div>
                 <div class="lb-bar-wrap">
-                    <div class="lb-name">${escapeHTML(r.climber)}</div>
+                    <div class="lb-name">${nameCrown(r.climber)}${escapeHTML(r.climber)}</div>
                     <div class="lb-grade-pct">${r.sendCount} / ${CAP_QUALIFY} sends to rank</div>
                 </div>
                 <div class="lb-grade"></div>
@@ -6333,7 +6333,7 @@ function renderTopRoutes(sends, lens) {
                 const sn = String(t.Style || '').toLowerCase();
                 const sc = (sn === 'flash' || sn === 'onsight') ? sn : '';
                 return `<div class="gb-tick">
-                    <span class="gb-tick-climber" data-loc-climber="${escapeHTML(t.ClimberName)}">${escapeHTML(t.ClimberName)}</span>
+                    <span class="gb-tick-climber" data-loc-climber="${escapeHTML(t.ClimberName)}">${nameCrown(t.ClimberName)}${escapeHTML(t.ClimberName)}</span>
                     <span class="gb-tick-style ${sc}">${escapeHTML(t.Style)}</span>
                 </div>`;
             }).join('');
@@ -6364,7 +6364,7 @@ function renderGymHardest(sends) {
             : '';
         return `<div class="loc-list-row">
             <span class="loc-list-grade">${gdot}${escapeHTML(s.Grade)}</span>
-            <span class="loc-list-climber" data-loc-climber="${escapeHTML(s.ClimberName)}">${escapeHTML(s.ClimberName)}</span>
+            <span class="loc-list-climber" data-loc-climber="${escapeHTML(s.ClimberName)}">${nameCrown(s.ClimberName)}${escapeHTML(s.ClimberName)}</span>
             <span class="gb-tick-style ${sc}">${escapeHTML(s.Style)}</span>
         </div>`;
     }).join('') + `</div>`;
@@ -6382,7 +6382,7 @@ function renderLocationRecentList(sends) {
             : '';
         return `<div class="loc-recent-row">
             <span class="loc-recent-date">${escapeHTML(dateStr)}</span>
-            <span class="loc-recent-climber" data-loc-climber="${escapeHTML(l.ClimberName)}">${escapeHTML(l.ClimberName)}</span>
+            <span class="loc-recent-climber" data-loc-climber="${escapeHTML(l.ClimberName)}">${nameCrown(l.ClimberName)}${escapeHTML(l.ClimberName)}</span>
             <span class="loc-recent-route">${route}</span>
             <span class="loc-recent-grade">${gdot}${escapeHTML(l.Grade)}</span>
         </div>`;
@@ -6589,7 +6589,7 @@ function renderHardestBoard() {
             <div class="hardest-top">
                 <div class="hardest-name">
                     <span class="hardest-rank ${rankClass(r.rank)}">${r.rank}</span>
-                    ${escapeHTML(r.climber)}
+                    ${nameCrown(r.climber)}${escapeHTML(r.climber)}
                 </div>
                 <div class="hardest-grade">${dot}${escapeHTML(r.grade)}</div>
             </div>
@@ -6618,7 +6618,7 @@ function renderCountBoard(rows, unitLabel) {
         <div class="lb-row" data-climber="${escapeHTML(r.climber)}">
             <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
             <div class="lb-bar-wrap">
-                <div class="lb-name">${escapeHTML(r.climber)}</div>
+                <div class="lb-name">${nameCrown(r.climber)}${escapeHTML(r.climber)}</div>
                 <div class="lb-bar-bg"><div class="lb-bar-fill" style="width: ${fillPct}%"></div></div>
             </div>
             <div class="lb-grade">
@@ -6893,7 +6893,7 @@ function renderPeakChart(seriesList, discipline, chartId, legendId) {
         legendEl.innerHTML = '<div class="peak-legend">' + seriesList.map(s => {
             const isActive = s.climber === State.activeUser;
             const color = isActive ? PEAK_MINT : palette[pj++ % palette.length];
-            return `<span class="peak-leg ${isActive ? 'me' : ''}"><span class="peak-leg-dot" style="background:${color}"></span>${escapeHTML(s.climber)}</span>`;
+            return `<span class="peak-leg ${isActive ? 'me' : ''}"><span class="peak-leg-dot" style="background:${color}"></span>${nameCrown(s.climber)}${escapeHTML(s.climber)}</span>`;
         }).join('') + '</div>';
     }
 }
@@ -6965,7 +6965,7 @@ function renderPeakBumpChart(seriesList, container, legendEl) {
         legendEl.innerHTML = '<div class="peak-legend">' + order.map(o => {
             const isActive = o.climber === State.activeUser;
             const rankTxt = o.pos === 999 ? '–' : o.pos;
-            return `<span class="peak-leg ${isActive ? 'me' : ''}">${rankTxt}<span class="peak-leg-dot" style="background:${colorFor[o.idx]}"></span>${escapeHTML(o.climber)}</span>`;
+            return `<span class="peak-leg ${isActive ? 'me' : ''}">${rankTxt}<span class="peak-leg-dot" style="background:${colorFor[o.idx]}"></span>${nameCrown(o.climber)}${escapeHTML(o.climber)}</span>`;
         }).join('') + '</div>';
     }
 }
