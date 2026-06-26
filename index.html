@@ -2689,6 +2689,14 @@ function openSwitcher() {
         closeModal('switcher-modal');
         // Re-render so long-press handlers attach to the new active user's logs
         renderFeed();
+        // Logger is open: re-rank where/belayer/grade for the new user. Each renderX keeps the
+        // current pick if it's still valid for them, only reassigning when it isn't (frequency
+        // re-orders, in-progress selection doesn't jump out from under you).
+        if (document.getElementById('logger-modal').classList.contains('active')) {
+            renderWherePills();
+            renderGradePills();
+            updateBelayerVisibility();
+        }
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
             renderBestsStrip(profileClimber);
