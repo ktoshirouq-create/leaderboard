@@ -2689,10 +2689,16 @@ function openSwitcher() {
         closeModal('switcher-modal');
         // Re-render so long-press handlers attach to the new active user's logs
         renderFeed();
-        // Logger is open: re-rank where/belayer/grade for the new user. Each renderX keeps the
-        // current pick if it's still valid for them, only reassigning when it isn't (frequency
-        // re-orders, in-progress selection doesn't jump out from under you).
+        // Logger is open: re-rank where/belayer/grade for the new user. Where re-defaults to the
+        // new user's own top spot unless they've actually logged at the current pick — so a crag
+        // only THEY climb at doesn't stay selected for someone who's never been there. Grade keeps
+        // its per-discipline sticky; belayer follows the same keep-if-valid pattern.
         if (document.getElementById('logger-modal').classList.contains('active')) {
+            const theirWheres = new Set(
+                State.logs.filter(l => l.ClimberName === name && l.Discipline === LoggerState.discipline && l.Where)
+                          .map(l => l.Where)
+            );
+            if (!theirWheres.has(LoggerState.where)) LoggerState.where = null;  // force re-default in renderWherePills
             renderWherePills();
             renderGradePills();
             updateBelayerVisibility();
