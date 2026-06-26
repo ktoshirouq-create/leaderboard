@@ -1798,6 +1798,7 @@ body.disco .disco-me {
     <button class="profile-back" id="profile-back">← Back</button>
     <div class="switcher-link hidden" id="profile-switcher">Switch user ▾</div>
     <div class="profile-name" id="profile-name">—</div>
+    <button class="btn-main hidden" id="log-session-btn" style="margin:0 0 20px;max-width:220px;">+ Log session</button>
 <div class="profile-section-title" style="margin-top: 0;">Hardest · last 60 days</div>
 <div class="bests-strip" id="profile-bests"></div>
     
@@ -1965,6 +1966,40 @@ body.disco .disco-me {
             <input type="text" class="add-name-input" id="add-name-input" placeholder="New climber's name" maxlength="20">
             <button class="add-name-save" id="add-name-save">Save</button>
         </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="session-modal">
+    <div class="modal-sheet">
+        <button class="modal-close" id="session-close">×</button>
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
+        <div class="modal-title">Log a session</div>
+        <div class="modal-subtitle">Training session — private to you, never on the boards.</div>
+
+        <div class="field-label">Type</div>
+        <div class="pill-row" id="session-type"></div>
+
+        <div class="field-label">Effort <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">how hard you worked · 1–10</span></div>
+        <div class="pill-row scroll" id="session-effort"></div>
+
+        <div class="field-label">Duration</div>
+        <div class="pill-row" id="session-duration"></div>
+
+        <div class="field-label">Exhaustion <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">optional · how spent you felt</span></div>
+        <div class="pill-row scroll" id="session-exhaustion"></div>
+
+        <div class="field-label" id="session-where-label">Where</div>
+        <div class="pill-row" id="session-where"></div>
+
+        <div class="field-label">Date</div>
+        <div class="pill-row" id="session-date">
+            <button class="pill active" data-sdate="today">Today</button>
+            <button class="pill" data-sdate="yesterday">Yesterday</button>
+            <button class="pill" data-sdate="custom">Custom</button>
+        </div>
+        <input type="date" class="date-input hidden" id="session-date-custom" max="2099-12-31">
+
+        <button class="btn-main" id="session-submit" disabled>Log session</button>
     </div>
 </div>
 
@@ -2464,7 +2499,7 @@ function attachSwipeToClose(overlayId) {
 
 // Wire all modals
 ['logger-modal', 'switcher-modal', 'identity-prompt', 'info-modal',  
- 'nerd-modal', 'action-sheet-modal', 'confirm-modal', 'rename-modal'].forEach(attachSwipeToClose);
+ 'nerd-modal', 'action-sheet-modal', 'confirm-modal', 'rename-modal', 'session-modal'].forEach(attachSwipeToClose);
 
 // Back button (popstate): reconcile the UI to wherever the browser history now sits.
 window.addEventListener('popstate', reconcile);
