@@ -5141,6 +5141,18 @@ function daysToLegacySessions(days) {
                 if (new Date(l.Timestamp) > new Date(ts)) ts = l.Timestamp;
                 if (l._optimistic) opt = true;
                 if (l._failed) fail = true;
+            });
+            out.push({ climber: day.climber, date: day.date, discipline: sec.discipline,
+                wheres, belayers, where: wheres[0], sends: sec.sends, timestamp: ts,
+                _optimistic: opt, _failed: fail });
+        });
+    });
+    return out;
+}
+
+function renderFeed() {
+    const list = document.getElementById('feed-list');
+    if (State.logs.length === 0) {
         list.innerHTML = '<div class="empty-msg">No sends yet. Tap + to be the first.</div>';
         return;
     }
