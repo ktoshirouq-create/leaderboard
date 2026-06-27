@@ -5167,7 +5167,7 @@ function renderFeed() {
     const days = buildDays(State.logs, State.attempts || [], State.sessions || []);
     const unifying = days.filter(dayUnifies);
     const legacyDays = days.filter(d => !dayUnifies(d));
-    const legacyItems = clusterSessions(groupIntoSessions(daysToLegacySessions(legacyDays)));
+    const legacyItems = clusterSessions(daysToLegacySessions(legacyDays));
     const merged = [
         ...unifying.map(d => ({ _isDay: true, timestamp: d.timestamp, day: d })),
         ...legacyItems.map(it => ({ _isDay: false, timestamp: it.timestamp, item: it }))
