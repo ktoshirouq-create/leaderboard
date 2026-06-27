@@ -2727,13 +2727,22 @@ document.getElementById('switcher-trigger').addEventListener('click', openSwitch
 
 /* ============== LOGGER STATE ============== */
 const LoggerState = {
-    discipline: localStorage.getItem('leaderboard.lastDiscipline') || 'In Boulder',
-    where: null,        // resolved per-discipline below
-    grade: null,        // resolved per-discipline below
+    discipline: null,   // blank on fresh open — climber must pick (continuation/edit pre-fills)
+    where: null,
+    grade: null,
     style: 'Send',
     date: 'today',      // 'today' | 'yesterday'
     belayer: ''         // optional, rope disciplines only
 };
+
+// Create-mode submit gate: discipline + where + grade all required. Style defaults to Send.
+function canLogSend() {
+    return !!(editingLogId || (LoggerState.discipline && LoggerState.where && LoggerState.grade));
+}
+function refreshLogSaveState() {
+    const btn = document.getElementById('submit-log');
+    if (btn && !editingLogId) btn.disabled = !canLogSend();
+}
 
 function isOutdoor(disc) { return disc === 'Out Rope' || disc === 'Out Boulder' || disc === 'Trad'; }
 function isRopeDiscipline(disc) { return disc === 'In Rope' || disc === 'Out Rope' || disc === 'Trad'; }
@@ -2905,6 +2914,7 @@ function renderDisciplinePills() {
             renderStylePills();
             updateRouteNameVisibility();
             updateBelayerVisibility();
+            refreshLogSaveState();
         });
     });
 }
@@ -2914,6 +2924,8 @@ let whereExpanded = false;
 function renderWherePills() {
     whereExpanded = false;  // fresh render starts collapsed
     const c = document.getElementById('logger-where');
+    // No discipline picked yet (blank open) — render nothing; where depends on discipline.
+    if (!LoggerState.discipline) { c.innerHTML = ''; return; }
     // Dynamic label + placeholder: Crag for outdoor, Gym for indoor
     const isOut = isOutdoor(LoggerState.discipline);
     const labelEl = document.getElementById('where-label');
@@ -2928,8 +2940,10 @@ function renderWherePills() {
     if (editingLogId && LoggerState.where && !locations.includes(LoggerState.where)) {
         locations.unshift(LoggerState.where);
     }
-    if (!locations.includes(LoggerState.where)) {
-        LoggerState.where = locations.includes(sticky) ? sticky : (locations[0] || null);
+    // In edit mode keep the logged spot; otherwise leave blank unless it's a continuation
+    // (a same-day session pre-set LoggerState.where in openLogger). No forced first-pill default.
+    if (LoggerState.where && !locations.includes(LoggerState.where)) {
+        LoggerState.where = null;
     }
     // Order like belayer: your 2 most-recent spots in this discipline first, then by
     // frequency, then never-logged alphabetical. Stats scoped to this discipline + you.
@@ -2967,6 +2981,7 @@ function renderWherePills() {
             populateRouteSuggestions();
             // In Boulder the colour ladder is per-gym — refresh grades on gym change
             if (LoggerState.discipline === 'In Boulder') renderGradePills();
+            refreshLogSaveState();
         });
         attachLongPressToWherePill(el, el.dataset.where);
     });
@@ -3138,6 +3153,8 @@ async function addLocation(rawName) {
 /* ----- Grade pills ----- */
 function renderGradePills() {
     const c = document.getElementById('logger-grade');
+    // No discipline yet (blank open) — grade depends on discipline, so render nothing.
+    if (!LoggerState.discipline) { c.innerHTML = ''; const gi = document.getElementById('grade-info'); if (gi) gi.classList.add('hidden'); return; }
     // Show grade conversion info icon only for rope disciplines (Font is universal for boulder)
     const isRope = ['In Rope', 'Out Rope', 'Trad'].includes(LoggerState.discipline);
     const gradeInfo = document.getElementById('grade-info');
@@ -3165,17 +3182,14 @@ function renderGradePills() {
             pills.splice(at, 0, { grade: LoggerState.grade, color: canon.colors[ci] });
             ladderGrades = pills.map(p => p.grade);
         }
-        if (!ladderGrades.includes(LoggerState.grade)) {
-            LoggerState.grade = ladderGrades.includes(sticky)
-                ? sticky
-                : (ladderGrades.includes('6A') ? '6A' : ladderGrades[0]);
+        // Create mode: no forced default — leave grade blank until picked (edit keeps the logged grade).
+        if (LoggerState.grade && !ladderGrades.includes(LoggerState.grade)) {
+            LoggerState.grade = editingLogId ? LoggerState.grade : null;
         }
     } else {
         const scale = AppConfig.grades[disc];
-        if (!scale.labels.includes(LoggerState.grade)) {
-            LoggerState.grade = scale.labels.includes(sticky)
-                ? sticky
-                : scale.labels[AppConfig.defaultGradeIndex[disc]];
+        if (LoggerState.grade && !scale.labels.includes(LoggerState.grade)) {
+            LoggerState.grade = null;
         }
         const useDots = scale.colors && scale.colors.length === scale.labels.length;
         pills = scale.labels.map((g, i) => ({ grade: g, color: useDots ? scale.colors[i] : '' }));
@@ -3190,6 +3204,7 @@ function renderGradePills() {
             LoggerState.grade = el.dataset.grade;
             localStorage.setItem(stickyKey, LoggerState.grade);
             renderGradePills();
+            refreshLogSaveState();
         });
     });
     // Auto-center active pill
