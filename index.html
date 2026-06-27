@@ -214,6 +214,29 @@ h1.screen-title {
 .hl-banner-crown .hl-rosette { filter: drop-shadow(0 0 6px rgba(251,191,36,0.75)); }
 .hl-banner-crown::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 35%, rgba(251,191,36,0.22) 50%, transparent 65%); background-size: 220% 100%; animation: crown-shimmer 2.6s ease-in-out infinite; pointer-events: none; }
 @keyframes crown-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -120% 0; } }
+/* Day-card sections: tinted discipline zones (9% wash), coloured label, muted project line */
+.day-section { padding: 12px 18px; }
+.day-section[data-disc="In Boulder"]  { background: rgba(245,158,11,0.09); }
+.day-section[data-disc="In Rope"]     { background: rgba(6,182,212,0.09); }
+.day-section[data-disc="Out Rope"]    { background: rgba(16,185,129,0.09); }
+.day-section[data-disc="Out Boulder"] { background: rgba(168,85,247,0.09); }
+.day-section[data-disc="Trad"]        { background: rgba(244,63,94,0.09); }
+.day-section.day-training { background: rgba(255,255,255,0.02); }
+.day-sec-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.day-sec-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
+.day-sec-label[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
+.day-sec-label[data-disc="In Rope"]     { color: var(--disc-in-rope); }
+.day-sec-label[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
+.day-sec-label[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
+.day-sec-label[data-disc="Trad"]        { color: var(--disc-trad); }
+.day-sec-label.training { color: #8a8a8a; }
+.day-sec-summary { font-size: 0.85rem; font-weight: 700; color: #a3a3a3; white-space: nowrap; }
+.day-sec-summary .max-grade-v { color: #fff; font-weight: 800; }
+.day-sec-proj { font-size: 0.8rem; color: #8a8a8a; font-weight: 600; margin-top: 6px; }
+.day-sec-proj .pg { font-weight: 800; }
+.day-sec-train { font-size: 0.82rem; font-weight: 600; color: #8a8a8a; }
+.day-sec-dots { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+
 /* Standing crown beside the reigning Hardest #1's name — gold, small, glowing */
 .name-crown { display: inline-flex; align-items: center; color: var(--gold); vertical-align: -0.08em; }
 .name-crown .lvl-arrow { width: 0.82em; height: 0.82em; filter: drop-shadow(0 0 5px rgba(251,191,36,0.7)); }
@@ -5134,9 +5157,33 @@ function daysToLegacySessions(days) {
     list.innerHTML = html;
 
     const cards = list.querySelectorAll('.session-card');  // DOM order === visibleItems order
-    visibleItems.forEach((item, i) => {
+    visibleItems.forEach((m, i) => {
         const card = cards[i];
         if (!card) return;
+        const item = m._isDay ? null : m.item;
+
+        // Day-card wiring: where-links, name→profile, expand, send-row long-press.
+        if (m._isDay) {
+            card.querySelectorAll('.s-where-link').forEach(linkEl => {
+                attachLongPressToLocChip(linkEl, linkEl.dataset.loc);
+                linkEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (Date.now() - locChipSuppressClick < 500) return;
+                    haptic('tap');
+                    showLocation(linkEl.dataset.loc, 'feed');
+                });
+            });
+            const nameEl = card.querySelector('.s-name[data-profile-link]');
+            if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(m.day.climber); });
+            const expandBtn = card.querySelector('.expand-btn');
+            if (expandBtn) card.addEventListener('click', () => { haptic('tap'); card.classList.toggle('expanded'); });
+            // send-row long-press to edit (flatten in the same order the children were rendered)
+            const flatSends = m.day.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline));
+            card.querySelectorAll('.session-children .send-row').forEach((rowEl, si) => {
+                if (flatSends[si]) attachLongPressToSendRow(rowEl, flatSends[si]);
+            });
+            return;
+        }
 
         // location chips (both card types): tap → location page, long-press → rename
         card.querySelectorAll('.s-where-link').forEach(linkEl => {
