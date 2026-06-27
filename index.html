@@ -2697,14 +2697,23 @@ function openSwitcher() {
         // only THEY climb at doesn't stay selected for someone who's never been there. Grade keeps
         // its per-discipline sticky; belayer follows the same keep-if-valid pattern.
         if (document.getElementById('logger-modal').classList.contains('active')) {
+            // Re-sort the discipline row to the NEW user's recency/frequency. Keep their current
+            // discipline pick if they've used it; otherwise default to their leftmost.
+            const theirOrder = disciplineFreqOrder();
+            if (!State.logs.some(l => l.ClimberName === name && l.Discipline === LoggerState.discipline)) {
+                LoggerState.discipline = theirOrder[0] || AppConfig.disciplines[0];
+            }
+            renderDisciplinePills();
             const theirWheres = new Set(
                 State.logs.filter(l => l.ClimberName === name && l.Discipline === LoggerState.discipline && l.Where)
                           .map(l => l.Where)
             );
-            if (!theirWheres.has(LoggerState.where)) LoggerState.where = null;  // force re-default in renderWherePills
+            if (!theirWheres.has(LoggerState.where)) LoggerState.where = null;  // a spot they've never used → unselected
             renderWherePills();
             renderGradePills();
+            renderStylePills();
             updateBelayerVisibility();
+            refreshLogSaveState();
         }
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
@@ -2903,18 +2912,28 @@ function getLocationsForDiscipline(disc) {
 const DISC_PRIMARY_SLOTS = 4;
 let discOtherOpen = false;   // is the Other› overflow row expanded this open?
 
-// Your disciplines ranked by 30-day frequency; stable tiebreak keeps AppConfig order.
+// Your disciplines ranked like the Where pills (rankByUsage): most-RECENT first, then by
+// 30-day frequency, then canonical AppConfig order. Never-logged ones keep canonical order
+// at the end. The leftmost is what openLogger defaults the selection to.
 function disciplineFreqOrder() {
     const order = AppConfig.disciplines;
-    const cnt = {}; order.forEach(d => cnt[d] = 0);
+    const stats = {};  // disc -> { count, last } over the last 30 days
     const now = Date.now();
     State.logs.forEach(l => {
         if (l.ClimberName !== State.activeUser || !order.includes(l.Discipline)) return;
         const ageDays = (now - new Date(l.Date).getTime()) / 86400000;
-        if (!(ageDays >= 0) || ageDays > 30) return;   // skip unparseable/future dates
-        cnt[l.Discipline]++;
+        if (!(ageDays >= 0) || ageDays > 30) return;   // skip unparseable/future/out-of-window
+        const s = stats[l.Discipline] || (stats[l.Discipline] = { count: 0, last: '' });
+        s.count++;
+        const d = getCleanDate(l.Date);
+        if (d > s.last) s.last = d;
     });
-    return [...order].sort((a, b) => cnt[b] - cnt[a] || order.indexOf(a) - order.indexOf(b));
+    const used = order.filter(d => stats[d]).sort((a, b) =>
+        (stats[b].last > stats[a].last ? 1 : stats[b].last < stats[a].last ? -1 : 0)  // recency desc
+        || stats[b].count - stats[a].count                                            // then frequency
+        || order.indexOf(a) - order.indexOf(b));                                      // then canonical
+    const unused = order.filter(d => !stats[d]);   // keep canonical order
+    return [...used, ...unused];
 }
 
 function renderDisciplinePills() {
@@ -3665,7 +3684,11 @@ function openLogger() {
         LoggerState.discipline = contLog.Discipline;
         LoggerState.where = contLog.Where;   // renderWherePills keeps it if still valid for this disc
     } else {
-        LoggerState.discipline = null;
+        // Blank open: default discipline to your most-recent/most-used (leftmost pill) so the
+        // Where list and grade ladder render — they're discipline-scoped and can't show otherwise.
+        // Where & Grade stay UNSELECTED (deliberate pick; gate keeps "Log it" locked), but they're
+        // visible and frequency-ranked rather than hidden.
+        LoggerState.discipline = disciplineFreqOrder()[0] || AppConfig.disciplines[0];
         LoggerState.where = null;
     }
     LoggerState.grade = null;                // grade is never carried — always a fresh pick
