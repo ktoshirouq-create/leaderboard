@@ -6236,6 +6236,278 @@ function getAttemptDateISO() {
     return getCleanDate(d);
 }
 
+/* ----- Attempt render functions (thin — lean on the same shared helpers as the send logger) ----- */
+let attemptOtherOpen = false;
+let attemptWhereExpanded = false;
+const ATTEMPT_WHERE_CAP = 8;
+
+function renderAttemptDiscipline() {
+    const c = document.getElementById('attempt-discipline');
+    if (!c) return;
+    const ordered = disciplineFreqOrder();   // same recency+frequency helper as the send logger
+    let primary = ordered.slice(0, DISC_PRIMARY_SLOTS);
+    let overflow = ordered.slice(DISC_PRIMARY_SLOTS);
+    const sel = AttemptState.discipline;
+    if (sel && overflow.includes(sel)) {
+        overflow = [primary[primary.length - 1], ...overflow.filter(d => d !== sel)];
+        primary = [...primary.slice(0, DISC_PRIMARY_SLOTS - 1), sel];
+    }
+    const pill = d => `<button class="pill ${d === sel ? 'active' : ''}" data-adisc="${d}">${d}</button>`;
+    const hasOverflow = overflow.length > 0;
+    c.innerHTML = primary.map(pill).join('') +
+        (hasOverflow ? `<button class="pill disc-other" data-adisc-other="1">${attemptOtherOpen ? 'Other ▾' : 'Other ›'}</button>` : '') +
+        (hasOverflow && attemptOtherOpen ? `<div class="disc-overflow">${overflow.map(pill).join('')}</div>` : '');
+    const pick = (d) => {
+        haptic('tap');
+        AttemptState.discipline = d;
+        attemptOtherOpen = false;
+        // Reconcile where/grade to the new discipline (same rule as the send logger)
+        if (AttemptState.where && !getLocationsForDiscipline(d).includes(AttemptState.where)) AttemptState.where = null;
+        renderAttemptDiscipline();
+        renderAttemptWhere();
+        renderAttemptGrade();
+        renderAttemptOutcomeType();
+        renderAttemptCount();
+        updateAttemptRouteVisibility();
+        updateAttemptBelayerVisibility();
+        refreshAttemptSaveState();
+    };
+    c.querySelectorAll('[data-adisc]').forEach(el => el.addEventListener('click', () => pick(el.dataset.adisc)));
+    const ob = c.querySelector('[data-adisc-other]');
+    if (ob) ob.addEventListener('click', () => { haptic('tap'); attemptOtherOpen = !attemptOtherOpen; renderAttemptDiscipline(); });
+}
+
+function renderAttemptWhere() {
+    const c = document.getElementById('attempt-where');
+    if (!c) return;
+    if (!AttemptState.discipline) { c.innerHTML = ''; return; }
+    const isOut = isOutdoor(AttemptState.discipline);
+    const label = document.getElementById('attempt-where-label');
+    if (label) label.textContent = isOut ? 'Crag' : 'Gym';
+    const addInput = document.getElementById('attempt-where-add-input');
+    if (addInput) addInput.placeholder = isOut ? 'Crag name' : 'Gym name';
+    let locations = getLocationsForDiscipline(AttemptState.discipline);   // same source as send logger
+    if (AttemptState.where && !locations.includes(AttemptState.where)) AttemptState.where = null;
+    // rank by this climber's recency+frequency in this discipline (rankByUsage, shared)
+    const stats = {};
+    State.logs.forEach(l => {
+        if (l.ClimberName !== State.activeUser || l.Discipline !== AttemptState.discipline || !l.Where) return;
+        const s = stats[l.Where] || (stats[l.Where] = { count: 0, last: '' });
+        s.count++;
+        const d = getCleanDate(l.Date);
+        if (d > s.last) s.last = d;
+    });
+    let names = rankByUsage(locations, stats);
+    if (AttemptState.where) {
+        const i = names.indexOf(AttemptState.where);
+        if (i > 0) { names.splice(i, 1); names.unshift(AttemptState.where); }
+    }
+    const collapsed = !attemptWhereExpanded && names.length > ATTEMPT_WHERE_CAP;
+    const shown = collapsed ? names.slice(0, ATTEMPT_WHERE_CAP) : names;
+    const hidden = names.length - shown.length;
+    c.innerHTML = `<div class="pill-row pill-wrap">` +
+        shown.map(n => `<button class="pill ${n === AttemptState.where ? 'active' : ''}" data-awhere="${escapeHTML(n)}">${escapeHTML(n)}</button>`).join('') +
+        `<button class="pill add-btn" data-awhere-add="1">+ Add</button>` +
+        (collapsed ? `<button class="pill where-more" data-awhere-more="1">+${hidden} more</button>`
+                   : (attemptWhereExpanded && names.length > ATTEMPT_WHERE_CAP ? `<button class="pill where-more" data-awhere-more="1">Less</button>` : '')) +
+        `</div>`;
+    c.querySelectorAll('[data-awhere]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        AttemptState.where = el.dataset.awhere;
+        c.querySelectorAll('[data-awhere]').forEach(p => p.classList.toggle('active', p === el));
+        populateAttemptRouteSuggestions();
+        if (AttemptState.discipline === 'In Boulder') renderAttemptGrade();   // per-gym colour ladder
+        refreshAttemptSaveState();
+    }));
+    const moreBtn = c.querySelector('[data-awhere-more]');
+    if (moreBtn) moreBtn.addEventListener('click', () => { haptic('tap'); attemptWhereExpanded = !attemptWhereExpanded; renderAttemptWhere(); });
+    const addBtn = c.querySelector('[data-awhere-add]');
+    if (addBtn) addBtn.addEventListener('click', () => {
+        haptic('tap');
+        const row = document.getElementById('attempt-where-add-row');
+        const inp = document.getElementById('attempt-where-add-input');
+        row.classList.remove('hidden');
+        setTimeout(() => { inp.focus(); inp.click(); }, 100);
+    });
+}
+
+function renderAttemptGrade() {
+    const c = document.getElementById('attempt-grade');
+    if (!c) return;
+    if (!AttemptState.discipline) { c.innerHTML = ''; return; }
+    const disc = AttemptState.discipline;
+    let pills;
+    if (disc === 'In Boulder') {
+        const ladder = boulderLadderForLocation(AttemptState.where);   // same per-gym circuit as send logger
+        pills = ladder.map(x => ({ grade: x.grade, color: x.color }));
+        const ladderGrades = pills.map(p => p.grade);
+        if (AttemptState.grade && !ladderGrades.includes(AttemptState.grade)) AttemptState.grade = null;
+    } else {
+        const scale = AppConfig.grades[disc];
+        if (AttemptState.grade && !scale.labels.includes(AttemptState.grade)) AttemptState.grade = null;
+        const useDots = scale.colors && scale.colors.length === scale.labels.length;
+        pills = scale.labels.map((g, i) => ({ grade: g, color: useDots ? scale.colors[i] : '' }));
+    }
+    c.innerHTML = pills.map(p => {
+        const dot = p.color ? `<span class="grade-dot" style="background:${p.color}"></span>` : '';
+        return `<button class="pill ${p.grade === AttemptState.grade ? 'active' : ''}" data-agrade="${p.grade}">${dot}${p.grade}</button>`;
+    }).join('');
+    c.querySelectorAll('[data-agrade]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        AttemptState.grade = el.dataset.agrade;
+        renderAttemptGrade();
+        refreshAttemptSaveState();
+    }));
+    setTimeout(() => { const a = c.querySelector('.pill.active'); if (a) a.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }, 50);
+}
+
+function updateAttemptRouteVisibility() {
+    const isOut = isOutdoor(AttemptState.discipline);
+    document.getElementById('attempt-route-label').classList.toggle('hidden', !isOut);
+    document.getElementById('attempt-route-name').classList.toggle('hidden', !isOut);
+    if (!isOut) document.getElementById('attempt-route-name').value = '';
+    if (isOut) populateAttemptRouteSuggestions();
+}
+function populateAttemptRouteSuggestions() {
+    const dl = document.getElementById('attempt-route-suggestions');
+    if (!dl) return;
+    const where = AttemptState.where;
+    const seen = new Set(), opts = [];
+    State.logs.forEach(l => {
+        if (!l.RouteName) return;
+        if (where && l.Where !== where) return;
+        const n = String(l.RouteName).trim();
+        if (!n || seen.has(n.toLowerCase())) return;
+        seen.add(n.toLowerCase());
+        opts.push(`<option value="${escapeHTML(n)}"></option>`);
+    });
+    dl.innerHTML = opts.join('');
+}
+
+function updateAttemptBelayerVisibility() {
+    const show = isRopeDiscipline(AttemptState.discipline);
+    document.getElementById('attempt-belayer-label').classList.toggle('hidden', !show);
+    document.getElementById('attempt-belayer').classList.toggle('hidden', !show);
+    const addRow = document.getElementById('attempt-belayer-add-row');
+    if (addRow) addRow.classList.add('hidden');
+    if (show) renderAttemptBelayer();
+}
+function renderAttemptBelayer() {
+    const c = document.getElementById('attempt-belayer');
+    if (!c) return;
+    const stats = {};
+    State.logs.forEach(l => {
+        if (l.ClimberName !== State.activeUser || !l.Belayer) return;
+        const s = stats[l.Belayer] || (stats[l.Belayer] = { count: 0, last: '' });
+        s.count++;
+        const d = getCleanDate(l.Date);
+        if (d > s.last) s.last = d;
+    });
+    const candidates = [...new Set([...State.roster.map(r => r.Name), ...Object.keys(stats)])].filter(n => n && n !== State.activeUser);
+    const names = rankByUsage(candidates, stats);
+    if (AttemptState.belayer && !names.includes(AttemptState.belayer)) names.unshift(AttemptState.belayer);
+    c.innerHTML = '<button class="pill add-btn" data-abelayer-add="1">+ Add</button>' +
+        names.map(n => `<button class="pill ${n === AttemptState.belayer ? 'active' : ''}" data-abelayer="${escapeHTML(n)}">${escapeHTML(n)}</button>`).join('');
+    c.querySelectorAll('[data-abelayer]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        AttemptState.belayer = (el.dataset.abelayer === AttemptState.belayer) ? '' : el.dataset.abelayer;
+        renderAttemptBelayer();
+    }));
+    const addBtn = c.querySelector('[data-abelayer-add]');
+    if (addBtn) addBtn.addEventListener('click', () => {
+        haptic('tap');
+        const row = document.getElementById('attempt-belayer-add-row');
+        const inp = document.getElementById('attempt-belayer-add-input');
+        row.classList.remove('hidden');
+        setTimeout(() => { inp.focus(); inp.click(); }, 100);
+    });
+    const addRow = document.getElementById('attempt-belayer-add-row');
+    const addInp = document.getElementById('attempt-belayer-add-input');
+    const addSave = document.getElementById('attempt-belayer-add-save');
+    if (addSave) {
+        const commit = () => {
+            const name = normalizeName(addInp.value);
+            if (!name) return;
+            AttemptState.belayer = name;
+            addRow.classList.add('hidden');
+            addInp.value = '';
+            haptic('commit');
+            renderAttemptBelayer();
+        };
+        addSave.onclick = () => { haptic('tap'); commit(); };
+        addInp.onkeydown = (e) => { if (e.key === 'Enter') commit(); };
+    }
+}
+
+// Add-location from the attempt Where row (mirrors the send logger's wireWhereAdd, attempt-scoped)
+(function wireAttemptWhereAdd() {
+    const row = document.getElementById('attempt-where-add-row');
+    const inp = document.getElementById('attempt-where-add-input');
+    const btn = document.getElementById('attempt-where-add-save');
+    if (!row || !inp || !btn) return;
+    const updateSaveState = () => { if (btn.classList.contains('saving') || btn.classList.contains('done')) return; btn.disabled = !inp.value.trim(); };
+    btn.disabled = true;
+    inp.oninput = updateSaveState;
+    const commit = async () => {
+        if (btn.disabled) return;
+        btn.disabled = true; btn.classList.add('saving'); btn.textContent = 'Saving…';
+        // addLocation reads LoggerState.discipline for the type/disc tag — set it transiently
+        const savedDisc = LoggerState.discipline;
+        LoggerState.discipline = AttemptState.discipline;
+        const name = await addLocation(inp.value);
+        LoggerState.discipline = savedDisc;
+        btn.classList.remove('saving');
+        if (name) {
+            btn.classList.add('done'); btn.textContent = '✓ Added';
+            setTimeout(() => {
+                AttemptState.where = name;
+                row.classList.add('hidden'); inp.value = '';
+                btn.classList.remove('done'); btn.textContent = 'Save'; btn.disabled = true;
+                renderAttemptWhere();
+                refreshAttemptSaveState();
+            }, 600);
+        } else { btn.disabled = false; btn.textContent = 'Save'; }
+    };
+    btn.onclick = () => { haptic('tap'); commit(); };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') commit(); };
+})();
+
+async function submitAttempt() {
+    if (!canLogAttempt()) { showToast('Pick discipline, where, grade & outcome'); return; }
+    const dateISO = getAttemptDateISO();
+    const routeName = isOutdoor(AttemptState.discipline) ? document.getElementById('attempt-route-name').value.trim() : '';
+    const payload = {
+        action: 'logAttempt',
+        climber:     State.activeUser,
+        date:        dateISO,
+        discipline:  AttemptState.discipline,
+        where:       AttemptState.where,
+        grade:       AttemptState.grade,
+        outcome:     AttemptState.outcome || '',
+        countBucket: AttemptState.countBucket,
+        belayer:     isRopeDiscipline(AttemptState.discipline) ? (AttemptState.belayer || '') : '',
+        routeName:   routeName
+    };
+    closeModal('session-modal');
+    haptic('commit');
+    showToast('Saving attempt…');
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Server error');
+        showToast('✓ Attempt logged');
+        fetchData();   // pull it back so it appears on the feed
+    } catch (err) {
+        haptic('error');
+        showToast('Could not save attempt');
+    }
+}
+document.getElementById('attempt-submit').addEventListener('click', submitAttempt);
+
 async function submitSession() {
     if (!canSaveSession()) { showToast('Pick type, effort, duration & where'); return; }
     const dateISO = getSessionDateISO();
