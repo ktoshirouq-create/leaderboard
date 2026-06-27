@@ -5158,13 +5158,80 @@ function daysToLegacySessions(days) {
     return out;
 }
 
-function renderFeed() {
-    const list = document.getElementById('feed-list');
-    if (State.logs.length === 0) {
-        list.innerHTML = '<div class="empty-msg">No sends yet. Tap + to be the first.</div>';
-        return;
+// Muted discipline colour for the "worked" project grade (desaturated vs a real send grade).
+const DAY_PROJ_GRADE_COLOR = {
+    'In Boulder': '#b08a3a', 'In Rope': '#5a9aa8', 'Out Rope': '#4f9479',
+    'Out Boulder': '#8a6bb0', 'Trad': '#b05a6a'
+};
+
+function dayHardestSendGrade(day) {
+    let g = null, sc = -1;
+    day.sections.forEach(sec => {
+        sec.sends.forEach(s => {
+            if (isTopRope(s.Style)) return;
+            const v = getScoredValue(s.Grade, s.Style, sec.discipline);
+            if (v > sc) { sc = v; g = s.Grade; }
+        });
+    });
+    return g;
+}
+
+function dayClimbSectionHtml(sec) {
+    const lead = sec.sends.filter(s => !isTopRope(s.Style));
+    const tr = sec.sends.length - lead.length;
+    let maxGrade = null;
+    if (lead.length) maxGrade = sortSendsByScore(lead, sec.discipline)[0]?.Grade || null;
+    const parts = [];
+    if (lead.length) parts.push(`${lead.length} send${lead.length === 1 ? '' : 's'}`);
+    if (tr) parts.push(`${tr} TR`);
+    if (maxGrade) parts.push(`max <span class="max-grade-v">${escapeHTML(maxGrade)}</span>`);
+    const summary = parts.join(' · ');
+    let dots = '';
+    if (sec.discipline === 'In Boulder' && lead.length) {
+        const sorted = sortSendsByScore(lead, sec.discipline).slice(0, 12);
+        dots = `<div class="day-sec-dots">${sorted.map(s => `<span class="sdot" style="background:${boulderColorForGrade(s.Grade, s.Where)}"></span>`).join('')}</div>`;
     }
-    const days = buildDays(State.logs, State.attempts || [], State.sessions || []);
+    const pc = DAY_PROJ_GRADE_COLOR[sec.discipline] || '#8a8a8a';
+    const projHtml = sec.attempts.map(a => {
+        const oc = a.Outcome ? `${escapeHTML(a.CountBucket)} ${escapeHTML(a.Outcome)}` : escapeHTML(a.CountBucket);
+        return `<div class="day-sec-proj">worked <span class="pg" style="color:${pc}">${escapeHTML(a.Grade)}</span> · ${oc}</div>`;
+    }).join('');
+    return `<div class="day-section" data-disc="${escapeHTML(sec.discipline)}">
+        <div class="day-sec-head">
+            <span class="day-sec-label" data-disc="${escapeHTML(sec.discipline)}">${escapeHTML(sec.discipline)}</span>
+            ${summary ? `<span class="day-sec-summary">${summary}</span>` : '<span class="day-sec-summary" style="color:#8a8a8a">projecting</span>'}
+        </div>
+        ${dots}
+        ${projHtml}
+    </div>`;
+}
+
+function dayTrainingSectionHtml(training) {
+    const items = training.items;
+    const label = items.length === 1
+        ? `${escapeHTML(items[0].Type || 'Session')}${items[0].Duration ? ' · ' + escapeHTML(items[0].Duration) : ''}${items[0].Effort ? ' · effort ' + escapeHTML(String(items[0].Effort)) : ''}`
+        : `${items.length} sessions`;
+    return `<div class="day-section day-training">
+        <div class="day-sec-head">
+            <span class="day-sec-label training">Training</span>
+            <span class="day-sec-train">${label}</span>
+        </div>
+    </div>`;
+}
+
+// Unified day-card (solo, multi-lane). Characters live per-section; the card inherits its loudest.
+// TODO: once the legacy single-card path retires, fold renderSessionCard into this renderer —
+// the banner/name/where/expand/send-row markup is duplicated between them by design for now.
+function renderDayCard(day, idx) {
+    const allHl = [];
+    day.sections.forEach(sec => {
+        detectAllHighlights(day.climber, sec.discipline, day.date).forEach(h => allHl.push(h));
+    });
+    allHl.sort((a, b) => rankPriority(a) - rankPriority(b));
+    const cardHl = allHl[0] || null;
+    const moreHl = allHl.slice(1);
+
+    const dethroneChip = (cardHl && cardHl.kind === 'rank' && cardHl.board === 'hardest' &&
     const unifying = days.filter(dayUnifies);
     const legacyDays = days.filter(d => !dayUnifies(d));
     const legacyItems = clusterSessions(daysToLegacySessions(legacyDays));
