@@ -5650,6 +5650,7 @@ function showProfile(climber) {
     const isOwnProfile = (climber === State.activeUser);
     document.getElementById('profile-back').style.display = isOwnProfile ? 'none' : 'inline-flex';
     document.getElementById('profile-switcher').classList.toggle('hidden', !isOwnProfile);
+    document.getElementById('log-session-btn').classList.toggle('hidden', !isOwnProfile);
     navRecordView('profile', climber);
     
    }
@@ -5673,6 +5674,191 @@ document.getElementById('profile-switcher').addEventListener('click', () => {
     }, 'add-name-row', 'add-name-input', 'add-name-save', { allowAdd: false, onLongPress: openRenameClimber });
     openModal('switcher-modal');
 });
+
+/* ============== SESSION LOGGER (training — Me tab only, writes to Sessions tab) ============== */
+const SESSION_TYPES = ['Limit/Power', 'Endurance', 'Volume', 'Skill', 'Fingerboard', 'Fun'];
+const SESSION_DURATIONS = [
+    { label: '<45m', min: 30 }, { label: '~1h', min: 60 }, { label: '~2h', min: 120 }, { label: '2h+', min: 150 }
+];
+const SessionState = { type: null, effort: null, exhaustion: null, duration: null, where: null, date: 'today' };
+
+function sessionDurationMin(label) {
+    const hit = SESSION_DURATIONS.find(p => p.label === label);
+    return hit ? hit.min : null;
+}
+function canSaveSession() {
+    return !!(SessionState.type && SessionState.effort != null && SessionState.duration && SessionState.where);
+}
+function refreshSessionSaveState() {
+    const btn = document.getElementById('session-submit');
+    if (btn) btn.disabled = !canSaveSession();
+}
+
+// Generic 1-10 scale pill row (effort / exhaustion)
+function renderScalePills(containerId, field) {
+    const c = document.getElementById(containerId);
+    if (!c) return;
+    c.innerHTML = Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
+        `<button class="pill ${SessionState[field] === n ? 'active' : ''}" data-scale="${n}">${n}</button>`
+    ).join('');
+    c.querySelectorAll('[data-scale]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        const v = parseInt(el.dataset.scale, 10);
+        SessionState[field] = (SessionState[field] === v) ? null : v;  // tap again to clear
+        renderScalePills(containerId, field);
+        refreshSessionSaveState();
+    }));
+}
+
+function renderSessionTypePills() {
+    const c = document.getElementById('session-type');
+    if (!c) return;
+    c.innerHTML = SESSION_TYPES.map(t =>
+        `<button class="pill ${SessionState.type === t ? 'active' : ''}" data-stype="${escapeHTML(t)}">${escapeHTML(t)}</button>`
+    ).join('');
+    c.querySelectorAll('[data-stype]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        SessionState.type = el.dataset.stype;
+        renderSessionTypePills();
+        refreshSessionSaveState();
+    }));
+}
+
+function renderSessionDurationPills() {
+    const c = document.getElementById('session-duration');
+    if (!c) return;
+    c.innerHTML = SESSION_DURATIONS.map(d =>
+        `<button class="pill ${SessionState.duration === d.label ? 'active' : ''}" data-sdur="${d.label}">${d.label}</button>`
+    ).join('');
+    c.querySelectorAll('[data-sdur]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        SessionState.duration = el.dataset.sdur;
+        renderSessionDurationPills();
+        refreshSessionSaveState();
+    }));
+}
+
+// Where pills ranked by this climber's 30-day session+send frequency. No default selected:
+// a fresh open forces a deliberate pick. Reuses the registered gym/crag list.
+function renderSessionWherePills() {
+    const c = document.getElementById('session-where');
+    if (!c) return;
+    const me = State.activeUser;
+    const todayISO = getCleanDate(new Date());
+    const stats = {};
+    State.logs.forEach(l => {
+        if (l.ClimberName !== me || !l.Where) return;
+        if (dDiff(todayISO, getCleanDate(l.Date)) > 30) return;
+        stats[l.Where] = (stats[l.Where] || 0) + 1;
+    });
+    // candidates: all gyms + crags you might train at; rank logged-at by freq, rest alphabetical
+    const all = [...new Set(State.locations.map(l => l.Name).filter(Boolean))];
+    const logged = all.filter(n => stats[n]).sort((a, b) => stats[b] - stats[a]);
+    const unlogged = all.filter(n => !stats[n]).sort((a, b) => a.localeCompare(b));
+    const names = [...logged, ...unlogged];
+    c.innerHTML = names.map(n =>
+        `<button class="pill ${SessionState.where === n ? 'active' : ''}" data-swhere="${escapeHTML(n)}">${escapeHTML(n)}</button>`
+    ).join('');
+    c.querySelectorAll('[data-swhere]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        SessionState.where = el.dataset.swhere;
+        c.querySelectorAll('[data-swhere]').forEach(p => p.classList.toggle('active', p === el));
+        refreshSessionSaveState();
+    }));
+}
+
+function getSessionDateISO() {
+    const today = getCleanDate(new Date());
+    if (SessionState.date === 'custom') {
+        const v = document.getElementById('session-date-custom').value;
+        if (!v) return today;
+        return v > today ? today : v;
+    }
+    const d = new Date();
+    if (SessionState.date === 'yesterday') d.setDate(d.getDate() - 1);
+    return getCleanDate(d);
+}
+
+// Date pills (own row — never touches the send logger's date pills)
+document.querySelectorAll('#session-date [data-sdate]').forEach(el => {
+    el.addEventListener('click', () => {
+        haptic('tap');
+        document.querySelectorAll('#session-date .pill').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        SessionState.date = el.dataset.sdate;
+        const ci = document.getElementById('session-date-custom');
+        if (el.dataset.sdate === 'custom') {
+            ci.classList.remove('hidden');
+            const today = getCleanDate(new Date());
+            if (!ci.value) ci.value = today;
+            ci.max = today;
+            ci.focus();
+            if (ci.showPicker) ci.showPicker();
+        } else {
+            ci.classList.add('hidden');
+        }
+    });
+});
+
+function openSessionLogger() {
+    if (!State.activeUser) { openIdentityPrompt(); return; }
+    // Fresh blank state every open — deliberate picks required
+    SessionState.type = null;
+    SessionState.effort = null;
+    SessionState.exhaustion = null;
+    SessionState.duration = null;
+    SessionState.where = null;
+    SessionState.date = 'today';
+    renderSessionTypePills();
+    renderScalePills('session-effort', 'effort');
+    renderSessionDurationPills();
+    renderScalePills('session-exhaustion', 'exhaustion');
+    renderSessionWherePills();
+    document.querySelectorAll('#session-date .pill').forEach(x => x.classList.remove('active'));
+    document.querySelector('#session-date [data-sdate="today"]').classList.add('active');
+    document.getElementById('session-date-custom').classList.add('hidden');
+    refreshSessionSaveState();
+    openModal('session-modal');
+}
+
+async function submitSession() {
+    if (!canSaveSession()) { showToast('Pick type, effort, duration & where'); return; }
+    const dateISO = getSessionDateISO();
+    const payload = {
+        action: 'logSession',
+        climber:     State.activeUser,
+        date:        dateISO,
+        where:       SessionState.where,
+        type:        SessionState.type,
+        effort:      SessionState.effort,
+        exhaustion:  SessionState.exhaustion != null ? SessionState.exhaustion : '',
+        duration:    SessionState.duration,
+        durationMin: sessionDurationMin(SessionState.duration)
+    };
+    closeModal('session-modal');
+    haptic('commit');
+    showToast('Saving session…');
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Server error');
+        showToast('✓ Session logged');
+    } catch (err) {
+        haptic('error');
+        showToast('Could not save session');
+    }
+}
+
+document.getElementById('session-close').addEventListener('click', () => closeModal('session-modal'));
+document.getElementById('session-modal').addEventListener('click', e => {
+    if (e.target.id === 'session-modal') closeModal('session-modal');
+});
+document.getElementById('session-submit').addEventListener('click', submitSession);
+document.getElementById('log-session-btn').addEventListener('click', () => { haptic('tap'); openSessionLogger(); });
 
 /* ============== NERD STATS (hidden — 5 taps on profile name) ============== */
 function openNerdStats(climber) {
