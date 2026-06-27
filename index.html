@@ -2191,12 +2191,14 @@ const State = {
     activeUser: localStorage.getItem('leaderboard.user') || null,
     logs: [],
     roster: [],
-    locations: []
+    locations: [],
+    attempts: [],
+    sessions: []
 };
 
 /* ============== CACHE + PAGINATION ============== */
 const CACHE_KEY = 'leaderboard.cachedData';
-const CACHE_VERSION = 1;            // bump if data shape changes
+const CACHE_VERSION = 2;            // bump if data shape changes (v2: + attempts, sessions)
 const FEED_PAGE_SIZE = 15;
 const PROFILE_PAGE_SIZE = 25;
 let feedPage = 1;
@@ -2210,7 +2212,9 @@ function saveCache() {
             data: {
                 logs: State.logs,
                 roster: State.roster,
-                locations: State.locations
+                locations: State.locations,
+                attempts: State.attempts,
+                sessions: State.sessions
             }
         }));
     } catch (e) { /* quota — ignore silently */ }
@@ -2234,6 +2238,8 @@ function bootFromCache() {
     );
     State.roster    = (cached.roster || []).filter(r => r && r.Name);
     State.locations = (cached.locations || []).filter(l => l && l.Name);
+    State.attempts  = (cached.attempts || []).filter(a => a && a.ClimberName && a.Discipline && a.Date);
+    State.sessions  = (cached.sessions || []).filter(s => s && s.ClimberName && s.Date);
     renderFeed();
     return true;
 }
@@ -3902,6 +3908,8 @@ async function fetchData() {
         );
         State.roster    = (json.data.roster || []).filter(r => r && r.Name);
         State.locations = (json.data.locations || []).filter(l => l && l.Name);
+        State.attempts  = (json.data.attempts || []).filter(a => a && a.ClimberName && a.Discipline && a.Date);
+        State.sessions  = (json.data.sessions || []).filter(s => s && s.ClimberName && s.Date);
         saveCache();
         renderFeed();
     } catch (err) {
