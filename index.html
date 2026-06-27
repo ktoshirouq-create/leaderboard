@@ -1489,6 +1489,38 @@ h1.screen-title {
     border-radius: 6px;
 }
 
+/* Two-tab strip atop the long-press logger (Attempts | Training) */
+.logmode-tabs {
+    display: flex;
+    gap: 6px;
+    background: var(--input-bg);
+    border-radius: 12px;
+    padding: 4px;
+    margin: 4px 0 18px 0;
+    border: 1px solid rgba(255,255,255,0.03);
+}
+.logmode-tab {
+    flex: 1;
+    text-align: center;
+    padding: 11px 0;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 0.3px;
+    transition: color 0.2s, background 0.2s;
+}
+.logmode-tab.active {
+    color: #fff;
+    background: #262626;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.logmode-tab:active { transform: scale(0.97); }
+
 /* Edit mode banner inside logger */
 .edit-mode-banner {
     background: rgba(245,158,11,0.1);
@@ -1976,8 +2008,17 @@ body.disco .disco-me {
     <div class="modal-sheet">
         <button class="modal-close" id="session-close">×</button>
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
+
+        <div class="logmode-tabs" id="logmode-tabs">
+            <button class="logmode-tab active" data-logmode="attempts">Attempts</button>
+            <button class="logmode-tab" data-logmode="training">Training</button>
+        </div>
+
+        <div id="session-pane-attempts"></div>
+
+        <div id="session-pane-training" class="hidden">
         <div class="modal-title">Log a session</div>
-        <div class="modal-subtitle">Training session — private to you, never on the boards.</div>
+        <div class="modal-subtitle">Training — your work behind the work. Shows on the feed, never scored.</div>
 
         <div class="field-label">Type</div>
         <div class="pill-row" id="session-type"></div>
@@ -2003,6 +2044,7 @@ body.disco .disco-me {
         <input type="date" class="date-input hidden" id="session-date-custom" max="2099-12-31">
 
         <button class="btn-main" id="session-submit" disabled>Log session</button>
+        </div><!-- /#session-pane-training -->
     </div>
 </div>
 
@@ -3766,7 +3808,7 @@ let fabSuppressClick = 0;
             fabSuppressClick = Date.now();
             haptic('commit');
             if (!State.activeUser) { openIdentityPrompt(); return; }
-            openSessionLogger();
+            openLongPressLogger();
         }, LONG_PRESS_MS);
     };
     const cancel = () => clearTimeout(timer);
@@ -5982,8 +6024,29 @@ document.querySelectorAll('#session-date [data-sdate]').forEach(el => {
     });
 });
 
-function openSessionLogger() {
+// Which pane the long-press logger shows. Attempts is the default (the main use).
+let logMode = 'attempts';
+function setLogMode(mode) {
+    logMode = mode;
+    document.getElementById('session-pane-attempts').classList.toggle('hidden', mode !== 'attempts');
+    document.getElementById('session-pane-training').classList.toggle('hidden', mode !== 'training');
+    document.querySelectorAll('#logmode-tabs .logmode-tab').forEach(t =>
+        t.classList.toggle('active', t.dataset.logmode === mode));
+    if (mode === 'attempts') openAttemptPane(); else openSessionPane();
+}
+document.querySelectorAll('#logmode-tabs .logmode-tab').forEach(t => {
+    t.addEventListener('click', () => { haptic('tap'); setLogMode(t.dataset.logmode); });
+});
+
+// Long-press FAB entry point: open the modal on the Attempts tab.
+function openLongPressLogger() {
     if (!State.activeUser) { openIdentityPrompt(); return; }
+    setLogMode('attempts');
+    openModal('session-modal');
+}
+
+// Training pane setup (was the body of openSessionLogger; now pane-scoped, no modal open here).
+function openSessionPane() {
     // Fresh blank state every open — deliberate picks required
     SessionState.type = null;
     SessionState.effort = null;
@@ -6001,6 +6064,105 @@ function openSessionLogger() {
     document.querySelector('#session-date [data-sdate="today"]').classList.add('active');
     document.getElementById('session-date-custom').classList.add('hidden');
     refreshSessionSaveState();
+}
+
+// Placeholder until bundle B builds the Attempts pane.
+function openAttemptPane() { /* built in bundle B */ }
+
+// Back-compat: anything still calling openSessionLogger opens on the Training tab.
+// Which pane the long-press logger shows. Attempts is the default (the main use).
+let logMode = 'attempts';
+function setLogMode(mode) {
+    logMode = mode;
+    document.getElementById('session-pane-attempts').classList.toggle('hidden', mode !== 'attempts');
+    document.getElementById('session-pane-training').classList.toggle('hidden', mode !== 'training');
+    document.querySelectorAll('#logmode-tabs .logmode-tab').forEach(t =>
+        t.classList.toggle('active', t.dataset.logmode === mode));
+    if (mode === 'attempts') openAttemptPane(); else openSessionPane();
+}
+document.querySelectorAll('#logmode-tabs .logmode-tab').forEach(t => {
+    t.addEventListener('click', () => { haptic('tap'); setLogMode(t.dataset.logmode); });
+});
+
+// Long-press FAB entry point: open the modal on the Attempts tab.
+function openLongPressLogger() {
+    if (!State.activeUser) { openIdentityPrompt(); return; }
+    setLogMode('attempts');
+    openModal('session-modal');
+}
+
+// Training pane setup (was openSessionLogger's body; pane-scoped now, no modal open here).
+function openSessionPane() {
+    SessionState.type = null;
+    SessionState.effort = null;
+    SessionState.exhaustion = null;
+    SessionState.duration = null;
+    SessionState.where = null;
+    SessionState.date = 'today';
+    sessionWhereExpanded = false;
+    renderSessionTypePills();
+    renderScalePills('session-effort', 'effort');
+    renderSessionDurationPills();
+    renderScalePills('session-exhaustion', 'exhaustion');
+    renderSessionWherePills();
+    document.querySelectorAll('#session-date .pill').forEach(x => x.classList.remove('active'));
+    document.querySelector('#session-date [data-sdate="today"]').classList.add('active');
+    document.getElementById('session-date-custom').classList.add('hidden');
+    refreshSessionSaveState();
+}
+
+// Placeholder until bundle B builds the Attempts pane.
+function openAttemptPane() { /* built in bundle B */ }
+
+// Back-compat: open the modal on the Training tab.
+// Which pane the long-press logger shows. Attempts is the default (the main use).
+let logMode = 'attempts';
+function setLogMode(mode) {
+    logMode = mode;
+    document.getElementById('session-pane-attempts').classList.toggle('hidden', mode !== 'attempts');
+    document.getElementById('session-pane-training').classList.toggle('hidden', mode !== 'training');
+    document.querySelectorAll('#logmode-tabs .logmode-tab').forEach(t =>
+        t.classList.toggle('active', t.dataset.logmode === mode));
+    if (mode === 'attempts') openAttemptPane(); else openSessionPane();
+}
+document.querySelectorAll('#logmode-tabs .logmode-tab').forEach(t => {
+    t.addEventListener('click', () => { haptic('tap'); setLogMode(t.dataset.logmode); });
+});
+
+// Long-press FAB entry point: open the modal on the Attempts tab.
+function openLongPressLogger() {
+    if (!State.activeUser) { openIdentityPrompt(); return; }
+    setLogMode('attempts');
+    openModal('session-modal');
+}
+
+// Training pane setup (was openSessionLogger's body; pane-scoped now, no modal open here).
+function openSessionPane() {
+    SessionState.type = null;
+    SessionState.effort = null;
+    SessionState.exhaustion = null;
+    SessionState.duration = null;
+    SessionState.where = null;
+    SessionState.date = 'today';
+    sessionWhereExpanded = false;
+    renderSessionTypePills();
+    renderScalePills('session-effort', 'effort');
+    renderSessionDurationPills();
+    renderScalePills('session-exhaustion', 'exhaustion');
+    renderSessionWherePills();
+    document.querySelectorAll('#session-date .pill').forEach(x => x.classList.remove('active'));
+    document.querySelector('#session-date [data-sdate="today"]').classList.add('active');
+    document.getElementById('session-date-custom').classList.add('hidden');
+    refreshSessionSaveState();
+}
+
+// Placeholder until bundle B builds the Attempts pane.
+function openAttemptPane() { /* built in bundle B */ }
+
+// Back-compat: open the modal on the Training tab.
+function openSessionLogger() {
+    if (!State.activeUser) { openIdentityPrompt(); return; }
+    setLogMode('training');
     openModal('session-modal');
 }
 
