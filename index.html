@@ -2032,7 +2032,10 @@ body.disco .disco-me {
             <input type="text" class="add-name-input hidden" id="attempt-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom:0;width:100%;" list="attempt-route-suggestions" autocomplete="off">
             <datalist id="attempt-route-suggestions"></datalist>
 
-            <div class="field-label">Grade <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">tried</span></div>
+            <div class="field-label">
+                Grade <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">tried</span>
+                <button class="info-icon hidden" id="attempt-grade-info">i</button>
+            </div>
             <div class="pill-row scroll" id="attempt-grade"></div>
 
             <div class="field-label" id="attempt-outcome-label">Outcome</div>
@@ -6358,8 +6361,39 @@ function renderAttemptGrade() {
         renderAttemptGrade();
         refreshAttemptSaveState();
     }));
+    const gi = document.getElementById('attempt-grade-info');
+    if (gi) gi.classList.toggle('hidden', !['In Rope', 'Out Rope', 'Trad'].includes(disc));
     setTimeout(() => { const a = c.querySelector('.pill.active'); if (a) a.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }, 50);
 }
+
+// Grade-conversion icon → reuse the send logger's modal, driven transiently from AttemptState.
+(function wireAttemptGradeInfo() {
+    const gi = document.getElementById('attempt-grade-info');
+    if (!gi) return;
+    gi.addEventListener('click', (e) => {
+        e.stopPropagation();
+        haptic('tap');
+        const savedD = LoggerState.discipline, savedG = LoggerState.grade;
+        LoggerState.discipline = AttemptState.discipline;
+        LoggerState.grade = AttemptState.grade;
+        openGradeConversionModal();
+        // The modal writes back to LoggerState.grade on pick; mirror it to AttemptState, then restore.
+        const restore = () => {
+            if (LoggerState.grade && LoggerState.grade !== savedG) {
+                AttemptState.grade = LoggerState.grade;
+                renderAttemptGrade();
+                refreshAttemptSaveState();
+            }
+            LoggerState.discipline = savedD;
+            LoggerState.grade = savedG;
+        };
+        // openGradeConversionModal closes info-modal on pick; catch both pick and dismiss
+        setTimeout(restore, 0);  // place restore after the modal's own click wiring
+        const infoModal = document.getElementById('info-modal');
+        const onClose = () => { restore(); infoModal.removeEventListener('transitionend', onClose); };
+        infoModal.addEventListener('transitionend', onClose);
+    });
+})();
 
 function updateAttemptRouteVisibility() {
     const isOut = isOutdoor(AttemptState.discipline);
