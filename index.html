@@ -4973,7 +4973,11 @@ function renderFeed() {
             const headerEl = card.querySelector('.session-header');
             if (headerEl) {
                 let timer = null;
-                const start = () => { timer = setTimeout(() => { haptic('commit'); openJointActionSheet(item); }, LONG_PRESS_MS); };
+                const start = (e) => {
+                    // Location chips have their own long-press (rename) — don't also arm the split gesture.
+                    if (e.target.closest('.s-where-link')) return;
+                    timer = setTimeout(() => { haptic('commit'); openJointActionSheet(item); }, LONG_PRESS_MS);
+                };
                 const cancel = () => clearTimeout(timer);
                 headerEl.addEventListener('touchstart', start, { passive: true });
                 headerEl.addEventListener('touchmove', cancel, { passive: true });
