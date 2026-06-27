@@ -5144,12 +5144,22 @@ function daysToLegacySessions(days) {
         list.innerHTML = '<div class="empty-msg">No sends yet. Tap + to be the first.</div>';
         return;
     }
-    const items = clusterSessions(groupIntoSessions(State.logs));
-    const visibleItems = items.slice(0, feedPage * FEED_PAGE_SIZE);
-    const remaining = items.length - visibleItems.length;
+    const days = buildDays(State.logs, State.attempts || [], State.sessions || []);
+    const unifying = days.filter(dayUnifies);
+    const legacyDays = days.filter(d => !dayUnifies(d));
+    const legacyItems = clusterSessions(groupIntoSessions(daysToLegacySessions(legacyDays)));
+    const merged = [
+        ...unifying.map(d => ({ _isDay: true, timestamp: d.timestamp, day: d })),
+        ...legacyItems.map(it => ({ _isDay: false, timestamp: it.timestamp, item: it }))
+    ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    const visibleItems = merged.slice(0, feedPage * FEED_PAGE_SIZE);
+    const remaining = merged.length - visibleItems.length;
 
     _capCache = new Map(); _rankCache = new Map(); _rankMoveCache = new Map();
-    let html = visibleItems.map((it, i) => it.joint ? renderJointCard(it, i) : renderSessionCard(it, i)).join('');
+    let html = visibleItems.map((m, i) =>
+        m._isDay ? renderDayCard(m.day, i) : (m.item.joint ? renderJointCard(m.item, i) : renderSessionCard(m.item, i))
+    ).join('');
     _capCache = null; _rankCache = null; _rankMoveCache = null;
     if (remaining > 0) {
         html += `<button class="load-more-btn" id="feed-load-more">Load more · ${remaining} remaining</button>`;
