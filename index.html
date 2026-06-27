@@ -2907,10 +2907,11 @@ let discOtherOpen = false;   // is the Other› overflow row expanded this open?
 function disciplineFreqOrder() {
     const order = AppConfig.disciplines;
     const cnt = {}; order.forEach(d => cnt[d] = 0);
-    const todayISO = getCleanDate(new Date());
+    const now = Date.now();
     State.logs.forEach(l => {
         if (l.ClimberName !== State.activeUser || !order.includes(l.Discipline)) return;
-        if (dDiff(todayISO, getCleanDate(l.Date)) > 30) return;
+        const ageDays = (now - new Date(l.Date).getTime()) / 86400000;
+        if (!(ageDays >= 0) || ageDays > 30) return;   // skip unparseable/future dates
         cnt[l.Discipline]++;
     });
     return [...order].sort((a, b) => cnt[b] - cnt[a] || order.indexOf(a) - order.indexOf(b));
