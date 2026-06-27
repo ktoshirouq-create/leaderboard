@@ -3485,9 +3485,11 @@ const GRADE_CONVERSIONS = [
     { french: '8c',  norway: '9+', usa: '5.14b'   }
 ];
     
-function openGradeConversionModal() {
-    const currentGrade = LoggerState.grade;
-    const currentScale = AppConfig.grades[LoggerState.discipline];
+function openGradeConversionModal(target, rerender) {
+    target = target || LoggerState;                         // send logger passes nothing → unchanged
+    rerender = rerender || renderGradePills;
+    const currentGrade = target.grade;
+    const currentScale = AppConfig.grades[target.discipline];
     
     // Filter to grades valid in current discipline (so In Rope doesn't show 4-/4/4+ etc)
     const validFrench = new Set(currentScale ? currentScale.labels : []);
@@ -3520,10 +3522,10 @@ function openGradeConversionModal() {
         el.addEventListener('click', () => {
             haptic('tap');
             const newGrade = el.dataset.french;
-            LoggerState.grade = newGrade;
-            localStorage.setItem(`leaderboard.lastGrade.${LoggerState.discipline}`, newGrade);
+            target.grade = newGrade;
+            localStorage.setItem(`leaderboard.lastGrade.${target.discipline}`, newGrade);
             closeModal('info-modal');
-            renderGradePills();
+            rerender();
         });
     });
     
@@ -6242,7 +6244,7 @@ function getAttemptDateISO() {
 /* ----- Attempt render functions (thin — lean on the same shared helpers as the send logger) ----- */
 let attemptOtherOpen = false;
 let attemptWhereExpanded = false;
-const ATTEMPT_WHERE_CAP = 8;
+const ATTEMPT_WHERE_CAP = 6;   // ~2 rows on a phone; rest behind "+N more" (flat cap, not measured)
 
 function renderAttemptDiscipline() {
     const c = document.getElementById('attempt-discipline');
@@ -6365,6 +6367,18 @@ function renderAttemptGrade() {
     if (gi) gi.classList.toggle('hidden', !['In Rope', 'Out Rope', 'Trad'].includes(disc));
     setTimeout(() => { const a = c.querySelector('.pill.active'); if (a) a.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }, 50);
 }
+
+// Grade-conversion icon on the attempt logger → same modal, driven by AttemptState, re-renders
+// the attempt grade pills + gate on pick. No transient LoggerState juggling, no race.
+(function wireAttemptGradeInfo() {
+    const gi = document.getElementById('attempt-grade-info');
+    if (!gi) return;
+    gi.addEventListener('click', (e) => {
+        e.stopPropagation();
+        haptic('tap');
+        openGradeConversionModal(AttemptState, () => { renderAttemptGrade(); refreshAttemptSaveState(); });
+    });
+})();
 
 function updateAttemptRouteVisibility() {
     const isOut = isOutdoor(AttemptState.discipline);
