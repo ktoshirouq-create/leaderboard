@@ -1430,6 +1430,9 @@ h1.screen-title {
 }
 /* Where pills: + Add and "+N more" sit inline; the whole row clips to 2 rows */
 .pill-wrap { position: relative; overflow: hidden; }
+/* Discipline "Other ›" pill + its expanded overflow row */
+.disc-other { color: var(--text-muted); background: transparent; border: 1px dashed rgba(255,255,255,0.18); }
+.disc-overflow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; animation: fadeIn 0.18s ease; }
 .where-more { color: var(--text-muted); background: transparent; border: 1px dashed rgba(255,255,255,0.12); }
 
 /* ===== ACTION SHEET ===== */
@@ -2896,27 +2899,58 @@ function getLocationsForDiscipline(disc) {
         .filter(Boolean);
 }
 
-/* ----- Discipline pills ----- */
+/* ----- Discipline pills (frequency-grouped: top 4 by your 30d use, rest behind "Other ›") ----- */
+const DISC_PRIMARY_SLOTS = 4;
+let discOtherOpen = false;   // is the Other› overflow row expanded this open?
+
+// Your disciplines ranked by 30-day frequency; stable tiebreak keeps AppConfig order.
+function disciplineFreqOrder() {
+    const order = AppConfig.disciplines;
+    const cnt = {}; order.forEach(d => cnt[d] = 0);
+    const todayISO = getCleanDate(new Date());
+    State.logs.forEach(l => {
+        if (l.ClimberName !== State.activeUser || !order.includes(l.Discipline)) return;
+        if (dDiff(todayISO, getCleanDate(l.Date)) > 30) return;
+        cnt[l.Discipline]++;
+    });
+    return [...order].sort((a, b) => cnt[b] - cnt[a] || order.indexOf(a) - order.indexOf(b));
+}
+
 function renderDisciplinePills() {
     const c = document.getElementById('logger-discipline');
-    c.innerHTML = AppConfig.disciplines.map(d =>
-        `<button class="pill ${d === LoggerState.discipline ? 'active' : ''}" data-disc="${d}">${d}</button>`
-    ).join('');
-    c.querySelectorAll('[data-disc]').forEach(el => {
-        el.addEventListener('click', () => {
-            haptic('tap');
-            LoggerState.discipline = el.dataset.disc;
-            localStorage.setItem('leaderboard.lastDiscipline', LoggerState.discipline);
-            // Cascade re-renders: where, grade, style depend on discipline
-            renderDisciplinePills();
-            renderWherePills();
-            renderGradePills();
-            renderStylePills();
-            updateRouteNameVisibility();
-            updateBelayerVisibility();
-            refreshLogSaveState();
-        });
-    });
+    const ordered = disciplineFreqOrder();
+    let primary = ordered.slice(0, DISC_PRIMARY_SLOTS);
+    let overflow = ordered.slice(DISC_PRIMARY_SLOTS);
+    // Force the current selection onto the primary row even if its frequency would bury it.
+    const sel = LoggerState.discipline;
+    if (sel && overflow.includes(sel)) {
+        overflow = [primary[primary.length - 1], ...overflow.filter(d => d !== sel)];
+        primary = [...primary.slice(0, DISC_PRIMARY_SLOTS - 1), sel];
+    }
+    const pill = d => `<button class="pill ${d === sel ? 'active' : ''}" data-disc="${d}">${d}</button>`;
+    const otherActive = overflow.length > 0;
+    const otherLabel = discOtherOpen ? 'Other ▾' : 'Other ›';
+    c.innerHTML =
+        primary.map(pill).join('') +
+        (otherActive ? `<button class="pill disc-other" data-disc-other="1">${otherLabel}</button>` : '') +
+        (otherActive && discOtherOpen ? `<div class="disc-overflow">${overflow.map(pill).join('')}</div>` : '');
+
+    const pick = (d) => {
+        haptic('tap');
+        LoggerState.discipline = d;
+        localStorage.setItem('leaderboard.lastDiscipline', d);
+        discOtherOpen = false;   // collapse Other› once something's chosen
+        renderDisciplinePills();
+        renderWherePills();
+        renderGradePills();
+        renderStylePills();
+        updateRouteNameVisibility();
+        updateBelayerVisibility();
+        refreshLogSaveState();
+    };
+    c.querySelectorAll('[data-disc]').forEach(el => el.addEventListener('click', () => pick(el.dataset.disc)));
+    const otherBtn = c.querySelector('[data-disc-other]');
+    if (otherBtn) otherBtn.addEventListener('click', () => { haptic('tap'); discOtherOpen = !discOtherOpen; renderDisciplinePills(); });
 }
 
 /* ----- Where pills ----- */
@@ -3634,6 +3668,7 @@ function openLogger() {
     LoggerState.grade = null;                // grade is never carried — always a fresh pick
     if (LoggerState.discipline) localStorage.setItem('leaderboard.lastDiscipline', LoggerState.discipline);
 
+    discOtherOpen = false;                   // Other› starts collapsed every open
     renderDisciplinePills();
     renderWherePills();
     renderGradePills();
