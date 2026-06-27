@@ -4217,6 +4217,7 @@ function maxGradeOfSession(session) {
 const LONG_PRESS_MS = 500;
 let longPressTimer = null;
 let pressingEl = null;
+let locChipSuppressClick = 0;   // timestamp of last loc-chip long-press; swallows the trailing click
 let editingLogId = null;  // when set, the logger is in edit mode
 function attachLongPressToWherePill(pillEl, locationName) {
     let timer = null;
@@ -4239,6 +4240,39 @@ function attachLongPressToWherePill(pillEl, locationName) {
     pillEl.addEventListener('mousedown', start);
     pillEl.addEventListener('mouseup', cancel);
     pillEl.addEventListener('mouseleave', cancel);
+}
+
+// Rename-only entry (used by feed/profile location chips) — goes straight to the rename sheet,
+// no delete option. Destructive delete stays behind the logger's where-pills.
+function openLocationRenameOnly(locationName) {
+    openRenameLocation(locationName);  // opens the rename-modal itself
+}
+
+// Attach long-press → rename to a location chip. Tap still fires its own navigation handler;
+// the trailing emulated click after a long-press is swallowed (same pattern as capacity rows).
+function attachLongPressToLocChip(el, locationName) {
+    let timer = null, sx = 0, sy = 0;
+    const start = (e) => {
+        if (e.touches && e.touches[0]) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }
+        timer = setTimeout(() => {
+            haptic('commit');
+            locChipSuppressClick = Date.now();
+            openLocationRenameOnly(locationName);
+        }, LONG_PRESS_MS);
+    };
+    const cancel = (e) => {
+        if (e && e.type === 'touchmove' && e.touches && e.touches[0]) {
+            if (Math.abs(e.touches[0].clientX - sx) < 15 && Math.abs(e.touches[0].clientY - sy) < 15) return;
+        }
+        clearTimeout(timer);
+    };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', cancel, { passive: true });
+    el.addEventListener('touchend', cancel);
+    el.addEventListener('touchcancel', cancel);
+    el.addEventListener('mousedown', start);
+    el.addEventListener('mouseup', cancel);
+    el.addEventListener('mouseleave', cancel);
 }
 
 function openLocationActionSheet(locationName) {
@@ -4873,10 +4907,12 @@ function renderFeed() {
         const card = cards[i];
         if (!card) return;
 
-        // location chips (both card types)
+        // location chips (both card types): tap → location page, long-press → rename
         card.querySelectorAll('.s-where-link').forEach(linkEl => {
+            attachLongPressToLocChip(linkEl, linkEl.dataset.loc);
             linkEl.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (Date.now() - locChipSuppressClick < 500) return;  // long-press handled it
                 haptic('tap');
                 showLocation(linkEl.dataset.loc, 'feed');
             });
@@ -5644,8 +5680,10 @@ function renderProfileSessions(climber) {
         if (log) attachLongPressToSendRow(rowEl, log);
         const whereLink = rowEl.querySelector('.pt-where-link');
         if (whereLink) {
+            attachLongPressToLocChip(whereLink, whereLink.dataset.loc);
             whereLink.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (Date.now() - locChipSuppressClick < 500) return;  // long-press handled it
                 haptic('tap');
                 showLocation(whereLink.dataset.loc, 'profile');
             });
