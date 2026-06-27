@@ -5021,9 +5021,103 @@ function renderJointCard(group, idx) {
     </div>`;
 }
 
-function renderFeed() {
-    const list = document.getElementById('feed-list');
-    if (State.logs.length === 0) {
+/* ===== DAY MODEL (phase 3) — one climber, one date, discipline-keyed sections ===== */
+// Folds sends + attempts + training sessions into day objects. Sections carry character
+// (send/project/training); the day inherits its loudest. Proven in harness before wiring.
+function buildDays(logs, attempts, sessions) {
+    const days = new Map();
+    const getDay = (climber, date) => {
+        const key = `${climber}|${date}`;
+        if (!days.has(key)) days.set(key, { climber, date, key, sections: new Map(), training: null, timestamp: null,
+            _optimistic: false, _failed: false });
+        return days.get(key);
+    };
+    const bump = (day, ts, opt, fail) => {
+        const t = new Date(ts).getTime() || 0;
+        if (day.timestamp === null || t > new Date(day.timestamp).getTime()) day.timestamp = ts;
+        if (opt) day._optimistic = true;
+        if (fail) day._failed = true;
+    };
+    (logs || []).forEach(l => {
+        if (!l.ClimberName || !AppConfig.disciplines.includes(l.Discipline)) return;
+        const date = getCleanDate(l.Date);
+        const day = getDay(l.ClimberName, date);
+        if (!day.sections.has(l.Discipline)) day.sections.set(l.Discipline, { kind: 'climb', discipline: l.Discipline, sends: [], attempts: [] });
+        day.sections.get(l.Discipline).sends.push(l);
+        bump(day, l.Timestamp, l._optimistic, l._failed);
+    });
+    (attempts || []).forEach(a => {
+        if (!a.ClimberName || !AppConfig.disciplines.includes(a.Discipline)) return;
+        const date = getCleanDate(a.Date);
+        const day = getDay(a.ClimberName, date);
+        if (!day.sections.has(a.Discipline)) day.sections.set(a.Discipline, { kind: 'climb', discipline: a.Discipline, sends: [], attempts: [] });
+        day.sections.get(a.Discipline).attempts.push(a);
+        bump(day, a.Timestamp);
+    });
+    (sessions || []).forEach(s => {
+        if (!s.ClimberName) return;
+        const date = getCleanDate(s.Date);
+        const day = getDay(s.ClimberName, date);
+        if (!day.training) day.training = { kind: 'training', items: [] };
+        day.training.items.push(s);
+        bump(day, s.Timestamp);
+    });
+    return [...days.values()].map(day => {
+        const sections = AppConfig.disciplines.filter(d => day.sections.has(d)).map(d => day.sections.get(d));
+        const totalSends = sections.reduce((n, s) => n + s.sends.length, 0);
+        const totalAttempts = sections.reduce((n, s) => n + s.attempts.length, 0);
+        const laneCount = sections.length + (day.training ? 1 : 0);
+        let stripeDisc = null, best = -1;
+        sections.forEach(s => { if (s.sends.length > best) { best = s.sends.length; stripeDisc = s.discipline; } });
+        if (stripeDisc === null && sections.length) stripeDisc = sections[0].discipline;
+        const dayChar = totalSends > 0 ? 'send' : (totalAttempts > 0 ? 'project' : 'training');
+        return { ...day, sections, totalSends, totalAttempts, hasTraining: !!day.training,
+            isMulti: laneCount > 1, stripeDisc, dayChar, laneCount };
+    }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+// A day is "social" if any of its sessions clusters with another person (belayer-link or boulder
+// co-location) — those stay in the legacy joint path so we never cannibalize a joint card.
+function dayIsSocial(climber, date) {
+    const lc = n => String(n || '').toLowerCase().trim();
+    const mine = [];
+    const others = [];
+    State.logs.forEach(l => {
+        if (getCleanDate(l.Date) !== date) return;
+        const rec = { climber: l.ClimberName, disc: l.Discipline, where: l.Where, belayer: l.Belayer };
+        if (l.ClimberName === climber) mine.push(rec); else others.push(rec);
+    });
+    return mine.some(m => {
+        const isBoulder = m.disc.includes('Boulder');
+        return others.some(o => {
+            if (o.disc !== m.disc) return false;
+            const linked = (m.belayer && lc(m.belayer) === lc(o.climber)) || (o.belayer && lc(o.belayer) === lc(m.climber));
+            const coLoc = isBoulder && m.where && m.where === o.where;
+            return linked || coLoc;
+        });
+    });
+}
+function dayUnifies(day) {
+    return day.isMulti && !day._optimistic && !day._failed && !dayIsSocial(day.climber, day.date);
+}
+
+// Convert NON-unifying days back into the exact session objects the legacy pipeline expects.
+// (Attempts/training on these days don't render yet — they surface once those days unify, or
+// in the legacy day's own discipline section in a later bundle. 2a/2b scope: sends round-trip
+// byte-identical.)
+function daysToLegacySessions(days) {
+    const out = [];
+    days.forEach(day => {
+        day.sections.forEach(sec => {
+            if (sec.sends.length === 0) return;
+            const wheres = [], belayers = [];
+            let ts = sec.sends[0].Timestamp, opt = false, fail = false;
+            sec.sends.forEach(l => {
+                if (!wheres.includes(l.Where)) wheres.push(l.Where);
+                if (l.Belayer && l.Belayer !== l.ClimberName && !belayers.includes(l.Belayer)) belayers.push(l.Belayer);
+                if (new Date(l.Timestamp) > new Date(ts)) ts = l.Timestamp;
+                if (l._optimistic) opt = true;
+                if (l._failed) fail = true;
         list.innerHTML = '<div class="empty-msg">No sends yet. Tap + to be the first.</div>';
         return;
     }
