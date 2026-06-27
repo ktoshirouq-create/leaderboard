@@ -3747,6 +3747,7 @@ function openLogger() {
 }
 
 document.getElementById('fab').addEventListener('click', () => {
+    if (fabSuppressClick && Date.now() - fabSuppressClick < 500) return;  // long-press handled it
     haptic('tap');
     if (!State.activeUser) {
         openIdentityPrompt();
@@ -3754,6 +3755,29 @@ document.getElementById('fab').addEventListener('click', () => {
         openLogger();
     }
 });
+
+// Long-press the FAB → training session logger (kept off the fast send path).
+let fabSuppressClick = 0;
+(function () {
+    const fab = document.getElementById('fab');
+    let timer = null;
+    const start = () => {
+        timer = setTimeout(() => {
+            fabSuppressClick = Date.now();
+            haptic('commit');
+            if (!State.activeUser) { openIdentityPrompt(); return; }
+            openSessionLogger();
+        }, LONG_PRESS_MS);
+    };
+    const cancel = () => clearTimeout(timer);
+    fab.addEventListener('touchstart', start, { passive: true });
+    fab.addEventListener('touchmove', cancel, { passive: true });
+    fab.addEventListener('touchend', cancel);
+    fab.addEventListener('touchcancel', cancel);
+    fab.addEventListener('mousedown', start);
+    fab.addEventListener('mouseup', cancel);
+    fab.addEventListener('mouseleave', cancel);
+})();
 
 async function fetchData() {
     try {
@@ -5784,7 +5808,7 @@ function showProfile(climber) {
     const isOwnProfile = (climber === State.activeUser);
     document.getElementById('profile-back').style.display = isOwnProfile ? 'none' : 'inline-flex';
     document.getElementById('profile-switcher').classList.toggle('hidden', !isOwnProfile);
-    document.getElementById('log-session-btn').classList.toggle('hidden', !isOwnProfile);
+    document.getElementById('log-session-btn').classList.add('hidden');  // session logging now lives on the FAB long-press
     navRecordView('profile', climber);
     
    }
@@ -5872,33 +5896,54 @@ function renderSessionDurationPills() {
     }));
 }
 
-// Where pills ranked by this climber's 30-day session+send frequency. No default selected:
-// a fresh open forces a deliberate pick. Reuses the registered gym/crag list.
+// Where pills for training: GYMS ONLY (training is indoor), ranked by your 90-day
+// frequency+recency like the send logger's Where row, and capped to ~6 with the long tail
+// behind "+ more". No default selected — a fresh open forces a deliberate pick.
+let sessionWhereExpanded = false;
+const SESSION_WHERE_CAP = 6;
 function renderSessionWherePills() {
     const c = document.getElementById('session-where');
     if (!c) return;
     const me = State.activeUser;
-    const todayISO = getCleanDate(new Date());
+    const now = Date.now();
+    const gyms = [...new Set(State.locations.filter(l => l.Type === 'gym').map(l => l.Name).filter(Boolean))];
+    // 90-day usage stats scoped to this climber, gym sends only
     const stats = {};
     State.logs.forEach(l => {
-        if (l.ClimberName !== me || !l.Where) return;
-        if (dDiff(todayISO, getCleanDate(l.Date)) > 30) return;
-        stats[l.Where] = (stats[l.Where] || 0) + 1;
+        if (l.ClimberName !== me || !l.Where || !gyms.includes(l.Where)) return;
+        const ageDays = (now - new Date(l.Date).getTime()) / 86400000;
+        if (!(ageDays >= 0) || ageDays > 90) return;
+        const s = stats[l.Where] || (stats[l.Where] = { count: 0, last: '' });
+        s.count++;
+        const d = getCleanDate(l.Date);
+        if (d > s.last) s.last = d;
     });
-    // candidates: all gyms + crags you might train at; rank logged-at by freq, rest alphabetical
-    const all = [...new Set(State.locations.map(l => l.Name).filter(Boolean))];
-    const logged = all.filter(n => stats[n]).sort((a, b) => stats[b] - stats[a]);
-    const unlogged = all.filter(n => !stats[n]).sort((a, b) => a.localeCompare(b));
-    const names = [...logged, ...unlogged];
-    c.innerHTML = names.map(n =>
+    let names = rankByUsage(gyms, stats);
+    // Keep the selected gym visible even if it'd fall past the cap
+    if (SessionState.where) {
+        const i = names.indexOf(SessionState.where);
+        if (i > SESSION_WHERE_CAP - 1) { names.splice(i, 1); names.unshift(SessionState.where); }
+    }
+    const collapsed = !sessionWhereExpanded && names.length > SESSION_WHERE_CAP;
+    const shown = collapsed ? names.slice(0, SESSION_WHERE_CAP) : names;
+    const hiddenCount = names.length - shown.length;
+    c.innerHTML = shown.map(n =>
         `<button class="pill ${SessionState.where === n ? 'active' : ''}" data-swhere="${escapeHTML(n)}">${escapeHTML(n)}</button>`
-    ).join('');
+    ).join('') +
+        (collapsed ? `<button class="pill where-more" data-swhere-more="1">+${hiddenCount} more</button>`
+                   : (sessionWhereExpanded && names.length > SESSION_WHERE_CAP ? `<button class="pill where-more" data-swhere-more="1">Less</button>` : ''));
     c.querySelectorAll('[data-swhere]').forEach(el => el.addEventListener('click', () => {
         haptic('tap');
         SessionState.where = el.dataset.swhere;
         c.querySelectorAll('[data-swhere]').forEach(p => p.classList.toggle('active', p === el));
         refreshSessionSaveState();
     }));
+    const moreBtn = c.querySelector('[data-swhere-more]');
+    if (moreBtn) moreBtn.addEventListener('click', () => {
+        haptic('tap');
+        sessionWhereExpanded = !sessionWhereExpanded;
+        renderSessionWherePills();
+    });
 }
 
 function getSessionDateISO() {
@@ -5943,6 +5988,7 @@ function openSessionLogger() {
     SessionState.duration = null;
     SessionState.where = null;
     SessionState.date = 'today';
+    sessionWhereExpanded = false;
     renderSessionTypePills();
     renderScalePills('session-effort', 'effort');
     renderSessionDurationPills();
