@@ -5231,7 +5231,54 @@ function renderDayCard(day, idx) {
     const cardHl = allHl[0] || null;
     const moreHl = allHl.slice(1);
 
-    const dethroneChip = (cardHl && cardHl.kind === 'rank' && cardHl.board === 'hardest' &&
+    const dethroneChip = (cardHl && cardHl.kind === 'rank' && cardHl.board === 'hardest' && cardHl.tier === 'crown'
+        && cardHl.dethroned && cardHl.dethroned.length && cardHl.dethroned.length <= 2)
+        ? `<span class="hl-chip">↓ took it from ${escapeHTML(cardHl.dethroned.join(' & '))}</span>` : '';
+
+    const hardest = dayHardestSendGrade(day);
+    const summaryHtml = `<span>${day.totalSends} send${day.totalSends === 1 ? '' : 's'}</span>` +
+        (hardest ? `<span class="dot">·</span><span class="max-grade">hardest <span class="grade-value">${escapeHTML(hardest)}</span></span>` : '');
+
+    const allWheres = [...new Set(day.sections.flatMap(s => s.sends.concat(s.attempts)).map(x => x.Where).filter(Boolean))];
+    const whereHtml = allWheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
+
+    const relTime = formatRelativeTime(day.timestamp);
+    const dateText = formatShortDate(day.date);
+    const isRel = /ago|now|today|yesterday/i.test(relTime);
+    const timeText = isRel ? `${dateText} · ${relTime}` : dateText;
+
+    const sectionsHtml = day.sections.map(dayClimbSectionHtml).join('') +
+        (day.hasTraining ? dayTrainingSectionHtml(day.training) : '');
+
+    const totalClimbs = day.sections.reduce((n, s) => n + s.sends.length, 0);
+    const stateClass = day._failed ? 'failed' : (day._optimistic ? 'syncing' : '');
+
+    return `
+    <div class="session-card day-card ${stateClass}" data-disc="${escapeHTML(day.stripeDisc)}" data-idx="${idx}" data-day-key="${escapeHTML(day.key)}">
+        ${bannerMarkup({ climber: day.climber, discipline: day.stripeDisc, date: day.date }, cardHl)}
+        <div class="session-header">
+            <div class="s-name-block">
+                ${highlightMarkup({ climber: day.climber, discipline: day.stripeDisc, date: day.date }, cardHl)}
+                <div class="s-name" data-profile-link>${nameCrown(day.climber)}${escapeHTML(day.climber)}</div>
+                <div class="s-time">${escapeHTML(timeText)}</div>
+            </div>
+            <div class="s-where">${whereHtml}</div>
+        </div>
+        ${(dethroneChip || moreHl.length) ? `<div class="hl-chips">${dethroneChip}${moreHl.map(chipMarkup).join('')}</div>` : ''}
+        <div class="s-summary">${summaryHtml}</div>
+        <div class="day-sections">${sectionsHtml}</div>
+        ${totalClimbs > 0 ? `<button class="expand-btn"><span class="expand-arrow">▾</span> View ${totalClimbs} climb${totalClimbs > 1 ? 's' : ''}</button>
+        <div class="session-children">${day.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline))).join('')}</div>` : ''}
+    </div>`;
+}
+
+function renderFeed() {
+    const list = document.getElementById('feed-list');
+    if (State.logs.length === 0) {
+        list.innerHTML = '<div class="empty-msg">No sends yet. Tap + to be the first.</div>';
+        return;
+    }
+    const days = buildDays(State.logs, State.attempts || [], State.sessions || []);
     const unifying = days.filter(dayUnifies);
     const legacyDays = days.filter(d => !dayUnifies(d));
     const legacyItems = clusterSessions(daysToLegacySessions(legacyDays));
