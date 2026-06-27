@@ -1951,7 +1951,7 @@ body.disco .disco-me {
 </div>
 <input type="date" class="date-input hidden" id="logger-date-custom" max="2099-12-31">
 
-        <button class="btn-main" id="submit-log">Log it</button>
+        <button class="btn-main" id="submit-log" disabled>Log it</button>
     </div>
 </div>
 
@@ -3413,14 +3413,11 @@ function getSelectedDateISO() {
 }
 
 async function submitLog() {
-    if (!LoggerState.where) {
-        showToast('Pick a gym or crag first');
+    if (!editingLogId && !canLogSend()) {
+        showToast('Pick discipline, where & grade');
         return;
     }
-    if (!LoggerState.grade || !LoggerState.discipline || !LoggerState.style) {
-        showToast('Missing field');
-        return;
-    }
+    if (!LoggerState.style) LoggerState.style = 'Send';
     
     // EDIT MODE — modify existing log in place
     if (editingLogId) {
@@ -3616,10 +3613,32 @@ document.getElementById('submit-log').addEventListener('click', submitLog);
 /* ----- Open logger ----- */
 function openLogger() {
     document.getElementById('active-user-label').textContent = State.activeUser;
+
+    // Continuation vs blank: if you already logged TODAY, pre-fill discipline + where from your
+    // latest today log (you're mid-session — keep it frictionless). Otherwise a deliberate blank
+    // open: nothing selected, "Log it" stays locked until discipline + where + grade are all picked.
+    const todayISO = getCleanDate(new Date());
+    let contLog = null, contT = -1;
+    State.logs.forEach(l => {
+        if (l.ClimberName !== State.activeUser || getCleanDate(l.Date) !== todayISO) return;
+        const t = new Date(l.Timestamp).getTime() || 0;
+        if (t > contT) { contT = t; contLog = l; }
+    });
+    if (contLog) {
+        LoggerState.discipline = contLog.Discipline;
+        LoggerState.where = contLog.Where;   // renderWherePills keeps it if still valid for this disc
+    } else {
+        LoggerState.discipline = null;
+        LoggerState.where = null;
+    }
+    LoggerState.grade = null;                // grade is never carried — always a fresh pick
+    if (LoggerState.discipline) localStorage.setItem('leaderboard.lastDiscipline', LoggerState.discipline);
+
     renderDisciplinePills();
     renderWherePills();
     renderGradePills();
     renderStylePills();
+    refreshLogSaveState();
     
     // Date pill: read sticky last-used. If "today" or "yesterday", keep that pill.
     // If it was a custom date that has since become stale (no longer today/yesterday), 
@@ -4633,6 +4652,7 @@ function openLoggerInEditMode(log) {
     updateRouteNameVisibility();
     LoggerState.belayer = log.Belayer || '';
     updateBelayerVisibility();
+    document.getElementById('submit-log').disabled = false;  // edit mode: all fields pre-filled
     openModal('logger-modal');
 }
 
