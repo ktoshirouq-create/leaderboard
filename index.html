@@ -4411,9 +4411,8 @@ async function performRenameLocation(oldName, newName) {
         // Restore action sheet labels
         document.getElementById('action-edit').textContent = 'Edit climb';
         document.getElementById('action-delete').textContent = 'Delete climb';
-        // Note: log Where values are NOT updated server-side here. They show the new name
-        // in the UI optimistically but the sheet still has old name. Acceptable for now —
-        // typo-fix is the main use case, not large-scale renaming.
+        // Server-side: editLocation calls propagateLocationRename, which rewrites the Where
+        // column across all Logs rows — so a hard refresh keeps the new name everywhere.
     } catch (err) {
         // Restore on failure
         loc.Name = originalLocName;
