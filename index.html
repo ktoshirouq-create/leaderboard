@@ -2014,7 +2014,48 @@ body.disco .disco-me {
             <button class="logmode-tab" data-logmode="training">Training</button>
         </div>
 
-        <div id="session-pane-attempts"></div>
+        <div id="session-pane-attempts">
+            <div class="modal-title">Log an attempt</div>
+            <div class="modal-subtitle">A climb you worked but didn't send cleanly. Shows on the feed, never scored.</div>
+
+            <div class="field-label">Discipline</div>
+            <div class="pill-row" id="attempt-discipline"></div>
+
+            <div class="field-label" id="attempt-where-label">Where</div>
+            <div id="attempt-where"></div>
+            <div class="add-name-row hidden" id="attempt-where-add-row">
+                <input type="text" class="add-name-input" id="attempt-where-add-input" placeholder="Gym or crag name" maxlength="30">
+                <button class="add-name-save" id="attempt-where-add-save">Save</button>
+            </div>
+
+            <div class="field-label hidden" id="attempt-route-label">Route name <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
+            <input type="text" class="add-name-input hidden" id="attempt-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom:0;width:100%;" list="attempt-route-suggestions" autocomplete="off">
+            <datalist id="attempt-route-suggestions"></datalist>
+
+            <div class="field-label">Grade <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">tried</span></div>
+            <div class="pill-row scroll" id="attempt-grade"></div>
+
+            <div class="field-label" id="attempt-outcome-label">Outcome</div>
+            <div class="pill-row hidden" id="attempt-outcome-type"></div>
+            <div class="pill-row" id="attempt-count"></div>
+
+            <div class="field-label hidden" id="attempt-belayer-label">Belayer <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
+            <div class="pill-row scroll hidden" id="attempt-belayer"></div>
+            <div class="add-name-row hidden" id="attempt-belayer-add-row">
+                <input type="text" class="add-name-input" id="attempt-belayer-add-input" placeholder="Belayer name" maxlength="20">
+                <button class="add-name-save" id="attempt-belayer-add-save">Save</button>
+            </div>
+
+            <div class="field-label">Date</div>
+            <div class="pill-row" id="attempt-date">
+                <button class="pill active" data-adate="today">Today</button>
+                <button class="pill" data-adate="yesterday">Yesterday</button>
+                <button class="pill" data-adate="custom">Custom</button>
+            </div>
+            <input type="date" class="date-input hidden" id="attempt-date-custom" max="2099-12-31">
+
+            <button class="btn-main" id="attempt-submit" disabled>Log attempt</button>
+        </div>
 
         <div id="session-pane-training" class="hidden">
         <div class="modal-title">Log a session</div>
@@ -6065,14 +6106,134 @@ function openSessionPane() {
     refreshSessionSaveState();
 }
 
-// Placeholder until bundle B builds the Attempts pane.
-function openAttemptPane() { /* built in bundle B */ }
+function openAttemptPane() {
+    // Fresh blank state every open — deliberate picks, like the send logger.
+    AttemptState.discipline = disciplineFreqOrder()[0] || AppConfig.disciplines[0];
+    AttemptState.where = null;
+    AttemptState.grade = null;
+    AttemptState.outcome = null;
+    AttemptState.countBucket = null;
+    AttemptState.belayer = '';
+    AttemptState.date = 'today';
+    attemptOtherOpen = false;
+    attemptWhereExpanded = false;
+    renderAttemptDiscipline();
+    renderAttemptWhere();
+    renderAttemptGrade();
+    renderAttemptOutcomeType();
+    renderAttemptCount();
+    updateAttemptRouteVisibility();
+    updateAttemptBelayerVisibility();
+    document.querySelectorAll('#attempt-date .pill').forEach(x => x.classList.remove('active'));
+    document.querySelector('#attempt-date [data-adate="today"]').classList.add('active');
+    document.getElementById('attempt-date-custom').classList.add('hidden');
+    refreshAttemptSaveState();
+}
 
 // Back-compat: open the modal on the Training tab.
 function openSessionLogger() {
     if (!State.activeUser) { openIdentityPrompt(); return; }
     setLogMode('training');
     openModal('session-modal');
+}
+
+/* ============== ATTEMPT LOGGER (worked-not-sent — feed-visible, never scored) ============== */
+const AttemptState = { discipline: null, where: null, grade: null, outcome: null, countBucket: null, belayer: '', date: 'today' };
+
+// Discipline-aware buckets. Roped/Trad: a rests|falls toggle + 1 / 2–3 / 4+.
+// Boulder: goes-only, no toggle — Few / Lots / Session.
+const ATTEMPT_ROPE_BUCKETS    = [{ v: '1', label: '1' }, { v: '2-3', label: '2–3' }, { v: '4+', label: '4+' }];
+const ATTEMPT_BOULDER_BUCKETS = [{ v: 'few', label: 'Few · 1–5' }, { v: 'lots', label: 'Lots · 6–15' }, { v: 'session', label: 'Session · 15+' }];
+function attemptIsBoulder() { return AttemptState.discipline === 'In Boulder' || AttemptState.discipline === 'Out Boulder'; }
+function attemptNeedsOutcome() { return ['In Rope', 'Out Rope', 'Trad'].includes(AttemptState.discipline); }
+function attemptBuckets() { return attemptIsBoulder() ? ATTEMPT_BOULDER_BUCKETS : ATTEMPT_ROPE_BUCKETS; }
+
+function canLogAttempt() {
+    if (!(AttemptState.discipline && AttemptState.where && AttemptState.grade && AttemptState.countBucket)) return false;
+    if (attemptNeedsOutcome() && !AttemptState.outcome) return false;
+    return true;
+}
+function refreshAttemptSaveState() {
+    const btn = document.getElementById('attempt-submit');
+    if (btn) btn.disabled = !canLogAttempt();
+}
+
+// Outcome (rests|falls) — roped/Trad only; hidden for boulder.
+function renderAttemptOutcomeType() {
+    const label = document.getElementById('attempt-outcome-label');
+    const c = document.getElementById('attempt-outcome-type');
+    if (!c) return;
+    if (!AttemptState.discipline) { c.classList.add('hidden'); c.innerHTML = ''; if (label) label.textContent = 'Outcome'; return; }
+    if (!attemptNeedsOutcome()) {
+        c.classList.add('hidden'); c.innerHTML = '';
+        if (label) label.textContent = 'Goes';                 // boulder: the count row IS the goes
+        AttemptState.outcome = '';
+        return;
+    }
+    if (label) label.textContent = 'Outcome';
+    c.classList.remove('hidden');
+    const opts = [{ v: 'rests', label: 'Rests' }, { v: 'falls', label: 'Falls' }];
+    c.innerHTML = opts.map(o =>
+        `<button class="pill ${AttemptState.outcome === o.v ? 'active' : ''}" data-outcome="${o.v}">${o.label}</button>`
+    ).join('');
+    c.querySelectorAll('[data-outcome]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        AttemptState.outcome = el.dataset.outcome;
+        renderAttemptOutcomeType();
+        refreshAttemptSaveState();
+    }));
+}
+
+// Count buckets — discipline-aware vocabulary; selection cleared when crossing boulder↔rope.
+function renderAttemptCount() {
+    const c = document.getElementById('attempt-count');
+    if (!c) return;
+    if (!AttemptState.discipline) { c.innerHTML = ''; return; }
+    const buckets = attemptBuckets();
+    if (AttemptState.countBucket && !buckets.some(b => b.v === AttemptState.countBucket)) {
+        AttemptState.countBucket = null;                       // vocabulary changed → invalid pick
+    }
+    c.innerHTML = buckets.map(b =>
+        `<button class="pill ${AttemptState.countBucket === b.v ? 'active' : ''}" data-bucket="${b.v}">${b.label}</button>`
+    ).join('');
+    c.querySelectorAll('[data-bucket]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        AttemptState.countBucket = el.dataset.bucket;
+        renderAttemptCount();
+        refreshAttemptSaveState();
+    }));
+}
+
+// Date pills — own row, never touches the send/session date pills.
+document.querySelectorAll('#attempt-date [data-adate]').forEach(el => {
+    el.addEventListener('click', () => {
+        haptic('tap');
+        document.querySelectorAll('#attempt-date .pill').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        AttemptState.date = el.dataset.adate;
+        const ci = document.getElementById('attempt-date-custom');
+        if (el.dataset.adate === 'custom') {
+            ci.classList.remove('hidden');
+            const today = getCleanDate(new Date());
+            if (!ci.value) ci.value = today;
+            ci.max = today;
+            ci.focus();
+            if (ci.showPicker) ci.showPicker();
+        } else {
+            ci.classList.add('hidden');
+        }
+    });
+});
+function getAttemptDateISO() {
+    const today = getCleanDate(new Date());
+    if (AttemptState.date === 'custom') {
+        const v = document.getElementById('attempt-date-custom').value;
+        if (!v) return today;
+        return v > today ? today : v;
+    }
+    const d = new Date();
+    if (AttemptState.date === 'yesterday') d.setDate(d.getDate() - 1);
+    return getCleanDate(d);
 }
 
 async function submitSession() {
