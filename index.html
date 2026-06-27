@@ -3252,6 +3252,8 @@ function renderGradePills() {
 /* ----- Style pills ----- */
 function renderStylePills() {
     const c = document.getElementById('logger-style');
+    // No discipline picked yet (blank open) — style depends on discipline, render nothing.
+    if (!LoggerState.discipline) { c.innerHTML = ''; return; }
     const styles = AppConfig.stylesForDiscipline[LoggerState.discipline];
     if (!styles.includes(LoggerState.style)) {
         LoggerState.style = 'Send';
