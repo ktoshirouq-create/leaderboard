@@ -5132,6 +5132,14 @@ function dayUnifies(day) {
     return day.isMulti && !day._optimistic && !day._failed && !dayIsSocial(day.climber, day.date);
 }
 
+// A quiet standalone day: single lane, zero sends, but it DOES have attempts or training.
+// These render as muted PROJECTING / TRAINING day-cards instead of vanishing (the legacy
+// path drops sendless sections + all training). Optimistic/failed stay legacy for retry.
+function dayStandalone(day) {
+    return !day.isMulti && day.totalSends === 0 && (day.totalAttempts > 0 || day.hasTraining)
+        && !day._optimistic && !day._failed;
+}
+
 // Convert NON-unifying days back into the exact session objects the legacy pipeline expects.
 // (Attempts/training on these days don't render yet — they surface once those days unify, or
 // in the legacy day's own discipline section in a later bundle. 2a/2b scope: sends round-trip
@@ -5235,9 +5243,18 @@ function renderDayCard(day, idx) {
         && cardHl.dethroned && cardHl.dethroned.length && cardHl.dethroned.length <= 2)
         ? `<span class="hl-chip">↓ took it from ${escapeHTML(cardHl.dethroned.join(' & '))}</span>` : '';
 
+    // Sends-only headline (humility): projects/training never inflate it. A sendless day
+    // gets a quiet character word instead of "0 sends".
     const hardest = dayHardestSendGrade(day);
-    const summaryHtml = `<span>${day.totalSends} send${day.totalSends === 1 ? '' : 's'}</span>` +
-        (hardest ? `<span class="dot">·</span><span class="max-grade">hardest <span class="grade-value">${escapeHTML(hardest)}</span></span>` : '');
+    let summaryHtml;
+    if (day.totalSends > 0) {
+        summaryHtml = `<span>${day.totalSends} send${day.totalSends === 1 ? '' : 's'}</span>` +
+            (hardest ? `<span class="dot">·</span><span class="max-grade">hardest <span class="grade-value">${escapeHTML(hardest)}</span></span>` : '');
+    } else if (day.dayChar === 'project') {
+        summaryHtml = `<span style="color:#8a8a8a">projecting</span>`;
+    } else {
+        summaryHtml = `<span style="color:#8a8a8a">training</span>`;
+    }
 
     const allWheres = [...new Set(day.sections.flatMap(s => s.sends.concat(s.attempts)).map(x => x.Where).filter(Boolean))];
     const whereHtml = allWheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
@@ -5279,8 +5296,8 @@ function renderFeed() {
         return;
     }
     const days = buildDays(State.logs, State.attempts || [], State.sessions || []);
-    const unifying = days.filter(dayUnifies);
-    const legacyDays = days.filter(d => !dayUnifies(d));
+    const unifying = days.filter(d => dayUnifies(d) || dayStandalone(d));
+    const legacyDays = days.filter(d => !(dayUnifies(d) || dayStandalone(d)));
     const legacyItems = clusterSessions(daysToLegacySessions(legacyDays));
     const merged = [
         ...unifying.map(d => ({ _isDay: true, timestamp: d.timestamp, day: d })),
