@@ -1704,14 +1704,17 @@ body.modal-open { overflow: hidden; }
 .loc-toggle { display: flex; gap: 6px; margin-bottom: 14px; }
 .loc-toggle .pill { flex: 1; text-align: center; font-size: 0.78rem; padding: 9px 0; }
 .gb-route {
-    background: var(--card-bg); border-radius: 12px; margin-bottom: 8px;
-    border: 1px solid rgba(255,255,255,0.03); border-left: 4px solid var(--disc-color, #555); overflow: hidden;
+    border-radius: 12px; margin-bottom: 8px;
+    border: 1px solid rgba(255,255,255,0.03);
+    border-left: 2px solid rgba(var(--row-rgb, 85,85,85), 0.9);
+    background: linear-gradient(90deg, rgba(var(--row-rgb, 85,85,85), 0.13) 0%, rgba(var(--row-rgb, 85,85,85), 0.04) 40%, transparent 74%), var(--card-bg);
+    overflow: hidden;
 }
-.gb-route[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
-.gb-route[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
-.gb-route[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
-.gb-route[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
-.gb-route[data-disc="Trad"]        { --disc-color: var(--disc-trad); }
+.gb-route[data-disc="In Boulder"]  { --row-rgb: 245,158,11; }
+.gb-route[data-disc="In Rope"]     { --row-rgb: 6,182,212; }
+.gb-route[data-disc="Out Rope"]    { --row-rgb: 16,185,129; }
+.gb-route[data-disc="Out Boulder"] { --row-rgb: 168,85,247; }
+.gb-route[data-disc="Trad"]        { --row-rgb: 244,63,94; }
 .gb-route-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 16px 10px 16px; }
 .gb-route-name { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: -0.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gb-route-grade { font-size: 1.05rem; font-weight: 800; color: var(--disc-color, var(--primary)); white-space: nowrap; }
