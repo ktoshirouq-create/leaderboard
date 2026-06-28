@@ -5375,6 +5375,10 @@ function renderJointDayCard(group, idx) {
     const title = names.length === 2
         ? `${escapeHTML(names[0])} &amp; ${escapeHTML(names[1])}`
         : `${escapeHTML(names[0])}, ${escapeHTML(names[1])} &amp; co`;
+    // Single shared discipline → that colour; genuinely mixed (or training-only) → neutral.
+    const jointDiscs = new Set();
+    group.members.forEach(m => m.sections.forEach(s => jointDiscs.add(s.discipline)));
+    const jointDisc = jointDiscs.size === 1 ? [...jointDiscs][0] : null;
     const relTime = formatRelativeTime(group.timestamp);
     const allWheres = [...new Set(group.members.flatMap(m => m.sections.flatMap(s => s.sends.concat(s.attempts)).map(x => x.Where)).filter(Boolean))];
     const whereHtml = allWheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
@@ -5399,7 +5403,7 @@ function renderJointDayCard(group, idx) {
     }).join('');
 
     return `
-    <div class="session-card joint" data-idx="${idx}" data-joint-key="${escapeHTML(group.key)}">
+    <div class="session-card joint"${jointDisc ? ` data-disc="${escapeHTML(jointDisc)}"` : ''} data-idx="${idx}" data-joint-key="${escapeHTML(group.key)}">
         <div class="session-header">
             <div class="s-name-block">
                 <div class="s-name">${title}</div>
