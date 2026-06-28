@@ -5300,7 +5300,7 @@ function renderDayCard(day, idx) {
             <div class="s-name-block">
                 ${highlightMarkup({ climber: day.climber, discipline: day.stripeDisc, date: day.date }, cardHl)}
                 <div class="s-name" data-profile-link>${nameCrown(day.climber)}${escapeHTML(day.climber)}</div>
-                <div class="s-time">${escapeHTML(timeText)}</div>
+                <div class="s-time">${escapeHTML(timeText)}${day._splitDay ? ` <span class="merge-back" data-merge-key="${escapeHTML(day.date)}">↩ merge back</span>` : ''}</div>
             </div>
             <div class="s-where">${whereHtml}</div>
         </div>
@@ -5424,6 +5424,8 @@ function renderFeed() {
     const isJointMember = new Set(jointDays.flatMap(j => j.members.map(m => `${m.date}|${m.climber}`)));
     const soloDays = days.filter(d =>
         soloKeys.has(`${d.date}|${d.climber}`) && (dayUnifies(d) || dayStandalone(d) || d.totalSends > 0));
+    // A solo day that's solo only because the user split a joint day → carries a merge-back chip.
+    soloDays.forEach(d => { d._splitDay = jointSplits.has(`${d.date}|${d.climber}`); });
     const soloRendered = new Set(soloDays.map(d => `${d.date}|${d.climber}`));
     const legacyDays = days.filter(d =>
         !isJointMember.has(`${d.date}|${d.climber}`) && !soloRendered.has(`${d.date}|${d.climber}`));
@@ -5521,7 +5523,19 @@ function renderFeed() {
             card.querySelectorAll('.session-children .send-row').forEach((rowEl, si) => {
                 if (flatSends[si]) attachLongPressToSendRow(rowEl, flatSends[si]);
             });
+            // merge-back: clear every split flag for this date → the original joint day re-forms
+            const mergeBtn = card.querySelector('.merge-back');
+            if (mergeBtn) mergeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                haptic('tap');
+                const dk = mergeBtn.dataset.mergeKey;   // the date
+                [...jointSplits].forEach(k => { if (k.startsWith(dk + '|')) jointSplits.delete(k); });
+                saveJointSplits();
+                renderFeed();
+                showToast('Merged back');
+            });
             return;
+        }
         }
 
         // location chips (both card types): tap → location page, long-press → rename
