@@ -5816,6 +5816,7 @@ function renderCapacityBoard() {
                 : `<div class="lb-grade-val">${dot}${escapeHTML(prog.current)}</div><div class="lb-grade-pct">${prog.next ? `${prog.pct}% → ${escapeHTML(prog.next)}` : 'maxed'}</div>`;
             return `
             <div class="lb-row ${firm ? 'provisional' : ''}" data-climber="${escapeHTML(r.climber)}">
+                ${firm ? '' : rankBracket(r.rank)}
                 <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
                 <div class="lb-bar-wrap">
                     <div class="lb-name">${nameCrown(r.climber)}${escapeHTML(r.climber)}</div>
@@ -8052,6 +8053,7 @@ function renderHardestBoard() {
             : '';
         return `
         <div class="hardest-row" data-disc="${escapeHTML(r.discipline)}" data-climber="${escapeHTML(r.climber)}">
+            ${rankBracket(r.rank)}
             <div class="hardest-top">
                 <div class="hardest-name">
                     <span class="hardest-rank ${rankClass(r.rank)}">${r.rank}</span>
@@ -8082,6 +8084,7 @@ function renderCountBoard(rows, unitLabel) {
         const fillPct = Math.round((r.count / maxCount) * 100);
         return `
         <div class="lb-row" data-climber="${escapeHTML(r.climber)}">
+            ${rankBracket(r.rank)}
             <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
             <div class="lb-bar-wrap">
                 <div class="lb-name">${nameCrown(r.climber)}${escapeHTML(r.climber)}</div>
@@ -8136,6 +8139,7 @@ function renderHotSpotsBoard() {
         const fillPct = Math.round((r.count / maxCount) * 100);
         return `
         <div class="lb-row" data-loc="${escapeHTML(r.where)}">
+            ${rankBracket(r.rank)}
             <div class="lb-rank ${rankClass(r.rank)}">${r.rank}</div>
             <div class="lb-bar-wrap">
                 <div class="lb-name" style="display:flex;align-items:center;gap:8px">${escapeHTML(r.where)}${badge}</div>
