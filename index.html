@@ -97,18 +97,18 @@ h1.screen-title {
 
 /* ===== SESSION CARDS ===== */
 .session-card {
-    /* Discipline color is set as --disc-color via data-disc attr below.
-       Card background uses a tinted radial gradient that fades the discipline
-       hue from the left border outward, creating the "warm card" feeling. */
+    /* Corner-weighted discipline wash: a thin colour rail on the left edge for identity,
+       a soft bloom strongest at the top-left that fades both rightward into the body and
+       downward — no hard stripe. --disc-rgb is set per data-disc below. */
     position: relative;
     background:
-        radial-gradient(circle at 0% 0%, var(--disc-tint, transparent) 0%, transparent 60%),
+        linear-gradient(90deg, var(--disc-color, #555) 0%, var(--disc-color, #555) 2px, transparent 2px),
+        radial-gradient(120% 90% at 0% 0%, rgba(var(--disc-rgb, 85,85,85), 0.30) 0%, rgba(var(--disc-rgb, 85,85,85), 0.10) 22%, rgba(var(--disc-rgb, 85,85,85), 0.02) 46%, transparent 66%),
         linear-gradient(145deg, #161422, #0d0c14);
     border-radius: var(--radius);
     margin-bottom: 12px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     overflow: hidden;
-    border-left: 4px solid var(--disc-color, #555);
     border-top: 1px solid rgba(255,255,255,0.04);
     transition: 0.2s;
     cursor: pointer;
@@ -116,11 +116,11 @@ h1.screen-title {
 .session-card:active { transform: scale(0.99); }
 
 /* Per-discipline solid + tint colors. Tint is the same hue at 8% opacity. */
-.session-card[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder);  --disc-tint: rgba(245,158,11,0.10); }
-.session-card[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope);     --disc-tint: rgba(6,182,212,0.10); }
-.session-card[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope);    --disc-tint: rgba(16,185,129,0.10); }
-.session-card[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); --disc-tint: rgba(168,85,247,0.10); } 
-.session-card[data-disc="Trad"]        { --disc-color: var(--disc-trad);        --disc-tint: rgba(244,63,94,0.10); }
+.session-card[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder);  --disc-rgb: 245,158,11; }
+.session-card[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope);     --disc-rgb: 6,182,212; }
+.session-card[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope);    --disc-rgb: 16,185,129; }
+.session-card[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); --disc-rgb: 168,85,247; }
+.session-card[data-disc="Trad"]        { --disc-color: var(--disc-trad);        --disc-rgb: 244,63,94; }
 
 .session-card.syncing { opacity: 0.7; }
 .session-card.failed  { opacity: 0.5; border-left-color: var(--danger); }
@@ -377,11 +377,18 @@ h1.screen-title {
     grid-template-columns: 1fr auto;
     gap: 12px;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
+    padding: 10px 12px;
+    margin-bottom: 2px;
+    border-radius: 8px;
     font-size: 0.88rem;
+    border-left: 2px solid rgba(var(--row-rgb, 85,85,85), 0.9);
+    background: linear-gradient(90deg, rgba(var(--row-rgb, 85,85,85), 0.14) 0%, rgba(var(--row-rgb, 85,85,85), 0.04) 40%, transparent 74%);
 }
-.send-row:last-child { border-bottom: none; }
+.send-row[data-disc="In Boulder"]  { --row-rgb: 245,158,11; }
+.send-row[data-disc="In Rope"]     { --row-rgb: 6,182,212; }
+.send-row[data-disc="Out Rope"]    { --row-rgb: 16,185,129; }
+.send-row[data-disc="Out Boulder"] { --row-rgb: 168,85,247; }
+.send-row[data-disc="Trad"]        { --row-rgb: 244,63,94; }
 .send-meta {
     color: #a3a3a3;
     font-weight: 600;
@@ -5026,7 +5033,8 @@ function sendRowHtml(s, discipline) {
         }
     }
     const routeNamePart = s.RouteName ? `<span class="send-route-inline">${escapeHTML(s.RouteName)}</span>` : '';
-    return `<div class="send-row">
+    // Gentle left-anchored discipline wash on the row itself (same gradual language as the card).
+    return `<div class="send-row" data-disc="${escapeHTML(discipline)}">
             <div class="send-meta">${routeNamePart}${tag}</div>
             <div class="send-grade">${dot}${escapeHTML(s.Grade)}</div>
         </div>`;
@@ -5408,8 +5416,10 @@ function renderJointDayCard(group, idx) {
         // member's own highlight (their hardest section's day badge), muted day sections inside
         const headDisc = m.stripeDisc || (m.sections[0] && m.sections[0].discipline) || 'In Boulder';
         const badge = inlineBadge(m.climber, headDisc, m.date);
-        const sectionsHtml = m.sections.map(dayClimbSectionHtml).join('') +
-            (m.hasTraining ? dayTrainingSectionHtml(m.training) : '');
+        // Expand shows the member's actual named climbs (flat, each washed in its discipline
+        // colour), in the same order across their sections — like the solo card's children.
+        const flatSends = m.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline)));
+        const sendsHtml = flatSends.join('');
         const hardest = dayHardestSendGrade(m);
         const summary = m.totalSends > 0
             ? `${m.totalSends} send${m.totalSends === 1 ? '' : 's'}${hardest ? ` · max <span class="jc-max">${escapeHTML(hardest)}</span>` : ''}`
@@ -5419,7 +5429,7 @@ function renderJointDayCard(group, idx) {
                 <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span></div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
-            <div class="jc-sends"><div class="day-sections">${sectionsHtml}</div></div>
+            <div class="jc-sends">${sendsHtml}</div>
         </div>`;
     }).join('');
 
