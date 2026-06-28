@@ -8316,10 +8316,8 @@ function renderPeakChart(seriesList, discipline, chartId, legendId) {
     const container = document.getElementById(chartId);
     const legendEl = document.getElementById(legendId);
     if (!container) return;
-    // 'all' now draws actual grade lines on a shared (Out Rope) grade ruler — cross-discipline
-    // hardest-grade over time. The old rank-position bump chart turned to spaghetti on recent,
-    // clustered data; grade lines spread vertically and stay legible. (renderPeakBumpChart kept
-    // for reference but no longer routed here.)
+    if (!container) return;
+    if (discipline === 'all') { renderPeakBumpChart(seriesList, container, legendEl); return; }
     const allScores = [];
     seriesList.forEach(s => s.series.forEach(p => { if (p.score !== null) allScores.push(p.score); }));
     if (allScores.length < 2) {
@@ -8408,6 +8406,8 @@ function peakStandings(seriesList) {
     return standing;
 }
 
+let peakSelected = null;   // climber name isolated on the bump chart, or null
+
 function renderPeakBumpChart(seriesList, container, legendEl) {
     const N = seriesList.length;
     const dates = (seriesList[0] && seriesList[0].series.map(p => p.date)) || [];
@@ -8419,10 +8419,19 @@ function renderPeakBumpChart(seriesList, container, legendEl) {
         return;
     }
     const standing = peakStandings(seriesList);
-    const W = 320, H = 170, padL = 34, padR = 14, padT = 14, padB = 26;
+    // Zoom: trim the x-domain to the window where 2+ climbers are actually ranked, so recent
+    // clustered movement spreads across the full width instead of knotting at the right edge.
+    let za = -1, zb = -1;
+    for (let i = 0; i < len; i++) {
+        const active = standing.reduce((n, s) => n + (s[i] != null ? 1 : 0), 0);
+        if (active >= 2) { if (za < 0) za = i; zb = i; }
+    }
+    if (za < 0) { za = 0; zb = len - 1; }              // fallback: never 2+ ranked → full span
+    const span = Math.max(1, zb - za);
+    const W = 320, H = 170, padL = 34, padR = 22, padT = 14, padB = 26;
     const innerW = W - padL - padR, innerH = H - padT - padB;
     const yAt = pos => padT + ((pos - 1) / Math.max(1, N - 1)) * innerH;
-    const xAt = i => padL + (len <= 1 ? innerW / 2 : (i / (len - 1)) * innerW);
+    const xAt = i => padL + ((i - za) / span) * innerW;
     const ordinal = n => ({ 1: '1st', 2: '2nd', 3: '3rd' }[n] || n + 'th');
     const palette = ['#f59e0b', '#06b6d4', '#a855f7', '#f43f5e', '#cbd5e1', '#fbbf24'];
     let pc = 0;
@@ -8432,20 +8441,31 @@ function renderPeakBumpChart(seriesList, container, legendEl) {
         const y = yAt(p);
         yTickSvg += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="#1f1f1f" stroke-width="1"/><text x="${padL - 6}" y="${(y + 3).toFixed(1)}" font-size="9" fill="#737373" text-anchor="end" font-family="Inter, sans-serif" font-weight="700">${ordinal(p)}</text>`;
     }
-    let paths = '', dots = '';
+    let paths = '', dots = '', endLabels = '';
     seriesList.forEach((s, idx) => {
-        const isActive = s.climber === State.activeUser;
-        const color = colorFor[idx], width = isActive ? 2.5 : 1.5;
-        let dPath = '', pen = false, lastPt = null;
+        const isMe = s.climber === State.activeUser;
+        const isSel = peakSelected === s.climber;
+        const anySel = peakSelected !== null;
+        const color = colorFor[idx];
+        // Emphasis: if something's selected, only it is bright (others ghost). If nothing's
+        // selected, your own line leads and the rest are muted.
+        let opacity, width;
+        if (anySel) { opacity = isSel ? 1 : 0.12; width = isSel ? 3.5 : 2; }
+        else        { opacity = isMe ? 1 : 0.3;  width = isMe ? 3.5 : 2.5; }
+        let dPath = '', pen = false, lastPt = null, lastPos = null;
         standing[idx].forEach((pos, i) => {
-            if (pos === null) { pen = false; return; }
+            if (pos === null || i < za || i > zb) { pen = false; return; }
             const x = xAt(i), y = yAt(pos);
             dPath += pen ? ` L ${x.toFixed(1)} ${y.toFixed(1)}` : `M ${x.toFixed(1)} ${y.toFixed(1)}`;
-            pen = true; lastPt = { x, y };
+            pen = true; lastPt = { x, y }; lastPos = pos;
         });
         if (dPath) {
-            paths += `<path d="${dPath}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${isActive ? 1 : 0.85}"/>`;
-            if (lastPt) dots += `<circle cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" r="${isActive ? 3 : 2.5}" fill="${color}"/>`;
+            paths += `<path d="${dPath}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity}"/>`;
+            if (lastPt) {
+                dots += `<circle cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" r="${(isSel || (!anySel && isMe)) ? 4.5 : 3}" fill="${color}" opacity="${opacity}"/>`;
+                const ord = lastPos === 1 ? '1' : lastPos === 2 ? '2' : lastPos === 3 ? '3' : String(lastPos);
+                endLabels += `<text x="${(lastPt.x + 7).toFixed(1)}" y="${(lastPt.y + 3).toFixed(1)}" font-family="Inter" font-size="9" font-weight="900" fill="${color}" opacity="${anySel ? (isSel ? 1 : 0.2) : (isMe ? 1 : 0.6)}">${ord}</text>`;
+            }
         }
     });
     let xLabelSvg = '';
