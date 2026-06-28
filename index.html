@@ -8316,7 +8316,10 @@ function renderPeakChart(seriesList, discipline, chartId, legendId) {
     const container = document.getElementById(chartId);
     const legendEl = document.getElementById(legendId);
     if (!container) return;
-    if (discipline === 'all') { renderPeakBumpChart(seriesList, container, legendEl); return; }
+    // 'all' now draws actual grade lines on a shared (Out Rope) grade ruler — cross-discipline
+    // hardest-grade over time. The old rank-position bump chart turned to spaghetti on recent,
+    // clustered data; grade lines spread vertically and stay legible. (renderPeakBumpChart kept
+    // for reference but no longer routed here.)
     const allScores = [];
     seriesList.forEach(s => s.series.forEach(p => { if (p.score !== null) allScores.push(p.score); }));
     if (allScores.length < 2) {
