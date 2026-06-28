@@ -429,6 +429,8 @@ h1.screen-title {
     font-weight: 600;
 }
 .lb-row {
+    position: relative;
+    overflow: hidden;
     display: grid;
     grid-template-columns: 32px 1fr auto;
     gap: 14px;
@@ -504,6 +506,8 @@ h1.screen-title {
 
 /* Hardest Last 30d: discipline-tagged row with detail line */
 .hardest-row {
+    position: relative;
+    overflow: hidden;
     padding: 14px 16px;
     background: var(--card-bg);
     border-radius: 12px;
@@ -556,6 +560,23 @@ h1.screen-title {
     margin-left: 36px;
     font-weight: 600;
 }
+
+/* Podium rank bracket: a slim gradient rail hugging the top + right edges that fades out,
+   plus the rank number floating in the corner. Gold/silver/bronze. Same gradual language as
+   the discipline stripe — rank lives on the corner, discipline on the left edge. */
+.rk-top, .rk-right, .rk-n { position: absolute; z-index: 4; pointer-events: none; }
+.rk-top   { top: 0; right: 0; height: 3px; width: 46%; }
+.rk-right { top: 0; right: 0; width: 3px; height: 64%; }
+.rk-n     { top: 5px; right: 8px; font-size: 0.62rem; font-weight: 900; }
+.rk-g.rk-top   { background: linear-gradient(270deg, var(--gold) 0%, rgba(251,191,36,0.4) 50%, transparent 100%); }
+.rk-g.rk-right { background: linear-gradient(180deg, var(--gold) 0%, rgba(251,191,36,0.4) 50%, transparent 100%); }
+.rk-g.rk-n     { color: var(--gold); }
+.rk-s.rk-top   { background: linear-gradient(270deg, var(--silver) 0%, rgba(203,213,225,0.4) 50%, transparent 100%); }
+.rk-s.rk-right { background: linear-gradient(180deg, var(--silver) 0%, rgba(203,213,225,0.4) 50%, transparent 100%); }
+.rk-s.rk-n     { color: var(--silver); }
+.rk-b.rk-top   { background: linear-gradient(270deg, var(--bronze) 0%, rgba(217,119,6,0.4) 50%, transparent 100%); }
+.rk-b.rk-right { background: linear-gradient(180deg, var(--bronze) 0%, rgba(217,119,6,0.4) 50%, transparent 100%); }
+.rk-b.rk-n     { color: var(--bronze); }
 
 /* ===== PROFILE ===== */
 .profile-back {
@@ -5717,6 +5738,13 @@ function assignTiedRanks(rows) {
         }
     });
     return rows;
+}
+
+// Podium bracket spans for board rows — gold/silver/bronze on the corner, else nothing.
+function rankBracket(rank) {
+    const tier = rank === 1 ? 'g' : rank === 2 ? 's' : rank === 3 ? 'b' : null;
+    if (!tier) return '';
+    return `<span class="rk-top rk-${tier}"></span><span class="rk-right rk-${tier}"></span><span class="rk-n rk-${tier}">${rank}</span>`;
 }
 
 function rankClass(rank) {
