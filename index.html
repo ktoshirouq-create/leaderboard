@@ -4763,6 +4763,29 @@ function openJointActionSheet(group) {
     openModal('action-sheet-modal');
 }
 
+// Day-anchored split: drop every member out of this joint DAY (per date|climber), so each
+// renders as their own solo day-card. Merge-back clears the flags. Mirrors openJointActionSheet.
+function openJointDaySplit(group) {
+    const summary = document.getElementById('action-sheet-summary');
+    summary.innerHTML = `<span class="grade">${escapeHTML(group.members.map(m => m.climber).join(' & '))}</span>`;
+    const editBtn = document.getElementById('action-edit');
+    const delBtn = document.getElementById('action-delete');
+    editBtn.textContent = 'Split into separate cards';
+    delBtn.style.display = 'none';
+    const restore = () => { editBtn.textContent = 'Edit climb'; delBtn.style.display = ''; };
+    editBtn.onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+        group.members.forEach(m => jointSplits.add(`${group.date}|${m.climber}`));
+        saveJointSplits();
+        restore();
+        renderFeed();
+        showToast('Split into separate cards');
+    };
+    document.getElementById('action-cancel').onclick = () => { haptic('tap'); closeModal('action-sheet-modal'); restore(); };
+    openModal('action-sheet-modal');
+}
+
 function openActionSheet(log) {
     const summary = document.getElementById('action-sheet-summary');
     summary.innerHTML = `<span class="grade">${escapeHTML(log.Grade)}</span>
@@ -5289,6 +5312,105 @@ function renderDayCard(day, idx) {
     </div>`;
 }
 
+// Day-anchored joint grouping: people who climbed together on a date become ONE card spanning
+// each member's full day. Edges reuse the proven belay-link / boulder-co-location predicates,
+// lifted from the session to the day. Optimistic/failed and user-split days never join (they
+// stay legacy/solo). Returns { joint: [components of 2+], soloKeys: Set("date|climber") }.
+function buildJointDays(days) {
+    const lc = n => String(n || '').toLowerCase().trim();
+    const byDate = new Map();
+    days.forEach(d => {
+        if (d._optimistic || d._failed) return;
+        if (jointSplits.has(`${d.date}|${d.climber}`)) return;   // user split this person out
+        if (!byDate.has(d.date)) byDate.set(d.date, []);
+        byDate.get(d.date).push(d);
+    });
+    const joint = [], soloKeys = new Set();
+    byDate.forEach((nodes, date) => {
+        const n = nodes.length;
+        const parent = nodes.map((_, i) => i);
+        const find = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+            const A = nodes[i], B = nodes[j];
+            let edge = false;
+            A.sections.forEach(sa => B.sections.forEach(sb => {
+                if (sa.discipline !== sb.discipline) return;
+                const isBoulder = sa.discipline.includes('Boulder');
+                const linked = sa.sends.some(s => s.Belayer && lc(s.Belayer) === lc(B.climber))
+                            || sb.sends.some(s => s.Belayer && lc(s.Belayer) === lc(A.climber));
+                const coLoc = isBoulder && sa.sends.some(s => sb.sends.some(t => s.Where && s.Where === t.Where));
+                if (linked || coLoc) edge = true;
+            }));
+            if (edge) parent[find(i)] = find(j);
+        }
+        const comps = new Map();
+        nodes.forEach((_, i) => { const r = find(i); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(nodes[i]); });
+        comps.forEach(members => {
+            if (members.length >= 2) {
+                const climbers = members.map(m => m.climber).sort((a, b) => a.localeCompare(b));
+                joint.push({
+                    joint: true, date, members,
+                    key: `${date}|${climbers.join(',')}`,
+                    timestamp: members.reduce((mx, m) => new Date(m.timestamp) > new Date(mx) ? m.timestamp : mx, members[0].timestamp)
+                });
+            } else {
+                soloKeys.add(`${date}|${members[0].climber}`);
+            }
+        });
+    });
+    return { joint, soloKeys };
+}
+
+// One joint DAY card: neutral header, a row per member showing their full multi-discipline day
+// (muted sections inside), expandable to their sends. Per-person highlights via inlineBadge.
+// Reuses the .jc-* CSS + the split/merge gesture. Active user floats to the top row.
+function renderJointDayCard(group, idx) {
+    const ordered = [...group.members].sort((a, b) => {
+        const am = a.climber === State.activeUser ? 1 : 0;
+        const bm = b.climber === State.activeUser ? 1 : 0;
+        if (am !== bm) return bm - am;
+        return b.totalSends - a.totalSends;
+    });
+    const names = ordered.map(m => m.climber);
+    const title = names.length === 2
+        ? `${escapeHTML(names[0])} &amp; ${escapeHTML(names[1])}`
+        : `${escapeHTML(names[0])}, ${escapeHTML(names[1])} &amp; co`;
+    const relTime = formatRelativeTime(group.timestamp);
+    const allWheres = [...new Set(group.members.flatMap(m => m.sections.flatMap(s => s.sends.concat(s.attempts)).map(x => x.Where)).filter(Boolean))];
+    const whereHtml = allWheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
+
+    const rowsHtml = ordered.map(m => {
+        // member's own highlight (their hardest section's day badge), muted day sections inside
+        const headDisc = m.stripeDisc || (m.sections[0] && m.sections[0].discipline) || 'In Boulder';
+        const badge = inlineBadge(m.climber, headDisc, m.date);
+        const sectionsHtml = m.sections.map(dayClimbSectionHtml).join('') +
+            (m.hasTraining ? dayTrainingSectionHtml(m.training) : '');
+        const hardest = dayHardestSendGrade(m);
+        const summary = m.totalSends > 0
+            ? `${m.totalSends} send${m.totalSends === 1 ? '' : 's'}${hardest ? ` · max <span class="jc-max">${escapeHTML(hardest)}</span>` : ''}`
+            : (m.dayChar === 'project' ? 'projecting' : 'training');
+        return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
+            <div class="jc-row">
+                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span></div>
+                <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
+            </div>
+            <div class="jc-sends"><div class="day-sections">${sectionsHtml}</div></div>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="session-card joint" data-idx="${idx}" data-joint-key="${escapeHTML(group.key)}">
+        <div class="session-header">
+            <div class="s-name-block">
+                <div class="s-name">${title}</div>
+                <div class="s-time">${escapeHTML(relTime)}</div>
+            </div>
+            <div class="s-where">${whereHtml}</div>
+        </div>
+        <div class="jc-body">${rowsHtml}</div>
+    </div>`;
+}
+
 function renderFeed() {
     const list = document.getElementById('feed-list');
     if (State.logs.length === 0) {
@@ -5296,11 +5418,20 @@ function renderFeed() {
         return;
     }
     const days = buildDays(State.logs, State.attempts || [], State.sessions || []);
-    const unifying = days.filter(d => dayUnifies(d) || dayStandalone(d));
-    const legacyDays = days.filter(d => !(dayUnifies(d) || dayStandalone(d)));
+    const { joint: jointDays, soloKeys } = buildJointDays(days);
+    // A day renders solo (renderDayCard) if it's a size-1 component AND eligible; everything
+    // not joint and not solo-eligible (optimistic/failed) falls to the legacy retry path.
+    const isJointMember = new Set(jointDays.flatMap(j => j.members.map(m => `${m.date}|${m.climber}`)));
+    const soloDays = days.filter(d =>
+        soloKeys.has(`${d.date}|${d.climber}`) && (dayUnifies(d) || dayStandalone(d) || d.totalSends > 0));
+    const soloRendered = new Set(soloDays.map(d => `${d.date}|${d.climber}`));
+    const legacyDays = days.filter(d =>
+        !isJointMember.has(`${d.date}|${d.climber}`) && !soloRendered.has(`${d.date}|${d.climber}`));
+    const unifying = soloDays;
     const legacyItems = clusterSessions(daysToLegacySessions(legacyDays));
     const merged = [
         ...unifying.map(d => ({ _isDay: true, timestamp: d.timestamp, day: d })),
+        ...jointDays.map(j => ({ _isJointDay: true, timestamp: j.timestamp, group: j })),
         ...legacyItems.map(it => ({ _isDay: false, timestamp: it.timestamp, item: it }))
     ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
@@ -5309,7 +5440,9 @@ function renderFeed() {
 
     _capCache = new Map(); _rankCache = new Map(); _rankMoveCache = new Map();
     let html = visibleItems.map((m, i) =>
-        m._isDay ? renderDayCard(m.day, i) : (m.item.joint ? renderJointCard(m.item, i) : renderSessionCard(m.item, i))
+        m._isJointDay ? renderJointDayCard(m.group, i)
+        : m._isDay ? renderDayCard(m.day, i)
+        : (m.item.joint ? renderJointCard(m.item, i) : renderSessionCard(m.item, i))
     ).join('');
     _capCache = null; _rankCache = null; _rankMoveCache = null;
     if (remaining > 0) {
@@ -5321,7 +5454,52 @@ function renderFeed() {
     visibleItems.forEach((m, i) => {
         const card = cards[i];
         if (!card) return;
-        const item = m._isDay ? null : m.item;
+        const item = (m._isDay || m._isJointDay) ? null : m.item;
+
+        // Joint day-card wiring: per-member expand, name→profile, where-links, own-send edit,
+        // long-press header → split the whole day into separate solo cards.
+        if (m._isJointDay) {
+            card.querySelectorAll('.s-where-link').forEach(linkEl => {
+                attachLongPressToLocChip(linkEl, linkEl.dataset.loc);
+                linkEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (Date.now() - locChipSuppressClick < 500) return;
+                    haptic('tap');
+                    showLocation(linkEl.dataset.loc, 'feed');
+                });
+            });
+            const headerEl = card.querySelector('.session-header');
+            if (headerEl) {
+                let timer = null;
+                const start = (e) => {
+                    if (e.target.closest('.s-where-link')) return;   // chip has its own rename gesture
+                    timer = setTimeout(() => { haptic('commit'); openJointDaySplit(m.group); }, LONG_PRESS_MS);
+                };
+                const cancel = () => clearTimeout(timer);
+                headerEl.addEventListener('touchstart', start, { passive: true });
+                headerEl.addEventListener('touchmove', cancel, { passive: true });
+                headerEl.addEventListener('touchend', cancel);
+                headerEl.addEventListener('touchcancel', cancel);
+                headerEl.addEventListener('mousedown', start);
+                headerEl.addEventListener('mouseup', cancel);
+                headerEl.addEventListener('mouseleave', cancel);
+            }
+            card.querySelectorAll('.jc-climber').forEach(climberEl => {
+                const climberName = climberEl.dataset.climber;
+                const member = m.group.members.find(mm => mm.climber === climberName);
+                const rowEl = climberEl.querySelector('.jc-row');
+                if (rowEl) rowEl.addEventListener('click', () => { haptic('tap'); climberEl.classList.toggle('expanded'); });
+                const nameEl = climberEl.querySelector('.jc-name[data-profile-link]');
+                if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(climberName); });
+                if (member) {
+                    const flatSends = member.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline));
+                    climberEl.querySelectorAll('.jc-sends .send-row').forEach((sr, si) => {
+                        if (flatSends[si]) attachLongPressToSendRow(sr, flatSends[si]);
+                    });
+                }
+            });
+            return;
+        }
 
         // Day-card wiring: where-links, name→profile, expand, send-row long-press.
         if (m._isDay) {
