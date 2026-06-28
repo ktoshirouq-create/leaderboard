@@ -809,18 +809,19 @@ h1.screen-title {
 }
 .profile-table-row {
     border-bottom: 1px solid rgba(255,255,255,0.04);
-    border-left: 3px solid var(--disc-color, #555);
+    border-left: 2px solid rgba(var(--row-rgb, 85,85,85), 0.9);
+    background: linear-gradient(90deg, rgba(var(--row-rgb, 85,85,85), 0.12) 0%, rgba(var(--row-rgb, 85,85,85), 0.03) 40%, transparent 72%);
     cursor: pointer;
     transition: 0.12s;
     font-size: 0.85rem;
 }
-.profile-table-row:active { background: rgba(255,255,255,0.02); transform: scale(0.998); }
-.profile-table-row.pressing { background: rgba(16,185,129,0.06); }
-.profile-table-row[data-disc="In Boulder"]  { --disc-color: var(--disc-in-boulder); }
-.profile-table-row[data-disc="In Rope"]     { --disc-color: var(--disc-in-rope); }
-.profile-table-row[data-disc="Out Rope"]    { --disc-color: var(--disc-out-rope); }
-.profile-table-row[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
-.profile-table-row[data-disc="Trad"]        { --disc-color: var(--disc-trad); }
+.profile-table-row:active { transform: scale(0.998); }
+.profile-table-row.pressing { background: rgba(16,185,129,0.10); }
+.profile-table-row[data-disc="In Boulder"]  { --row-rgb: 245,158,11; }
+.profile-table-row[data-disc="In Rope"]     { --row-rgb: 6,182,212; }
+.profile-table-row[data-disc="Out Rope"]    { --row-rgb: 16,185,129; }
+.profile-table-row[data-disc="Out Boulder"] { --row-rgb: 168,85,247; }
+.profile-table-row[data-disc="Trad"]        { --row-rgb: 244,63,94; }
 .pt-date {
     font-size: 0.78rem;
     color: var(--text-muted);
@@ -1730,6 +1731,16 @@ body.modal-open { overflow: hidden; }
 }
 .loc-recent-row:last-child { border-bottom: none; }
 .loc-recent-date { font-size: 0.74rem; color: var(--text-muted); font-weight: 600; }
+/* Discipline wash on location climb rows — same gradual language as the feed */
+.loc-list-row, .loc-recent-row {
+    border-left: 2px solid rgba(var(--row-rgb, 85,85,85), 0.9);
+    background: linear-gradient(90deg, rgba(var(--row-rgb, 85,85,85), 0.12) 0%, rgba(var(--row-rgb, 85,85,85), 0.03) 40%, transparent 72%);
+}
+.loc-list-row[data-disc="In Boulder"], .loc-recent-row[data-disc="In Boulder"]   { --row-rgb: 245,158,11; }
+.loc-list-row[data-disc="In Rope"], .loc-recent-row[data-disc="In Rope"]         { --row-rgb: 6,182,212; }
+.loc-list-row[data-disc="Out Rope"], .loc-recent-row[data-disc="Out Rope"]       { --row-rgb: 16,185,129; }
+.loc-list-row[data-disc="Out Boulder"], .loc-recent-row[data-disc="Out Boulder"] { --row-rgb: 168,85,247; }
+.loc-list-row[data-disc="Trad"], .loc-recent-row[data-disc="Trad"]               { --row-rgb: 244,63,94; }
 .loc-recent-climber { color: #fff; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .loc-recent-route { font-size: 0.74rem; color: var(--text-muted); }
 .loc-recent-grade { font-weight: 800; color: #fff; }
@@ -7839,7 +7850,7 @@ function renderGymHardest(sends) {
         const gdot = s.Discipline === 'In Boulder'
             ? `<span class="grade-dot" style="background:${boulderColorForGrade(s.Grade, s.Where)}"></span>`
             : '';
-        return `<div class="loc-list-row">
+        return `<div class="loc-list-row" data-disc="${escapeHTML(s.Discipline)}">
             <span class="loc-list-grade">${gdot}${escapeHTML(s.Grade)}</span>
             <span class="loc-list-climber" data-loc-climber="${escapeHTML(s.ClimberName)}">${nameCrown(s.ClimberName)}${escapeHTML(s.ClimberName)}</span>
             <span class="gb-tick-style ${sc}">${escapeHTML(s.Style)}</span>
@@ -7857,7 +7868,7 @@ function renderLocationRecentList(sends) {
         const gdot = l.Discipline === 'In Boulder'
             ? `<span class="grade-dot" style="background:${boulderColorForGrade(l.Grade, l.Where)}"></span>`
             : '';
-        return `<div class="loc-recent-row">
+        return `<div class="loc-recent-row" data-disc="${escapeHTML(l.Discipline)}">
             <span class="loc-recent-date">${escapeHTML(dateStr)}</span>
             <span class="loc-recent-climber" data-loc-climber="${escapeHTML(l.ClimberName)}">${nameCrown(l.ClimberName)}${escapeHTML(l.ClimberName)}</span>
             <span class="loc-recent-route">${route}</span>
