@@ -5252,6 +5252,22 @@ function dayHardestSendGrade(day) {
     return g;
 }
 
+// CountBucket display. Google Sheets coerces the rope bucket "2-3" into an ISO date on append
+// (it reads "2-3" as 3 Feb), so historical rows store a timestamp here — recover that one known
+// case, locale-agnostic, and never render a raw date. Other tokens (1 / 4+ / few / lots / session)
+// pass through unchanged.
+function attemptCountLabel(v) {
+    let s = String(v == null ? '' : v).trim();
+    if (!s) return '';
+    const dm = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
+    if (dm) {
+        const md = `${+dm[2]}-${+dm[3]}`, dmd = `${+dm[3]}-${+dm[2]}`;
+        s = (md === '2-3' || dmd === '2-3') ? '2-3' : '';
+        if (!s) return '';
+    }
+    if (s === '2-3' || s === '2–3') return '2–3';
+    return escapeHTML(s);
+}
 function dayClimbSectionHtml(sec) {
     const lead = sec.sends.filter(s => !isTopRope(s.Style));
     const tr = sec.sends.length - lead.length;
@@ -5269,8 +5285,9 @@ function dayClimbSectionHtml(sec) {
     }
     const pc = DAY_PROJ_GRADE_COLOR[sec.discipline] || '#8a8a8a';
     const projHtml = sec.attempts.map(a => {
-        const oc = a.Outcome ? `${escapeHTML(a.CountBucket)} ${escapeHTML(a.Outcome)}` : escapeHTML(a.CountBucket);
-        return `<div class="day-sec-proj">worked <span class="pg" style="color:${pc}">${escapeHTML(a.Grade)}</span> · ${oc}</div>`;
+        const bucket = attemptCountLabel(a.CountBucket);
+        const oc = [bucket, a.Outcome ? escapeHTML(a.Outcome) : ''].filter(Boolean).join(' ');
+        return `<div class="day-sec-proj">worked <span class="pg" style="color:${pc}">${escapeHTML(a.Grade)}</span>${oc ? ` · ${oc}` : ''}</div>`;
     }).join('');
     return `<div class="day-section" data-disc="${escapeHTML(sec.discipline)}">
         <div class="day-sec-head">
@@ -6703,7 +6720,9 @@ const AttemptState = { discipline: null, where: null, grade: null, outcome: null
 
 // Discipline-aware buckets. Roped/Trad: a rests|falls toggle + 1 / 2–3 / 4+.
 // Boulder: goes-only, no toggle — Few / Lots / Session.
-const ATTEMPT_ROPE_BUCKETS    = [{ v: '1', label: '1' }, { v: '2-3', label: '2–3' }, { v: '4+', label: '4+' }];
+// rope count stores an EN-DASH "2–3" (not a hyphen) on purpose: Sheets parses "2-3" as a date on
+// append and corrupts the cell. The en-dash isn't a date separator, so it stays plain text.
+const ATTEMPT_ROPE_BUCKETS    = [{ v: '1', label: '1' }, { v: '2–3', label: '2–3' }, { v: '4+', label: '4+' }];
 const ATTEMPT_BOULDER_BUCKETS = [{ v: 'few', label: 'Few · 1–5' }, { v: 'lots', label: 'Lots · 6–15' }, { v: 'session', label: 'Session · 15+' }];
 function attemptIsBoulder() { return AttemptState.discipline === 'In Boulder' || AttemptState.discipline === 'Out Boulder'; }
 function attemptNeedsOutcome() { return ['In Rope', 'Out Rope', 'Trad'].includes(AttemptState.discipline); }
