@@ -5055,8 +5055,8 @@ function sendRowHtml(s, discipline) {
 }
 
 // ===== compact per-climber badge for joint cards (all four tiers, inline) =====
-function inlineBadge(climber, disc, date) {
-    const hl = detectHighlight(climber, disc, date);
+function inlineBadge(climber, disc, date) { return inlineBadgeFor(detectHighlight(climber, disc, date)); }
+function inlineBadgeFor(hl) {
     if (!hl) return '';
     if (hl.kind === 'rank')     return `<span class="hl-eyebrow"><span class="hl-rosette">${hl.tier === 'crown' ? RANK_CROWN_SVG : '▲'}</span> ${rankLabel(hl)}</span>`;
     if (hl.kind === 'pr')       return `<span class="hl-eyebrow">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</span>`;
@@ -5094,11 +5094,13 @@ function renderJointCard(group, idx) {
         if (trCount > 0)   parts.push(`${trCount} TR`);
         if (maxGrade)      parts.push(`max <span class="jc-max">${escapeHTML(maxGrade)}</span>`);
         const summary = parts.join(' · ');
-        const badge = inlineBadge(m.climber, m.discipline, m.date);
+        const memHl = detectAllHighlights(m.climber, m.discipline, m.date);
+        const badge = memHl[0] ? inlineBadgeFor(memHl[0]) : '';
+        const chipHtml = memHl.length > 1 ? `<div class="hl-chips" style="padding:0">${memHl.slice(1, 3).map(chipMarkup).join('')}</div>` : '';
         const sendsHtml = sortSendsByScore(m.sends, m.discipline).map(s => sendRowHtml(s, m.discipline)).join('');
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
-                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span></div>
+                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
             <div class="jc-sends">${sendsHtml}</div>
@@ -5427,9 +5429,13 @@ function renderJointDayCard(group, idx) {
     const whereHtml = allWheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
 
     const rowsHtml = ordered.map(m => {
-        // member's own highlight (their hardest section's day badge), muted day sections inside
-        const headDisc = m.stripeDisc || (m.sections[0] && m.sections[0].discipline) || 'In Boulder';
-        const badge = inlineBadge(m.climber, headDisc, m.date);
+        // member's highlights across ALL their sections — top as the eyebrow, the rest as chips
+        // (capped 2) so a level-up riding under a new-max / rank move isn't silently dropped.
+        const memHl = [];
+        m.sections.forEach(sec => detectAllHighlights(m.climber, sec.discipline, m.date).forEach(h => memHl.push(h)));
+        memHl.sort((a, b) => rankPriority(a) - rankPriority(b));
+        const badge = memHl[0] ? inlineBadgeFor(memHl[0]) : '';
+        const chipHtml = memHl.length > 1 ? `<div class="hl-chips" style="padding:0">${memHl.slice(1, 3).map(chipMarkup).join('')}</div>` : '';
         // Expand shows the member's actual named climbs (flat, each washed in its discipline
         // colour), in the same order across their sections — like the solo card's children.
         const flatSends = m.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline)));
@@ -5440,7 +5446,7 @@ function renderJointDayCard(group, idx) {
             : (m.dayChar === 'project' ? 'projecting' : 'training');
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
-                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span></div>
+                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
             <div class="jc-sends">${sendsHtml}</div>
