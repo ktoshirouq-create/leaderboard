@@ -4741,6 +4741,105 @@ function attachLongPressToSendRow(rowEl, log) {
     rowEl.addEventListener('mouseleave', cancel);
 }
 
+// Long-press a WORKED row → edit/delete that attempt. Same gesture + shared globals as the
+// send-row version; same trust-the-crew ownership gate.
+function attachLongPressToAttemptRow(rowEl, a) {
+    if (a.ClimberName !== State.activeUser) return;
+    rowEl.style.cursor = 'context-menu';
+    const start = () => {
+        pressingEl = rowEl;
+        rowEl.classList.add('pressing');
+        longPressTimer = setTimeout(() => {
+            haptic('commit');
+            rowEl.classList.remove('pressing');
+            openAttemptActionSheet(a);
+        }, LONG_PRESS_MS);
+    };
+    const cancel = () => {
+        clearTimeout(longPressTimer);
+        if (pressingEl) pressingEl.classList.remove('pressing');
+        pressingEl = null;
+    };
+    rowEl.addEventListener('touchstart', start, { passive: true });
+    rowEl.addEventListener('touchmove', cancel, { passive: true });
+    rowEl.addEventListener('touchend', cancel);
+    rowEl.addEventListener('touchcancel', cancel);
+    rowEl.addEventListener('mousedown', start);
+    rowEl.addEventListener('mouseup', cancel);
+    rowEl.addEventListener('mouseleave', cancel);
+}
+
+// Attempt flavor of the shared action sheet — same DOM, relabeled on open (labels are always
+// reset by every opener, so no restore needed).
+function openAttemptActionSheet(a) {
+    const summary = document.getElementById('action-sheet-summary');
+    summary.innerHTML = `<span class="grade">${escapeHTML(a.Grade)}</span>
+                         <span>· worked · ${escapeHTML(a.Where)}</span>`;
+    document.getElementById('action-edit').textContent = 'Edit attempt';
+    document.getElementById('action-delete').textContent = 'Delete attempt';
+    document.getElementById('action-delete').style.display = '';
+    document.getElementById('action-edit').onclick = () => {
+        haptic('tap');
+        replaceTopScreen('action-sheet-modal', { kind: 'modal', id: 'session-modal' }, () => openAttemptPaneInEditMode(a));
+    };
+    document.getElementById('action-delete').onclick = () => {
+        haptic('tap');
+        replaceTopScreen('action-sheet-modal', { kind: 'modal', id: 'confirm-modal' }, () => openConfirmDeleteAttempt(a));
+    };
+    document.getElementById('action-cancel').onclick = () => {
+        haptic('tap');
+        closeModal('action-sheet-modal');
+    };
+    openModal('action-sheet-modal');
+}
+function openConfirmDeleteAttempt(a) {
+    document.getElementById('confirm-subtitle').textContent =
+        `Worked ${a.Grade} · ${a.Where}. This can't be undone.`;
+    document.getElementById('confirm-yes').onclick = () => {
+        haptic('tap');
+        closeModal('confirm-modal');
+        performAttemptDelete(a);
+    };
+    document.getElementById('confirm-no').onclick = () => {
+        haptic('tap');
+        closeModal('confirm-modal');
+    };
+    openModal('confirm-modal');
+}
+
+// Optimistic delete, mirroring performDelete: splice, re-render, restore on failure.
+// Attempts are never scored, so boards/bests/histogram don't need a refresh.
+async function performAttemptDelete(a) {
+    const idx = State.attempts.findIndex(x => x.AttemptId === a.AttemptId);
+    if (idx === -1) return;
+    const [removed] = State.attempts.splice(idx, 1);
+    renderFeed();
+    if (State.activeView === 'profile' && profileClimber) renderProfileSessions(profileClimber);
+    try {
+        const res = await fetch(AppConfig.api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'deleteAttempt',
+                attemptId: a.AttemptId,
+                climber: State.activeUser
+            })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || 'Server error');
+        showToast('✓ Deleted');
+    } catch (err) {
+        State.attempts.splice(idx, 0, removed);
+        renderFeed();
+        if (State.activeView === 'profile' && profileClimber) renderProfileSessions(profileClimber);
+        haptic('error');
+        const msg = String(err.message || '').toLowerCase().includes('not your')
+            ? "Can't delete someone else's attempt"
+            : 'Could not delete';
+        showToast(msg);
+    }
+}
+
 // Long-press a capacity row → open that climber's top-10 page.
 // Tap still goes to the profile; the trailing emulated click is suppressed.
 function attachLongPressToCapacityRow(rowEl, climber) {
@@ -5616,8 +5715,13 @@ function renderFeed() {
             if (expandBtn) card.addEventListener('click', () => { haptic('tap'); card.classList.toggle('expanded'); });
             // send-row long-press to edit (flatten in the same order the children were rendered)
             const flatSends = m.day.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline));
-            card.querySelectorAll('.session-children .send-row').forEach((rowEl, si) => {
+            card.querySelectorAll('.session-children .send-row:not(.attempt-row)').forEach((rowEl, si) => {
                 if (flatSends[si]) attachLongPressToSendRow(rowEl, flatSends[si]);
+            });
+            // worked rows: matched by AttemptId (robust to ordering), edit/delete for own rows
+            card.querySelectorAll('.session-children .attempt-row').forEach(rowEl => {
+                const a = State.attempts.find(x => x.AttemptId === rowEl.dataset.attemptId);
+                if (a) attachLongPressToAttemptRow(rowEl, a);
             });
             // merge-back: clear every split flag for this date → the original joint day re-forms
             const mergeBtn = card.querySelector('.merge-back');
@@ -6710,6 +6814,9 @@ function openSessionPane() {
 
 function openAttemptPane() {
     // Fresh blank state every open — deliberate picks, like the send logger.
+    // Also exits attempt-edit mode (tab switches and FAB opens route through here).
+    editingAttemptId = null;
+    document.getElementById('attempt-submit').textContent = 'Log attempt';
     AttemptState.discipline = disciplineFreqOrder()[0] || AppConfig.disciplines[0];
     AttemptState.where = null;
     AttemptState.grade = null;
@@ -6729,6 +6836,49 @@ function openAttemptPane() {
     document.querySelectorAll('#attempt-date .pill').forEach(x => x.classList.remove('active'));
     document.querySelector('#attempt-date [data-adate="today"]').classList.add('active');
     document.getElementById('attempt-date-custom').classList.add('hidden');
+    refreshAttemptSaveState();
+}
+
+// Open the attempt pane pre-filled from an existing attempt (long-press → Edit attempt).
+// Order matters: setLogMode('attempts') runs openAttemptPane's blank reset first, THEN we
+// prefill and set editingAttemptId.
+let editingAttemptId = null;
+function openAttemptPaneInEditMode(a) {
+    setLogMode('attempts');
+    AttemptState.discipline  = a.Discipline;
+    AttemptState.where       = a.Where;
+    AttemptState.grade       = a.Grade;
+    AttemptState.outcome     = a.Outcome || null;
+    AttemptState.countBucket = attemptCountLabel(a.CountBucket) || null;   // recovers coerced 2-3
+    const aDate = getCleanDate(a.Date);
+    const today = getCleanDate(new Date());
+    const yest  = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return getCleanDate(d); })();
+    document.querySelectorAll('#attempt-date .pill').forEach(x => x.classList.remove('active'));
+    const customInput = document.getElementById('attempt-date-custom');
+    if (aDate === today) {
+        AttemptState.date = 'today';
+        document.querySelector('#attempt-date [data-adate="today"]').classList.add('active');
+        customInput.classList.add('hidden');
+    } else if (aDate === yest) {
+        AttemptState.date = 'yesterday';
+        document.querySelector('#attempt-date [data-adate="yesterday"]').classList.add('active');
+        customInput.classList.add('hidden');
+    } else {
+        AttemptState.date = 'custom';
+        document.querySelector('#attempt-date [data-adate="custom"]').classList.add('active');
+        customInput.classList.remove('hidden');
+        customInput.value = aDate;
+    }
+    renderAttemptDiscipline();
+    renderAttemptWhere();
+    renderAttemptGrade();
+    renderAttemptOutcomeType();
+    renderAttemptCount();
+    updateAttemptRouteVisibility();
+    updateAttemptBelayerVisibility();
+    if (isOutdoor(a.Discipline)) document.getElementById('attempt-route-name').value = a.RouteName || '';
+    editingAttemptId = a.AttemptId;
+    document.getElementById('attempt-submit').textContent = 'Save changes';
     refreshAttemptSaveState();
 }
 
@@ -7095,7 +7245,8 @@ async function submitAttempt() {
     const dateISO = getAttemptDateISO();
     const routeName = isOutdoor(AttemptState.discipline) ? document.getElementById('attempt-route-name').value.trim() : '';
     const payload = {
-        action: 'logAttempt',
+        action:      editingAttemptId ? 'editAttempt' : 'logAttempt',
+        attemptId:   editingAttemptId || undefined,
         climber:     State.activeUser,
         date:        dateISO,
         discipline:  AttemptState.discipline,
@@ -7115,9 +7266,10 @@ async function submitAttempt() {
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(payload)
         });
-        const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Server error');
-        showToast('✓ Attempt logged');
+        showToast(editingAttemptId ? '✓ Attempt updated' : '✓ Attempt logged');
+        editingAttemptId = null;
+        document.getElementById('attempt-submit').textContent = 'Log attempt';
         fetchData();   // pull it back so it appears on the feed
     } catch (err) {
         haptic('error');
