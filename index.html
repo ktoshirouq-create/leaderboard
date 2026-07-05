@@ -238,6 +238,11 @@ h1.screen-title {
 .day-sec-proj .pg { font-weight: 800; }
 .day-sec-train { font-size: 0.82rem; font-weight: 600; color: #8a8a8a; }
 .day-sec-dots { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+/* Worked (attempt) rows in the climb list: same shape as send rows, deliberately muted —
+   context, not achievement. */
+.attempt-row { opacity: 0.85; }
+.send-style-tag.worked { color: #8a8a8a; background: rgba(255,255,255,0.05); }
+.send-grade.muted { color: #a3a3a3; font-weight: 700; }
 
 /* Standing crown beside the reigning Hardest #1's name — gold, small, glowing */
 .name-crown { display: inline-flex; align-items: center; color: var(--gold); vertical-align: -0.08em; }
@@ -5258,6 +5263,15 @@ function dayHardestSendGrade(day) {
 // (it reads "2-3" as 3 Feb), so historical rows store a timestamp here — recover that one known
 // case, locale-agnostic, and never render a raw date. Other tokens (1 / 4+ / few / lots / session)
 // pass through unchanged.
+// Muted "worked" row for the day-card climb list: grey grade, WORKED tag with outcome/count
+// detail, boulder circuit dot where applicable. RouteName slot is ready for when the Attempts
+// sheet gains that column. data-attempt-id / data-owner feed the long-press edit/delete wiring.
+function attemptRowHtml(a, disc) {
+    const detail = [a.Outcome ? escapeHTML(a.Outcome) : '', attemptCountLabel(a.CountBucket)].filter(Boolean).join(' · ');
+    const dot = disc === 'In Boulder' ? `<span class="sdot" style="background:${boulderColorForGrade(a.Grade, a.Where)}"></span> ` : '';
+    const name = a.RouteName ? `<span class="send-name">${escapeHTML(a.RouteName)}</span>` : '';
+    return `<div class="send-row attempt-row" data-attempt-id="${escapeHTML(a.AttemptId || '')}" data-owner="${escapeHTML(a.ClimberName || '')}">${name}<span class="send-style-tag worked">WORKED${detail ? ` · ${detail}` : ''}</span><span class="send-grade muted">${dot}${escapeHTML(a.Grade)}</span></div>`;
+}
 function attemptCountLabel(v) {
     let s = String(v == null ? '' : v).trim();
     if (!s) return '';
@@ -5278,6 +5292,7 @@ function dayClimbSectionHtml(sec) {
     const parts = [];
     if (lead.length) parts.push(`${lead.length} send${lead.length === 1 ? '' : 's'}`);
     if (tr) parts.push(`${tr} TR`);
+    if (sec.sends.length && sec.attempts.length) parts.push(`${sec.attempts.length} worked`);
     if (maxGrade) parts.push(`max <span class="max-grade-v">${escapeHTML(maxGrade)}</span>`);
     const summary = parts.join(' · ');
     let dots = '';
@@ -5286,7 +5301,9 @@ function dayClimbSectionHtml(sec) {
         dots = `<div class="day-sec-dots">${sorted.map(s => `<span class="sdot" style="background:${boulderColorForGrade(s.Grade, s.Where)}"></span>`).join('')}</div>`;
     }
     const pc = DAY_PROJ_GRADE_COLOR[sec.discipline] || '#8a8a8a';
-    const projHtml = sec.attempts.map(a => {
+    // Inline "worked" line only on sendless sections (pure projecting) — when the section has
+    // sends, attempts appear as muted rows inside the expandable climb list instead.
+    const projHtml = (sec.sends.length ? [] : sec.attempts).map(a => {
         const bucket = attemptCountLabel(a.CountBucket);
         const oc = [bucket, a.Outcome ? escapeHTML(a.Outcome) : ''].filter(Boolean).join(' ');
         return `<div class="day-sec-proj">worked <span class="pg" style="color:${pc}">${escapeHTML(a.Grade)}</span>${oc ? ` · ${oc}` : ''}</div>`;
@@ -5354,7 +5371,9 @@ function renderDayCard(day, idx) {
     const sectionsHtml = day.sections.map(dayClimbSectionHtml).join('') +
         (day.hasTraining ? dayTrainingSectionHtml(day.training) : '');
 
-    const totalClimbs = day.sections.reduce((n, s) => n + s.sends.length, 0);
+    // Sends always count; attempts join the expander only for sections that have sends
+    // (sendless sections keep their inline "worked" line instead).
+    const totalClimbs = day.sections.reduce((n, s) => n + s.sends.length + (s.sends.length ? s.attempts.length : 0), 0);
     const stateClass = day._failed ? 'failed' : (day._optimistic ? 'syncing' : '');
 
     return `
@@ -5372,7 +5391,10 @@ function renderDayCard(day, idx) {
         <div class="s-summary">${summaryHtml}</div>
         <div class="day-sections">${sectionsHtml}</div>
         ${totalClimbs > 0 ? `<button class="expand-btn"><span class="expand-arrow">▾</span> View ${totalClimbs} climb${totalClimbs > 1 ? 's' : ''}</button>
-        <div class="session-children">${day.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline))).join('')}</div>` : ''}
+        <div class="session-children">${day.sections.flatMap(s => [
+            ...sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline)),
+            ...(s.sends.length ? sortSendsByScore(s.attempts, s.discipline).map(a => attemptRowHtml(a, s.discipline)) : [])
+        ]).join('')}</div>` : ''}
     </div>`;
 }
 
