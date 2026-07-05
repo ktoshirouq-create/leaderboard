@@ -216,12 +216,14 @@ h1.screen-title {
 @keyframes crown-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -120% 0; } }
 /* Day-card sections: tinted discipline zones (9% wash), coloured label, muted project line */
 .day-section { padding: 12px 18px; }
-.day-section[data-disc="In Boulder"]  { background: rgba(245,158,11,0.09); }
-.day-section[data-disc="In Rope"]     { background: rgba(6,182,212,0.09); }
-.day-section[data-disc="Out Rope"]    { background: rgba(16,185,129,0.09); }
-.day-section[data-disc="Out Boulder"] { background: rgba(168,85,247,0.09); }
-.day-section[data-disc="Trad"]        { background: rgba(244,63,94,0.09); }
-.day-section.day-training { background: rgba(255,255,255,0.02); }
+/* Section tint: left-anchored wash (same family as .send-row) — colour emanates from the
+   discipline label and bleeds out before the numbers, instead of a flat hard-edged band. */
+.day-section[data-disc="In Boulder"]  { background: linear-gradient(90deg, rgba(245,158,11,0.16) 0%, rgba(245,158,11,0.05) 45%, transparent 80%); }
+.day-section[data-disc="In Rope"]     { background: linear-gradient(90deg, rgba(6,182,212,0.16) 0%, rgba(6,182,212,0.05) 45%, transparent 80%); }
+.day-section[data-disc="Out Rope"]    { background: linear-gradient(90deg, rgba(16,185,129,0.16) 0%, rgba(16,185,129,0.05) 45%, transparent 80%); }
+.day-section[data-disc="Out Boulder"] { background: linear-gradient(90deg, rgba(168,85,247,0.16) 0%, rgba(168,85,247,0.05) 45%, transparent 80%); }
+.day-section[data-disc="Trad"]        { background: linear-gradient(90deg, rgba(244,63,94,0.16) 0%, rgba(244,63,94,0.05) 45%, transparent 80%); }
+.day-section.day-training { background: linear-gradient(90deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.015) 45%, transparent 80%); }
 .day-sec-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .day-sec-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
 .day-sec-label[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
