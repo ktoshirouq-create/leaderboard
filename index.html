@@ -3412,6 +3412,12 @@ function renderGradePills() {
         const useDots = scale.colors && scale.colors.length === scale.labels.length;
         pills = scale.labels.map((g, i) => ({ grade: g, color: useDots ? scale.colors[i] : '' }));
     }
+    // Sticky preselect (create mode, mid-session opens only): nothing selected yet + this
+    // discipline's last-logged grade is on the current ladder → preselect it. First opens
+    // stay blank; edit mode never re-fills; off-ladder stickies (per-gym circuits) are skipped.
+    if (!editingLogId && gradePreselectArmed && !LoggerState.grade && sticky && pills.some(p => p.grade === sticky)) {
+        LoggerState.grade = sticky;
+    }
     c.innerHTML = pills.map(p => {
         const dot = p.color ? `<span class="grade-dot" style="background:${p.color}"></span>` : '';
         return `<button class="pill ${p.grade === LoggerState.grade ? 'active' : ''}" data-grade="${p.grade}">${dot}${p.grade}</button>`;
@@ -3833,6 +3839,9 @@ async function retrySend(row) {
 document.getElementById('submit-log').addEventListener('click', submitLog);
 
 /* ----- Open logger ----- */
+// true once you've logged today — lets renderGradePills preselect the sticky grade on
+// mid-session opens. First open of the day stays a deliberate blank pick.
+let gradePreselectArmed = false;
 function openLogger() {
     document.getElementById('active-user-label').textContent = State.activeUser;
 
@@ -3857,7 +3866,8 @@ function openLogger() {
         LoggerState.discipline = disciplineFreqOrder()[0] || AppConfig.disciplines[0];
         LoggerState.where = null;
     }
-    LoggerState.grade = null;                // grade is never carried — always a fresh pick
+    LoggerState.grade = null;                // never carried across opens…
+    gradePreselectArmed = !!contLog;         // …but once you've logged today, the sticky may re-fill it
     if (LoggerState.discipline) localStorage.setItem('leaderboard.lastDiscipline', LoggerState.discipline);
 
     discOtherOpen = false;                   // Other› starts collapsed every open
