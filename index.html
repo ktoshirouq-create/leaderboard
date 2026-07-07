@@ -5588,11 +5588,17 @@ function renderJointDayCard(group, idx) {
         const chipHtml = memHl.length > 1 ? `<div class="hl-chips" style="padding:0">${memHl.slice(1, 3).map(chipMarkup).join('')}</div>` : '';
         // Expand shows the member's actual named climbs (flat, each washed in its discipline
         // colour), in the same order across their sections — like the solo card's children.
-        const flatSends = m.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline)));
-        const sendsHtml = flatSends.join('');
+        // Sends then worked rows, per section. Unlike solo cards, attempts from ALL sections
+        // join the expander — joint rows have no inline "worked" line, so this is the only
+        // place a projecting member's attempts can be seen at all.
+        const sendsHtml = m.sections.flatMap(s => [
+            ...sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline)),
+            ...sortSendsByScore(s.attempts, s.discipline).map(a => attemptRowHtml(a, s.discipline))
+        ]).join('');
+        const workedN = m.sections.reduce((n, s) => n + s.attempts.length, 0);
         const hardest = dayHardestSendGrade(m);
         const summary = m.totalSends > 0
-            ? `${m.totalSends} send${m.totalSends === 1 ? '' : 's'}${hardest ? ` · max <span class="jc-max">${escapeHTML(hardest)}</span>` : ''}`
+            ? `${m.totalSends} send${m.totalSends === 1 ? '' : 's'}${workedN ? ` · ${workedN} worked` : ''}${hardest ? ` · max <span class="jc-max">${escapeHTML(hardest)}</span>` : ''}`
             : (m.dayChar === 'project' ? 'projecting' : 'training');
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
@@ -5700,8 +5706,12 @@ function renderFeed() {
                 if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(climberName); });
                 if (member) {
                     const flatSends = member.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline));
-                    climberEl.querySelectorAll('.jc-sends .send-row').forEach((sr, si) => {
+                    climberEl.querySelectorAll('.jc-sends .send-row:not(.attempt-row)').forEach((sr, si) => {
                         if (flatSends[si]) attachLongPressToSendRow(sr, flatSends[si]);
+                    });
+                    climberEl.querySelectorAll('.jc-sends .attempt-row').forEach(sr => {
+                        const a = State.attempts.find(x => x.AttemptId === sr.dataset.attemptId);
+                        if (a) attachLongPressToAttemptRow(sr, a);
                     });
                 }
             });
