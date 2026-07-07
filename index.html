@@ -223,7 +223,6 @@ h1.screen-title {
 .day-section[data-disc="Out Rope"]    { background: linear-gradient(90deg, rgba(16,185,129,0.16) 0%, rgba(16,185,129,0.05) 45%, transparent 80%); }
 .day-section[data-disc="Out Boulder"] { background: linear-gradient(90deg, rgba(168,85,247,0.16) 0%, rgba(168,85,247,0.05) 45%, transparent 80%); }
 .day-section[data-disc="Trad"]        { background: linear-gradient(90deg, rgba(244,63,94,0.16) 0%, rgba(244,63,94,0.05) 45%, transparent 80%); }
-.day-section.day-training { background: linear-gradient(90deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.015) 45%, transparent 80%); }
 .day-sec-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .day-sec-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
 .day-sec-label[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
@@ -231,7 +230,6 @@ h1.screen-title {
 .day-sec-label[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
 .day-sec-label[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
 .day-sec-label[data-disc="Trad"]        { color: var(--disc-trad); }
-.day-sec-label.training { color: #8a8a8a; }
 .day-sec-summary { font-size: 0.85rem; font-weight: 700; color: #a3a3a3; white-space: nowrap; }
 .day-sec-summary .max-grade-v { color: #fff; font-weight: 800; }
 .day-sec-proj { font-size: 0.8rem; color: #8a8a8a; font-weight: 600; margin-top: 6px; }
@@ -1548,37 +1546,6 @@ h1.screen-title {
     border-radius: 6px;
 }
 
-/* Two-tab strip atop the long-press logger (Attempts | Training) */
-.logmode-tabs {
-    display: flex;
-    gap: 6px;
-    background: var(--input-bg);
-    border-radius: 12px;
-    padding: 4px;
-    margin: 4px 0 18px 0;
-    border: 1px solid rgba(255,255,255,0.03);
-}
-.logmode-tab {
-    flex: 1;
-    text-align: center;
-    padding: 11px 0;
-    font-size: 0.8rem;
-    font-weight: 800;
-    color: var(--text-muted);
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-family: inherit;
-    letter-spacing: 0.3px;
-    transition: color 0.2s, background 0.2s;
-}
-.logmode-tab.active {
-    color: #fff;
-    background: #262626;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-}
-.logmode-tab:active { transform: scale(0.97); }
 
 /* Edit mode banner inside logger */
 .edit-mode-banner {
@@ -1905,7 +1872,6 @@ body.disco .disco-me {
     <button class="profile-back" id="profile-back">← Back</button>
     <div class="switcher-link hidden" id="profile-switcher">Switch user ▾</div>
     <div class="profile-name" id="profile-name">—</div>
-    <button class="btn-main hidden" id="log-session-btn" style="margin:0 0 20px;max-width:220px;">+ Log session</button>
 <div class="profile-section-title" style="margin-top: 0;">Hardest · last 60 days</div>
 <div class="bests-strip" id="profile-bests"></div>
     
@@ -2081,9 +2047,6 @@ body.disco .disco-me {
         <button class="modal-close" id="session-close">×</button>
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
 
-        <div class="logmode-tabs" id="logmode-tabs">
-            <button class="logmode-tab active" data-logmode="attempts">Attempts</button>
-            <button class="logmode-tab" data-logmode="training">Training</button>
         </div>
 
         <div id="session-pane-attempts">
@@ -2132,35 +2095,6 @@ body.disco .disco-me {
             <button class="btn-main" id="attempt-submit" disabled>Log attempt</button>
         </div>
 
-        <div id="session-pane-training" class="hidden">
-        <div class="modal-title">Log a session</div>
-        <div class="modal-subtitle">Training — your work behind the work. Shows on the feed, never scored.</div>
-
-        <div class="field-label">Type</div>
-        <div class="pill-row" id="session-type"></div>
-
-        <div class="field-label">Effort <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">how hard you worked · 1–10</span></div>
-        <div class="pill-row scroll" id="session-effort"></div>
-
-        <div class="field-label">Duration</div>
-        <div class="pill-row" id="session-duration"></div>
-
-        <div class="field-label">Exhaustion <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">optional · how spent you felt</span></div>
-        <div class="pill-row scroll" id="session-exhaustion"></div>
-
-        <div class="field-label" id="session-where-label">Where</div>
-        <div class="pill-row" id="session-where"></div>
-
-        <div class="field-label">Date</div>
-        <div class="pill-row" id="session-date">
-            <button class="pill active" data-sdate="today">Today</button>
-            <button class="pill" data-sdate="yesterday">Yesterday</button>
-            <button class="pill" data-sdate="custom">Custom</button>
-        </div>
-        <input type="date" class="date-input hidden" id="session-date-custom" max="2099-12-31">
-
-        <button class="btn-main" id="session-submit" disabled>Log session</button>
-        </div><!-- /#session-pane-training -->
     </div>
 </div>
 
@@ -2262,8 +2196,7 @@ function saveCache() {
                 logs: State.logs,
                 roster: State.roster,
                 locations: State.locations,
-                attempts: State.attempts,
-                sessions: State.sessions
+                attempts: State.attempts
             }
         }));
     } catch (e) { /* quota — ignore silently */ }
@@ -2288,7 +2221,6 @@ function bootFromCache() {
     State.roster    = (cached.roster || []).filter(r => r && r.Name);
     State.locations = (cached.locations || []).filter(l => l && l.Name);
     State.attempts  = (cached.attempts || []).filter(a => a && a.ClimberName && a.Discipline && a.Date);
-    State.sessions  = (cached.sessions || []).filter(s => s && s.ClimberName && s.Date);
     renderFeed();
     return true;
 }
@@ -3932,7 +3864,7 @@ document.getElementById('fab').addEventListener('click', () => {
     }
 });
 
-// Long-press the FAB → training session logger (kept off the fast send path).
+// Long-press the FAB → attempt logger (kept off the fast send path).
 let fabSuppressClick = 0;
 (function () {
     const fab = document.getElementById('fab');
@@ -3968,7 +3900,6 @@ async function fetchData() {
         State.roster    = (json.data.roster || []).filter(r => r && r.Name);
         State.locations = (json.data.locations || []).filter(l => l && l.Name);
         State.attempts  = (json.data.attempts || []).filter(a => a && a.ClimberName && a.Discipline && a.Date);
-        State.sessions  = (json.data.sessions || []).filter(s => s && s.ClimberName && s.Date);
         saveCache();
         renderFeed();
     } catch (err) {
@@ -5237,13 +5168,13 @@ function renderJointCard(group, idx) {
 }
 
 /* ===== DAY MODEL (phase 3) — one climber, one date, discipline-keyed sections ===== */
-// Folds sends + attempts + training sessions into day objects. Sections carry character
-// (send/project/training); the day inherits its loudest. Proven in harness before wiring.
-function buildDays(logs, attempts, sessions) {
+// Folds sends + attempts into day objects. Sections carry character (send/project);
+// the day inherits its loudest. Proven in harness before wiring.
+function buildDays(logs, attempts) {
     const days = new Map();
     const getDay = (climber, date) => {
         const key = `${climber}|${date}`;
-        if (!days.has(key)) days.set(key, { climber, date, key, sections: new Map(), training: null, timestamp: null,
+        if (!days.has(key)) days.set(key, { climber, date, key, sections: new Map(), timestamp: null,
             _optimistic: false, _failed: false });
         return days.get(key);
     };
@@ -5269,24 +5200,16 @@ function buildDays(logs, attempts, sessions) {
         day.sections.get(a.Discipline).attempts.push(a);
         bump(day, a.Timestamp);
     });
-    (sessions || []).forEach(s => {
-        if (!s.ClimberName) return;
-        const date = getCleanDate(s.Date);
-        const day = getDay(s.ClimberName, date);
-        if (!day.training) day.training = { kind: 'training', items: [] };
-        day.training.items.push(s);
-        bump(day, s.Timestamp);
-    });
     return [...days.values()].map(day => {
         const sections = AppConfig.disciplines.filter(d => day.sections.has(d)).map(d => day.sections.get(d));
         const totalSends = sections.reduce((n, s) => n + s.sends.length, 0);
         const totalAttempts = sections.reduce((n, s) => n + s.attempts.length, 0);
-        const laneCount = sections.length + (day.training ? 1 : 0);
+        const laneCount = sections.length;
         let stripeDisc = null, best = -1;
         sections.forEach(s => { if (s.sends.length > best) { best = s.sends.length; stripeDisc = s.discipline; } });
         if (stripeDisc === null && sections.length) stripeDisc = sections[0].discipline;
-        const dayChar = totalSends > 0 ? 'send' : (totalAttempts > 0 ? 'project' : 'training');
-        return { ...day, sections, totalSends, totalAttempts, hasTraining: !!day.training,
+        const dayChar = totalSends > 0 ? 'send' : 'project';
+        return { ...day, sections, totalSends, totalAttempts,
             isMulti: laneCount > 1, stripeDisc, dayChar, laneCount };
     }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
@@ -5316,11 +5239,11 @@ function dayUnifies(day) {
     return day.isMulti && !day._optimistic && !day._failed && !dayIsSocial(day.climber, day.date);
 }
 
-// A quiet standalone day: single lane, zero sends, but it DOES have attempts or training.
+// A quiet standalone day: single lane, zero sends, but it DOES have attempts.
 // These render as muted PROJECTING / TRAINING day-cards instead of vanishing (the legacy
 // path drops sendless sections + all training). Optimistic/failed stay legacy for retry.
 function dayStandalone(day) {
-    return !day.isMulti && day.totalSends === 0 && (day.totalAttempts > 0 || day.hasTraining)
+    return !day.isMulti && day.totalSends === 0 && day.totalAttempts > 0
         && !day._optimistic && !day._failed;
 }
 
@@ -5427,18 +5350,6 @@ function dayClimbSectionHtml(sec) {
     </div>`;
 }
 
-function dayTrainingSectionHtml(training) {
-    const items = training.items;
-    const label = items.length === 1
-        ? `${escapeHTML(items[0].Type || 'Session')}${items[0].Duration ? ' · ' + escapeHTML(items[0].Duration) : ''}${items[0].Effort ? ' · effort ' + escapeHTML(String(items[0].Effort)) : ''}`
-        : `${items.length} sessions`;
-    return `<div class="day-section day-training">
-        <div class="day-sec-head">
-            <span class="day-sec-label training">Training</span>
-            <span class="day-sec-train">${label}</span>
-        </div>
-    </div>`;
-}
 
 // Unified day-card (solo, multi-lane). Characters live per-section; the card inherits its loudest.
 // TODO: once the legacy single-card path retires, fold renderSessionCard into this renderer —
@@ -5463,10 +5374,8 @@ function renderDayCard(day, idx) {
     if (day.totalSends > 0) {
         summaryHtml = `<span>${day.totalSends} send${day.totalSends === 1 ? '' : 's'}</span>` +
             (hardest ? `<span class="dot">·</span><span class="max-grade">hardest <span class="grade-value">${escapeHTML(hardest)}</span></span>` : '');
-    } else if (day.dayChar === 'project') {
-        summaryHtml = `<span style="color:#8a8a8a">projecting</span>`;
     } else {
-        summaryHtml = `<span style="color:#8a8a8a">training</span>`;
+        summaryHtml = `<span style="color:#8a8a8a">projecting</span>`;
     }
 
     const allWheres = [...new Set(day.sections.flatMap(s => s.sends.concat(s.attempts)).map(x => x.Where).filter(Boolean))];
@@ -5477,8 +5386,7 @@ function renderDayCard(day, idx) {
     const isRel = /ago|now|today|yesterday/i.test(relTime);
     const timeText = isRel ? `${dateText} · ${relTime}` : dateText;
 
-    const sectionsHtml = day.sections.map(dayClimbSectionHtml).join('') +
-        (day.hasTraining ? dayTrainingSectionHtml(day.training) : '');
+    const sectionsHtml = day.sections.map(dayClimbSectionHtml).join('');
 
     // Sends always count; attempts join the expander only for sections that have sends
     // (sendless sections keep their inline "worked" line instead).
@@ -5599,7 +5507,7 @@ function renderJointDayCard(group, idx) {
         const hardest = dayHardestSendGrade(m);
         const summary = m.totalSends > 0
             ? `${m.totalSends} send${m.totalSends === 1 ? '' : 's'}${workedN ? ` · ${workedN} worked` : ''}${hardest ? ` · max <span class="jc-max">${escapeHTML(hardest)}</span>` : ''}`
-            : (m.dayChar === 'project' ? 'projecting' : 'training');
+            : 'projecting';
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
                 <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
@@ -5628,7 +5536,7 @@ function renderFeed() {
         list.innerHTML = '<div class="empty-msg">No sends yet. Tap + to be the first.</div>';
         return;
     }
-    const days = buildDays(State.logs, State.attempts || [], State.sessions || []);
+    const days = buildDays(State.logs, State.attempts || []);
     const { joint: jointDays, soloKeys } = buildJointDays(days);
     // A day renders solo (renderDayCard) if it's a size-1 component AND eligible; everything
     // not joint and not solo-eligible (optimistic/failed) falls to the legacy retry path.
@@ -6620,7 +6528,6 @@ function showProfile(climber) {
     const isOwnProfile = (climber === State.activeUser);
     document.getElementById('profile-back').style.display = isOwnProfile ? 'none' : 'inline-flex';
     document.getElementById('profile-switcher').classList.toggle('hidden', !isOwnProfile);
-    document.getElementById('log-session-btn').classList.add('hidden');  // session logging now lives on the FAB long-press
     navRecordView('profile', climber);
     
    }
@@ -6645,165 +6552,12 @@ document.getElementById('profile-switcher').addEventListener('click', () => {
     openModal('switcher-modal');
 });
 
-/* ============== SESSION LOGGER (training — Me tab only, writes to Sessions tab) ============== */
-const SESSION_TYPES = ['Limit/Power', 'Endurance', 'Volume', 'Skill', 'Fingerboard', 'Fun'];
-const SESSION_DURATIONS = [
-    { label: '<45m', min: 30 }, { label: '~1h', min: 60 }, { label: '~2h', min: 120 }, { label: '2h+', min: 150 }
-];
-const SessionState = { type: null, effort: null, exhaustion: null, duration: null, where: null, date: 'today' };
-
-function sessionDurationMin(label) {
-    const hit = SESSION_DURATIONS.find(p => p.label === label);
-    return hit ? hit.min : null;
-}
-function canSaveSession() {
-    return !!(SessionState.type && SessionState.effort != null && SessionState.duration && SessionState.where);
-}
-function refreshSessionSaveState() {
-    const btn = document.getElementById('session-submit');
-    if (btn) btn.disabled = !canSaveSession();
-}
-
-// Generic 1-10 scale pill row (effort / exhaustion)
-function renderScalePills(containerId, field) {
-    const c = document.getElementById(containerId);
-    if (!c) return;
-    c.innerHTML = Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
-        `<button class="pill ${SessionState[field] === n ? 'active' : ''}" data-scale="${n}">${n}</button>`
-    ).join('');
-    c.querySelectorAll('[data-scale]').forEach(el => el.addEventListener('click', () => {
-        haptic('tap');
-        const v = parseInt(el.dataset.scale, 10);
-        SessionState[field] = (SessionState[field] === v) ? null : v;  // tap again to clear
-        renderScalePills(containerId, field);
-        refreshSessionSaveState();
-    }));
-}
-
-function renderSessionTypePills() {
-    const c = document.getElementById('session-type');
-    if (!c) return;
-    c.innerHTML = SESSION_TYPES.map(t =>
-        `<button class="pill ${SessionState.type === t ? 'active' : ''}" data-stype="${escapeHTML(t)}">${escapeHTML(t)}</button>`
-    ).join('');
-    c.querySelectorAll('[data-stype]').forEach(el => el.addEventListener('click', () => {
-        haptic('tap');
-        SessionState.type = el.dataset.stype;
-        renderSessionTypePills();
-        refreshSessionSaveState();
-    }));
-}
-
-function renderSessionDurationPills() {
-    const c = document.getElementById('session-duration');
-    if (!c) return;
-    c.innerHTML = SESSION_DURATIONS.map(d =>
-        `<button class="pill ${SessionState.duration === d.label ? 'active' : ''}" data-sdur="${d.label}">${d.label}</button>`
-    ).join('');
-    c.querySelectorAll('[data-sdur]').forEach(el => el.addEventListener('click', () => {
-        haptic('tap');
-        SessionState.duration = el.dataset.sdur;
-        renderSessionDurationPills();
-        refreshSessionSaveState();
-    }));
-}
-
-// Where pills for training: GYMS ONLY (training is indoor), ranked by your 90-day
-// frequency+recency like the send logger's Where row, and capped to ~6 with the long tail
-// behind "+ more". No default selected — a fresh open forces a deliberate pick.
-let sessionWhereExpanded = false;
-const SESSION_WHERE_CAP = 6;
-function renderSessionWherePills() {
-    const c = document.getElementById('session-where');
-    if (!c) return;
-    const me = State.activeUser;
-    const now = Date.now();
-    const gyms = [...new Set(State.locations.filter(l => l.Type === 'gym').map(l => l.Name).filter(Boolean))];
-    // 90-day usage stats scoped to this climber, gym sends only
-    const stats = {};
-    State.logs.forEach(l => {
-        if (l.ClimberName !== me || !l.Where || !gyms.includes(l.Where)) return;
-        const ageDays = (now - new Date(l.Date).getTime()) / 86400000;
-        if (!(ageDays >= 0) || ageDays > 90) return;
-        const s = stats[l.Where] || (stats[l.Where] = { count: 0, last: '' });
-        s.count++;
-        const d = getCleanDate(l.Date);
-        if (d > s.last) s.last = d;
-    });
-    let names = rankByUsage(gyms, stats);
-    // Keep the selected gym visible even if it'd fall past the cap
-    if (SessionState.where) {
-        const i = names.indexOf(SessionState.where);
-        if (i > SESSION_WHERE_CAP - 1) { names.splice(i, 1); names.unshift(SessionState.where); }
-    }
-    const collapsed = !sessionWhereExpanded && names.length > SESSION_WHERE_CAP;
-    const shown = collapsed ? names.slice(0, SESSION_WHERE_CAP) : names;
-    const hiddenCount = names.length - shown.length;
-    c.innerHTML = shown.map(n =>
-        `<button class="pill ${SessionState.where === n ? 'active' : ''}" data-swhere="${escapeHTML(n)}">${escapeHTML(n)}</button>`
-    ).join('') +
-        (collapsed ? `<button class="pill where-more" data-swhere-more="1">+${hiddenCount} more</button>`
-                   : (sessionWhereExpanded && names.length > SESSION_WHERE_CAP ? `<button class="pill where-more" data-swhere-more="1">Less</button>` : ''));
-    c.querySelectorAll('[data-swhere]').forEach(el => el.addEventListener('click', () => {
-        haptic('tap');
-        SessionState.where = el.dataset.swhere;
-        c.querySelectorAll('[data-swhere]').forEach(p => p.classList.toggle('active', p === el));
-        refreshSessionSaveState();
-    }));
-    const moreBtn = c.querySelector('[data-swhere-more]');
-    if (moreBtn) moreBtn.addEventListener('click', () => {
-        haptic('tap');
-        sessionWhereExpanded = !sessionWhereExpanded;
-        renderSessionWherePills();
-    });
-}
-
-function getSessionDateISO() {
-    const today = getCleanDate(new Date());
-    if (SessionState.date === 'custom') {
-        const v = document.getElementById('session-date-custom').value;
-        if (!v) return today;
-        return v > today ? today : v;
-    }
-    const d = new Date();
-    if (SessionState.date === 'yesterday') d.setDate(d.getDate() - 1);
-    return getCleanDate(d);
-}
-
-// Date pills (own row — never touches the send logger's date pills)
-document.querySelectorAll('#session-date [data-sdate]').forEach(el => {
-    el.addEventListener('click', () => {
-        haptic('tap');
-        document.querySelectorAll('#session-date .pill').forEach(x => x.classList.remove('active'));
-        el.classList.add('active');
-        SessionState.date = el.dataset.sdate;
-        const ci = document.getElementById('session-date-custom');
-        if (el.dataset.sdate === 'custom') {
-            ci.classList.remove('hidden');
-            const today = getCleanDate(new Date());
-            if (!ci.value) ci.value = today;
-            ci.max = today;
-            ci.focus();
-            if (ci.showPicker) ci.showPicker();
-        } else {
-            ci.classList.add('hidden');
-        }
-    });
-});
-
 // Which pane the long-press logger shows. Attempts is the default (the main use).
 let logMode = 'attempts';
-function setLogMode(mode) {
-    logMode = mode;
-    document.getElementById('session-pane-attempts').classList.toggle('hidden', mode !== 'attempts');
-    document.getElementById('session-pane-training').classList.toggle('hidden', mode !== 'training');
-    document.querySelectorAll('#logmode-tabs .logmode-tab').forEach(t =>
-        t.classList.toggle('active', t.dataset.logmode === mode));
-    if (mode === 'attempts') openAttemptPane(); else openSessionPane();
+function setLogMode(mode) {   // training removed — the modal IS the attempt pane now
+    logMode = 'attempts';
+    openAttemptPane();
 }
-document.querySelectorAll('#logmode-tabs .logmode-tab').forEach(t => {
-    t.addEventListener('click', () => { haptic('tap'); setLogMode(t.dataset.logmode); });
-});
 
 // Long-press FAB entry point: open the modal on the Attempts tab.
 function openLongPressLogger() {
@@ -6812,25 +6566,6 @@ function openLongPressLogger() {
     openModal('session-modal');
 }
 
-// Training pane setup (was openSessionLogger's body; pane-scoped now, no modal open here).
-function openSessionPane() {
-    SessionState.type = null;
-    SessionState.effort = null;
-    SessionState.exhaustion = null;
-    SessionState.duration = null;
-    SessionState.where = null;
-    SessionState.date = 'today';
-    sessionWhereExpanded = false;
-    renderSessionTypePills();
-    renderScalePills('session-effort', 'effort');
-    renderSessionDurationPills();
-    renderScalePills('session-exhaustion', 'exhaustion');
-    renderSessionWherePills();
-    document.querySelectorAll('#session-date .pill').forEach(x => x.classList.remove('active'));
-    document.querySelector('#session-date [data-sdate="today"]').classList.add('active');
-    document.getElementById('session-date-custom').classList.add('hidden');
-    refreshSessionSaveState();
-}
 
 function openAttemptPane() {
     // Fresh blank state every open — deliberate picks, like the send logger.
@@ -6902,12 +6637,6 @@ function openAttemptPaneInEditMode(a) {
     refreshAttemptSaveState();
 }
 
-// Back-compat: open the modal on the Training tab.
-function openSessionLogger() {
-    if (!State.activeUser) { openIdentityPrompt(); return; }
-    setLogMode('training');
-    openModal('session-modal');
-}
 
 /* ============== ATTEMPT LOGGER (worked-not-sent — feed-visible, never scored) ============== */
 const AttemptState = { discipline: null, where: null, grade: null, outcome: null, countBucket: null, belayer: '', date: 'today' };
@@ -7298,44 +7027,6 @@ async function submitAttempt() {
 }
 document.getElementById('attempt-submit').addEventListener('click', submitAttempt);
 
-async function submitSession() {
-    if (!canSaveSession()) { showToast('Pick type, effort, duration & where'); return; }
-    const dateISO = getSessionDateISO();
-    const payload = {
-        action: 'logSession',
-        climber:     State.activeUser,
-        date:        dateISO,
-        where:       SessionState.where,
-        type:        SessionState.type,
-        effort:      SessionState.effort,
-        exhaustion:  SessionState.exhaustion != null ? SessionState.exhaustion : '',
-        duration:    SessionState.duration,
-        durationMin: sessionDurationMin(SessionState.duration)
-    };
-    closeModal('session-modal');
-    haptic('commit');
-    showToast('Saving session…');
-    try {
-        const res = await fetch(AppConfig.api, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
-        });
-        const json = await res.json();
-        if (!json.ok) throw new Error(json.error || 'Server error');
-        showToast('✓ Session logged');
-    } catch (err) {
-        haptic('error');
-        showToast('Could not save session');
-    }
-}
-
-document.getElementById('session-close').addEventListener('click', () => closeModal('session-modal'));
-document.getElementById('session-modal').addEventListener('click', e => {
-    if (e.target.id === 'session-modal') closeModal('session-modal');
-});
-document.getElementById('session-submit').addEventListener('click', submitSession);
-document.getElementById('log-session-btn').addEventListener('click', () => { haptic('tap'); openSessionLogger(); });
 
 /* ============== NERD STATS (hidden — 5 taps on profile name) ============== */
 function openNerdStats(climber) {
