@@ -7024,6 +7024,10 @@ async function submitAttempt() {
     }
 }
 document.getElementById('attempt-submit').addEventListener('click', submitAttempt);
+document.getElementById('session-close').addEventListener('click', () => closeModal('session-modal'));
+document.getElementById('session-modal').addEventListener('click', e => {
+    if (e.target.id === 'session-modal') closeModal('session-modal');
+});
 
 
 /* ============== NERD STATS (hidden — 5 taps on profile name) ============== */
