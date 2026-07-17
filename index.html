@@ -7042,7 +7042,7 @@ async function submitAttempt() {
         fetchData();   // pull it back so it appears on the feed
     } catch (err) {
         haptic('error');
-        showToast('Could not save attempt');
+        showToast(`Could not save: ${String(err.message || err).slice(0, 60)}`);
     }
 }
 document.getElementById('attempt-submit').addEventListener('click', submitAttempt);
