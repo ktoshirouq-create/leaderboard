@@ -7035,6 +7035,7 @@ async function submitAttempt() {
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(payload)
         });
+        const json = await res.json();
         if (!json.ok) throw new Error(json.error || 'Server error');
         showToast(editingAttemptId ? '✓ Attempt updated' : '✓ Attempt logged');
         editingAttemptId = null;
