@@ -5322,7 +5322,7 @@ function attemptRowHtml(a, disc) {
     const detail = [a.Outcome ? escapeHTML(a.Outcome) : '', attemptCountLabel(a.CountBucket)].filter(Boolean).join(' · ');
     const dot = disc === 'In Boulder' ? `<span class="sdot" style="background:${boulderColorForGrade(a.Grade, a.Where)}"></span> ` : '';
     const name = a.RouteName ? `<span class="send-name">${escapeHTML(a.RouteName)}</span>` : '';
-    return `<div class="send-row attempt-row" data-attempt-id="${escapeHTML(a.AttemptId || '')}" data-owner="${escapeHTML(a.ClimberName || '')}">${name}<span class="send-style-tag worked">WORKED${detail ? ` · ${detail}` : ''}</span><span class="send-grade muted">${dot}${escapeHTML(a.Grade)}</span></div>`;
+    return `<div class="send-row attempt-row" data-attempt-id="${escapeHTML(a.AttemptId || '')}" data-owner="${escapeHTML(a.ClimberName || '')}"><span class="send-meta">${name}<span class="send-style-tag worked">WORKED${detail ? ` · ${detail}` : ''}</span></span><span class="send-grade muted">${dot}${escapeHTML(a.Grade)}</span></div>`;
 }
 function attemptCountLabel(v) {
     let s = String(v == null ? '' : v).trim();
