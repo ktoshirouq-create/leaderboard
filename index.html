@@ -345,6 +345,10 @@ h1.screen-title {
 }
 .jc-row:active { opacity: 0.85; }
 .jc-who { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+/* Badge eyebrows escape the narrow who-column: span the full row width above name+summary,
+   one line, ellipsize instead of wrapping into a tower. */
+.jc-row { flex-wrap: wrap; }
+.jc-who .hl-eyebrow { width: 100%; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .jc-name { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: -0.2px; }
 .jc-summary {
     display: flex;
@@ -4243,7 +4247,9 @@ function pushBoardMove(events, board, disc, climber, asOf, prevDate, homeDisc) {
     let detail = '';
     if (board === 'hardest')       detail = hardestGradeAsOf(climber, asOf) || '';
     else if (board === 'capacity') detail = gradeProgress(nowMap[climber], disc).current;
-    else                           detail = nowMap[climber] + (board === 'outdoor' ? ' outdoor days' : ' days');
+    // board names already say the unit (MOST OUTDOOR DAYS / MOST ADDICTED needs 'days') —
+    // don't repeat it in the detail: "MOST OUTDOOR DAYS · 8", "MOST ADDICTED · 12 days"
+    else                           detail = nowMap[climber] + (board === 'outdoor' ? '' : ' days');
     events.push({ kind: 'rank', board, disc: disc || null, tier, rank: now.rank, tiedTop, detail, homeDisc, dethroned });
 }
 
