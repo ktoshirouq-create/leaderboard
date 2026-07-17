@@ -2028,7 +2028,7 @@ body.disco .disco-me {
 </div>
 <input type="date" class="date-input hidden" id="logger-date-custom" max="2099-12-31">
 
-        <button class="btn-main" id="submit-log" disabled>Log it</button>
+        <button class="btn-main not-ready" id="submit-log">Log it</button>
     </div>
 </div>
 
@@ -2850,8 +2850,17 @@ function canLogSend() {
     return !!(editingLogId || (LoggerState.discipline && LoggerState.where && LoggerState.grade));
 }
 function refreshLogSaveState() {
+    // Not `disabled` — disabled buttons swallow taps, and we want a tap on the grey button
+    // to TELL you what's missing rather than dead-end silently.
     const btn = document.getElementById('submit-log');
-    if (btn && !editingLogId) btn.disabled = !canLogSend();
+    if (btn && !editingLogId) btn.classList.toggle('not-ready', !canLogSend());
+}
+function missingLogFields() {
+    const out = [];
+    if (!LoggerState.discipline) out.push('discipline');
+    if (!LoggerState.where) out.push(isOutdoor(LoggerState.discipline) ? 'crag' : 'gym');
+    if (!LoggerState.grade) out.push('grade');
+    return out;
 }
 
 function isOutdoor(disc) { return disc === 'Out Rope' || disc === 'Out Boulder' || disc === 'Trad'; }
@@ -3770,7 +3779,14 @@ async function retrySend(row) {
     }
 }
 
-document.getElementById('submit-log').addEventListener('click', submitLog);
+document.getElementById('submit-log').addEventListener('click', () => {
+    if (!editingLogId && !canLogSend()) {
+        haptic('error');
+        showToast(`Still needed: ${missingLogFields().join(', ')}`);
+        return;
+    }
+    submitLog();
+});
 
 /* ----- Open logger ----- */
 // true once you've logged today — lets renderGradePills preselect the sticky grade on
