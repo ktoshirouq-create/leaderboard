@@ -4295,6 +4295,11 @@ function pushBoardMove(events, board, disc, climber, asOf, prevDate, homeDisc) {
             const pt = pTied ? 'podium' : rankTier(p.rank);
             prevOrd = pt ? ord[pt] : 0;
         }
+        // Earned-move gate: a rank badge is a trophy for THIS day's climbing. If your own
+        // board value didn't improve since your previous climb day, any rank change came
+        // from someone else's data (edits, deletions, aging out). The board itself still
+        // updates — you just don't get a badge for a day that didn't earn it.
+        if (!((nowMap[climber] ?? 0) > ((pm[climber]) ?? 0))) return;
         if (board === 'hardest') dethroned = topScorers(pm, climber);  // who held the crown before this send
     }
     if (ord[tier] <= prevOrd) return;                    // only fire on a tier upgrade
