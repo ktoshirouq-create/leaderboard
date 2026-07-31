@@ -1,7 +1,7 @@
 // sw.js — minimal service worker
 // Required for PWA install eligibility. Real offline caching can come later.
 
-const CACHE_NAME = 'leaderboard-v2';
+const CACHE_NAME = 'leaderboard-v3';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
