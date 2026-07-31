@@ -224,7 +224,7 @@ h1.screen-title {
 .day-section[data-disc="Out Boulder"] { background: linear-gradient(90deg, rgba(168,85,247,0.16) 0%, rgba(168,85,247,0.05) 45%, transparent 80%); }
 .day-section[data-disc="Trad"]        { background: linear-gradient(90deg, rgba(244,63,94,0.16) 0%, rgba(244,63,94,0.05) 45%, transparent 80%); }
 .day-sec-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.day-sec-label { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+.day-sec-label { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.5px; }
 .day-sec-label[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
 .day-sec-label[data-disc="In Rope"]     { color: var(--disc-in-rope); }
 .day-sec-label[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
@@ -240,7 +240,7 @@ h1.screen-title {
    context, not achievement. */
 .attempt-row { opacity: 0.85; }
 .fight-row { display: flex; align-items: center; gap: 6px; }
-.fight-word { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #8a8a8a; width: 52px; flex: 0 0 auto; }
+.fight-word { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #8a8a8a; width: 52px; flex: 0 0 auto; }
 .route-suggest-row { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
 .send-style-tag.worked { color: #8a8a8a; background: rgba(255,255,255,0.05); }
 .send-grade.muted { color: #a3a3a3; font-weight: 700; }
@@ -312,7 +312,7 @@ h1.screen-title {
     padding: 11px;
     font-size: 0.8rem;
     font-weight: 700;
-    text-transform: uppercase;
+
     cursor: pointer;
     letter-spacing: 1.4px;
     transition: 0.15s;
@@ -413,7 +413,7 @@ h1.screen-title {
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 4px;
-    text-transform: uppercase;
+
     letter-spacing: 0.5px;
 }
 .send-style-tag.flash   { background: rgba(245,158,11,0.15); color: #fbbf24; }
@@ -1293,7 +1293,7 @@ h1.screen-title {
     font-size: 0.7rem;
     color: var(--text-muted);
     margin: 18px 0 8px 0;
-    text-transform: uppercase;
+
     letter-spacing: 1.3px;
 }
 .info-icon {
@@ -5206,7 +5206,7 @@ function renderJointCard(group, idx) {
         const summary = parts.join(' · ');
         const memHl = detectAllHighlights(m.climber, m.discipline, m.date);
         const badge = memHl[0] ? inlineBadgeFor(memHl[0]) : '';
-        const chipHtml = memHl.length > 1 ? `<div class="hl-chips" style="padding:0">${memHl.slice(1, 3).map(chipMarkup).join('')}</div>` : '';
+        const chipHtml = memHl.length > 1 ? `<div class="hl-chips" style="padding:0">${memHl.slice(1, 2).map(chipMarkup).join('')}</div>` : '';
         const sendsHtml = sortSendsByScore(m.sends, m.discipline).map(s => sendRowHtml(s, m.discipline)).join('');
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
@@ -5365,7 +5365,7 @@ function attemptRowHtml(a, disc) {
     const detail = [a.Outcome ? escapeHTML(a.Outcome) : '', attemptCountLabel(a.CountBucket)].filter(Boolean).join(' · ');
     const dot = disc === 'In Boulder' ? `<span class="sdot" style="background:${boulderColorForGrade(a.Grade, a.Where)}"></span> ` : '';
     const name = a.RouteName ? `<span class="send-name">${escapeHTML(a.RouteName)}</span>` : '';
-    return `<div class="send-row attempt-row" data-attempt-id="${escapeHTML(a.AttemptId || '')}" data-owner="${escapeHTML(a.ClimberName || '')}"><span class="send-meta">${name}<span class="send-style-tag worked">WORKED${detail ? ` · ${detail}` : ''}</span></span><span class="send-grade muted">${dot}${escapeHTML(a.Grade)}</span></div>`;
+    return `<div class="send-row attempt-row" data-attempt-id="${escapeHTML(a.AttemptId || '')}" data-owner="${escapeHTML(a.ClimberName || '')}"><span class="send-meta">${name}<span class="send-style-tag worked">Worked${detail ? ` · ${detail}` : ''}</span></span><span class="send-grade muted">${dot}${escapeHTML(a.Grade)}</span></div>`;
 }
 function attemptCountLabel(v) {
     let s = String(v == null ? '' : v).trim();
@@ -5556,7 +5556,7 @@ function renderJointDayCard(group, idx) {
         m.sections.forEach(sec => detectAllHighlights(m.climber, sec.discipline, m.date).forEach(h => memHl.push(h)));
         memHl.sort((a, b) => rankPriority(a) - rankPriority(b));
         const badge = memHl[0] ? inlineBadgeFor(memHl[0]) : '';
-        const chipHtml = memHl.length > 1 ? `<div class="hl-chips" style="padding:0">${memHl.slice(1, 3).map(chipMarkup).join('')}</div>` : '';
+        const chipHtml = memHl.length > 1 ? `<div class="hl-chips" style="padding:0">${memHl.slice(1, 2).map(chipMarkup).join('')}</div>` : '';
         // Expand shows the member's actual named climbs (flat, each washed in its discipline
         // colour), in the same order across their sections — like the solo card's children.
         // Sends then worked rows, per section. Unlike solo cards, attempts from ALL sections
