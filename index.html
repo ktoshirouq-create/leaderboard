@@ -72,8 +72,8 @@ input, textarea { -webkit-user-select: text; user-select: text; -webkit-touch-ca
 
 h1.screen-title {
     text-align: center;
-    font-weight: 800;
-    font-size: 1.8rem;
+    font-weight: 700;
+    font-size: 1.15rem;
     margin: 0 0 24px 0;
     color: #fff;
     letter-spacing: -0.5px;
@@ -92,7 +92,7 @@ h1.screen-title {
     font-size: 0.9rem;
     text-align: center;
     padding: 40px 20px;
-    font-weight: 500;
+    font-weight: 400;
 }
 
 /* ===== SESSION CARDS ===== */
@@ -139,8 +139,8 @@ h1.screen-title {
     min-width: 0;
 }
 .s-name {
-    font-size: 1.42rem;
-    font-weight: 800;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: #fff;
     letter-spacing: -0.6px;
     line-height: 1.05;
@@ -151,16 +151,16 @@ h1.screen-title {
 .s-time {
     font-size: 0.8rem;
     color: #a3a3a3;
-    font-weight: 600;
+    font-weight: 400;
     margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 .s-with {
-    font-size: 0.74rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
-    font-weight: 600;
+    font-weight: 400;
     margin-top: 3px;
 }
 /* PR eyebrow — above the name. No text-transform: labels are already uppercase,
@@ -170,13 +170,13 @@ h1.screen-title {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.62rem;
-    font-weight: 800;
+    font-size: 0.7rem;
+    font-weight: 700;
     letter-spacing: 0.8px;
     color: var(--disc-color, var(--primary));
     background: var(--disc-tint, rgba(255,255,255,0.05));
     padding: 3px 8px;
-    border-radius: 6px;
+    border-radius: 8px;
     line-height: 1;
 }
 /* Standout — lowest tier: faint muted text, no pill. */
@@ -184,7 +184,7 @@ h1.screen-title {
     color: var(--text-muted);
     background: transparent;
     padding: 0;
-    font-size: 0.6rem;
+    font-size: 0.7rem;
     letter-spacing: 1px;
 }
 /* Highlight banner — a crisp dark top strip (mirrors the expand bar at the bottom),
@@ -194,8 +194,8 @@ h1.screen-title {
     align-items: center;
     gap: 7px;
     padding: 8px 18px;
-    font-size: 0.64rem;
-    font-weight: 800;
+    font-size: 0.7rem;
+    font-weight: 700;
     letter-spacing: 1px;
     color: var(--disc-color, var(--primary));
     background: rgba(0,0,0,0.28);
@@ -204,7 +204,7 @@ h1.screen-title {
 /* Pull the name up under the strip so there's no dead gap above it */
 .hl-banner + .session-header { padding-top: 12px; }
 .hl-rosette {
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     line-height: 1;
     filter: drop-shadow(0 0 5px var(--disc-color, transparent));
 }
@@ -224,23 +224,23 @@ h1.screen-title {
 .day-section[data-disc="Out Boulder"] { background: linear-gradient(90deg, rgba(168,85,247,0.16) 0%, rgba(168,85,247,0.05) 45%, transparent 80%); }
 .day-section[data-disc="Trad"]        { background: linear-gradient(90deg, rgba(244,63,94,0.16) 0%, rgba(244,63,94,0.05) 45%, transparent 80%); }
 .day-sec-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.day-sec-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
+.day-sec-label { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
 .day-sec-label[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
 .day-sec-label[data-disc="In Rope"]     { color: var(--disc-in-rope); }
 .day-sec-label[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
 .day-sec-label[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
 .day-sec-label[data-disc="Trad"]        { color: var(--disc-trad); }
-.day-sec-summary { font-size: 0.85rem; font-weight: 700; color: #a3a3a3; white-space: nowrap; }
-.day-sec-summary .max-grade-v { color: #fff; font-weight: 800; }
-.day-sec-proj { font-size: 0.8rem; color: #8a8a8a; font-weight: 600; margin-top: 6px; }
-.day-sec-proj .pg { font-weight: 800; }
-.day-sec-train { font-size: 0.82rem; font-weight: 600; color: #8a8a8a; }
+.day-sec-summary { font-size: 0.9rem; font-weight: 700; color: #a3a3a3; white-space: nowrap; }
+.day-sec-summary .max-grade-v { color: #fff; font-weight: 700; }
+.day-sec-proj { font-size: 0.8rem; color: #8a8a8a; font-weight: 400; margin-top: 6px; }
+.day-sec-proj .pg { font-weight: 700; }
+.day-sec-train { font-size: 0.9rem; font-weight: 400; color: #8a8a8a; }
 .day-sec-dots { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 /* Worked (attempt) rows in the climb list: same shape as send rows, deliberately muted —
    context, not achievement. */
 .attempt-row { opacity: 0.85; }
 .fight-row { display: flex; align-items: center; gap: 6px; }
-.fight-word { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: #8a8a8a; width: 52px; flex: 0 0 auto; }
+.fight-word { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #8a8a8a; width: 52px; flex: 0 0 auto; }
 .route-suggest-row { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
 .send-style-tag.worked { color: #8a8a8a; background: rgba(255,255,255,0.05); }
 .send-grade.muted { color: #a3a3a3; font-weight: 700; }
@@ -253,20 +253,20 @@ h1.screen-title {
 .lvl-arrow { width: 0.82em; height: 0.82em; flex: none; }
 /* Multi-badge secondary chips */
 .hl-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 18px 0 18px; }
-.hl-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.6px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 6px; line-height: 1; }
+.hl-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.6px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 8px; line-height: 1; }
 .hl-chip .hl-rosette { font-size: 0.7rem; filter: none; }
 .hl-chip .lvl-arrow { width: 0.8em; height: 0.8em; }
 /* Boulder session texture: one circuit-coloured dot per send */
 .dot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 18px 14px 18px; }
 .sdot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex: none; }
-.sdot-more { font-size: 0.68rem; font-weight: 800; color: var(--text-muted); margin-left: 2px; }
+.sdot-more { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); margin-left: 2px; }
 .s-where {
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     color: #d4d4d4;
     font-weight: 700;
     background: rgba(0,0,0,0.4);
     padding: 8px 14px;
-    border-radius: 18px;
+    border-radius: 14px;
     border: 1px solid rgba(255,255,255,0.05);
     line-height: 1.3;
     text-align: right;
@@ -283,7 +283,7 @@ h1.screen-title {
     gap: 8px;
     align-items: baseline;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: #a3a3a3;
 }
@@ -291,13 +291,13 @@ h1.screen-title {
     /* "max" prefix stays muted in the line; the grade itself gets discipline color */
     color: #a3a3a3;
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 0.9rem;
     letter-spacing: 0;
 }
 .s-summary .max-grade .grade-value {
     color: var(--disc-color);
-    font-weight: 800;
-    font-size: 1.45rem;
+    font-weight: 700;
+    font-size: 1.15rem;
     letter-spacing: -0.6px;
     margin-left: 6px;
 }
@@ -310,8 +310,8 @@ h1.screen-title {
     color: var(--text-muted);
     border: none;
     padding: 11px;
-    font-size: 0.72rem;
-    font-weight: 800;
+    font-size: 0.8rem;
+    font-weight: 700;
     text-transform: uppercase;
     cursor: pointer;
     letter-spacing: 1.4px;
@@ -352,17 +352,17 @@ h1.screen-title {
    one line, ellipsize instead of wrapping into a tower. */
 .jc-row { flex-wrap: wrap; }
 .jc-who .hl-eyebrow { width: 100%; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.jc-name { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: -0.2px; }
+.jc-name { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -0.2px; }
 .jc-summary {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: #a3a3a3;
     white-space: nowrap;
 }
-.jc-max { color: var(--disc-color); font-weight: 800; }
+.jc-max { color: var(--disc-color); font-weight: 700; }
 .jc-caret { color: var(--text-muted); font-size: 0.7rem; transition: transform 0.2s; display: inline-block; }
 .jc-climber.expanded .jc-caret { transform: rotate(180deg); }
 .jc-sends { display: none; padding: 2px 0 10px 0; }
@@ -372,13 +372,13 @@ h1.screen-title {
 .merge-back {
     display: inline-block;
     margin-left: 8px;
-    font-size: 0.68rem;
-    font-weight: 800;
+    font-size: 0.7rem;
+    font-weight: 700;
     letter-spacing: 0.3px;
     color: var(--disc-color, var(--primary));
     background: var(--disc-tint, rgba(255,255,255,0.06));
     padding: 2px 9px;
-    border-radius: 10px;
+    border-radius: 14px;
     cursor: pointer;
     vertical-align: middle;
 }
@@ -392,7 +392,7 @@ h1.screen-title {
     padding: 10px 12px;
     margin-bottom: 2px;
     border-radius: 8px;
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     border-left: 2px solid rgba(var(--row-rgb, 85,85,85), 0.9);
     background: linear-gradient(90deg, rgba(var(--row-rgb, 85,85,85), 0.14) 0%, rgba(var(--row-rgb, 85,85,85), 0.04) 40%, transparent 74%);
 }
@@ -403,14 +403,14 @@ h1.screen-title {
 .send-row[data-disc="Trad"]        { --row-rgb: 244,63,94; }
 .send-meta {
     color: #a3a3a3;
-    font-weight: 600;
+    font-weight: 400;
     display: flex;
     align-items: center;
     gap: 8px;
 }
 .send-style-tag {
-    font-size: 0.62rem;
-    font-weight: 800;
+    font-size: 0.7rem;
+    font-weight: 700;
     padding: 2px 7px;
     border-radius: 4px;
     text-transform: uppercase;
@@ -421,8 +421,8 @@ h1.screen-title {
 .send-style-tag.tr      { background: rgba(148,163,184,0.15); color: #cbd5e1; }
 .send-grade {
     color: #fff;
-    font-weight: 800;
-    font-size: 0.95rem;
+    font-weight: 700;
+    font-size: 0.9rem;
 }
 
 /* ===== BOARDS SCREEN ===== */
@@ -435,17 +435,17 @@ h1.screen-title {
 }
 .board-title {
     font-size: 0.7rem;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1.5px;
 }
 .board-subtitle {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
     text-align: center;
     margin-bottom: 16px;
-    font-weight: 600;
+    font-weight: 400;
 }
 .lb-row {
     position: relative;
@@ -456,7 +456,7 @@ h1.screen-title {
     align-items: center;
     padding: 14px 16px;
     background: var(--card-bg);
-    border-radius: 12px;
+    border-radius: 14px;
     margin-bottom: 8px;
     cursor: pointer;
     transition: 0.15s;
@@ -464,8 +464,8 @@ h1.screen-title {
 }
 .lb-row:active { background: #1a1a1a; transform: scale(0.99); }
 .lb-rank {
-    font-size: 1.1rem;
-    font-weight: 800;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: var(--text-muted);
     text-align: center;
 }
@@ -473,8 +473,8 @@ h1.screen-title {
 .lb-rank.silver { color: var(--silver); }
 .lb-rank.bronze { color: var(--bronze); }
 .lb-name {
-    font-size: 1rem;
-    font-weight: 800;
+    font-size: 0.9rem;
+    font-weight: 700;
     color: #fff;
     letter-spacing: -0.2px;
 }
@@ -498,27 +498,27 @@ h1.screen-title {
     gap: 2px;
 }
 .lb-grade-val {
-    font-size: 1.05rem;
-    font-weight: 800;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: var(--primary);
     white-space: nowrap;
 }
 .lb-grade-pct {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     color: var(--text-muted);
     font-weight: 700;
     white-space: nowrap;
 }
 .lb-section-title {
-    font-size: 0.65rem;
-    font-weight: 800;
+    font-size: 0.7rem;
+    font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1.5px;
     margin: 22px 0 12px 0;
 }
 .lb-section-title.first { margin-top: 4px; }
-.lb-row.provisional .lb-rank { color: #444; font-size: 0.85rem; }
+.lb-row.provisional .lb-rank { color: #444; font-size: 0.9rem; }
 .lb-row.provisional .lb-name { color: #d4d4d4; }
 .lb-row.provisional .lb-bar-fill { background: #555; opacity: 0.55; }
 .lb-row.provisional .lb-grade-val { color: var(--text-muted); }
@@ -528,7 +528,7 @@ h1.screen-title {
     position: relative;
     overflow: hidden;
     padding: 14px 16px;
-    border-radius: 12px;
+    border-radius: 14px;
     margin-bottom: 8px;
     cursor: pointer;
     transition: 0.15s;
@@ -552,13 +552,13 @@ h1.screen-title {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 1rem;
-    font-weight: 800;
+    font-size: 0.9rem;
+    font-weight: 700;
     color: #fff;
 }
 .hardest-rank {
-    font-size: 1.05rem;
-    font-weight: 800;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: var(--text-muted);
     min-width: 22px;
     text-align: center;
@@ -567,17 +567,17 @@ h1.screen-title {
 .hardest-rank.silver { color: var(--silver); }
 .hardest-rank.bronze { color: var(--bronze); }
 .hardest-grade {
-    font-size: 1.05rem;
-    font-weight: 800;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: var(--primary);
     white-space: nowrap;
 }
 .hardest-detail {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
     margin-top: 4px;
     margin-left: 36px;
-    font-weight: 600;
+    font-weight: 400;
 }
 
 /* Podium rank bracket: a slim gradient rail hugging the top + right edges that fades out,
@@ -586,7 +586,7 @@ h1.screen-title {
 .rk-top, .rk-right, .rk-n { position: absolute; z-index: 4; pointer-events: none; }
 .rk-top   { top: 0; right: 0; height: 3px; width: 46%; }
 .rk-right { top: 0; right: 0; width: 3px; height: 64%; }
-.rk-n     { top: 5px; right: 8px; font-size: 0.62rem; font-weight: 900; }
+.rk-n     { top: 5px; right: 8px; font-size: 0.7rem; font-weight: 700; }
 .rk-g.rk-top   { background: linear-gradient(270deg, var(--gold) 0%, rgba(251,191,36,0.4) 50%, transparent 100%); }
 .rk-g.rk-right { background: linear-gradient(180deg, var(--gold) 0%, rgba(251,191,36,0.4) 50%, transparent 100%); }
 .rk-g.rk-n     { color: var(--gold); }
@@ -603,7 +603,7 @@ h1.screen-title {
     align-items: center;
     gap: 6px;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
     margin-bottom: 12px;
@@ -614,8 +614,8 @@ h1.screen-title {
 }
 .profile-back:active { color: #fff; }
 .profile-name {
-    font-size: 2rem;
-    font-weight: 900;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: #fff;
     letter-spacing: -1px;
     margin-bottom: 18px;
@@ -644,8 +644,8 @@ h1.screen-title {
     justify-content: center;
 }
 .best-disc {
-    font-size: 0.6rem;
-    font-weight: 800;
+    font-size: 0.7rem;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.6px;
     margin-bottom: 6px;
@@ -656,15 +656,15 @@ h1.screen-title {
 .best-disc[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
 .best-disc[data-disc="Trad"]        { color: var(--disc-trad); }
 .best-grade {
-    font-size: 1.3rem;
-    font-weight: 800;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: #fff;
     letter-spacing: -0.5px;
 }
 .best-grade.empty { color: #444; }
 .profile-section-title {
     font-size: 0.7rem;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1.5px;
@@ -679,7 +679,7 @@ h1.screen-title {
     margin-bottom: 12px;
 }
 .histogram-tabs .pill {
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     padding: 8px 12px;
     flex: 1 1 calc(25% - 5px);
     text-align: center;
@@ -700,7 +700,7 @@ h1.screen-title {
 }
 .histo-label {
     width: 36px;
-    font-size: 0.68rem;
+    font-size: 0.7rem;
     color: var(--text-muted);
     font-weight: 700;
     text-align: right;
@@ -726,7 +726,7 @@ h1.screen-title {
     width: 24px;
     font-size: 0.7rem;
     color: #fff;
-    font-weight: 800;
+    font-weight: 700;
     text-align: left;
 }
 .histo-count.zero { color: #444; }
@@ -755,8 +755,8 @@ h1.screen-title {
 .top10-row[data-disc="Out Boulder"] { --disc-color: var(--disc-out-boulder); }
 .top10-row[data-disc="Trad"]        { --disc-color: var(--disc-trad); }
 .top10-grade {
-    font-size: 1rem;
-    font-weight: 800;
+    font-size: 0.9rem;
+    font-weight: 700;
     color: #fff;
     letter-spacing: -0.2px;
 }
@@ -770,9 +770,9 @@ h1.screen-title {
     white-space: nowrap;
 }
 .top10-meta {
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
-    font-weight: 600;
+    font-weight: 400;
     margin-top: 2px;
 }
 .top10-expiry {
@@ -797,7 +797,7 @@ h1.screen-title {
 }
 /* Peak page legend */
 .peak-legend { display: flex; flex-wrap: wrap; gap: 10px 14px; padding: 10px 4px 0; }
-.peak-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); }
+.peak-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
 .peak-leg.me { color: #fff; }
 .peak-leg-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 
@@ -811,9 +811,9 @@ h1.screen-title {
     padding: 12px 14px;
 }
 .profile-table-headers {
-    font-size: 0.62rem;
+    font-size: 0.7rem;
     color: var(--text-muted);
-    font-weight: 800;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1.1px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -825,7 +825,7 @@ h1.screen-title {
     background: linear-gradient(90deg, rgba(var(--row-rgb, 85,85,85), 0.12) 0%, rgba(var(--row-rgb, 85,85,85), 0.03) 40%, transparent 72%);
     cursor: pointer;
     transition: 0.12s;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
 }
 .profile-table-row:active { transform: scale(0.998); }
 .profile-table-row.pressing { background: rgba(16,185,129,0.10); }
@@ -835,12 +835,12 @@ h1.screen-title {
 .profile-table-row[data-disc="Out Boulder"] { --row-rgb: 168,85,247; }
 .profile-table-row[data-disc="Trad"]        { --row-rgb: 244,63,94; }
 .pt-date {
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
-    font-weight: 600;
+    font-weight: 400;
 }
 .pt-route {
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     color: #fff;
     font-weight: 700;
     display: flex;
@@ -853,13 +853,13 @@ h1.screen-title {
 .pt-grade {
     font-size: 0.9rem;
     color: #fff;
-    font-weight: 800;
+    font-weight: 700;
     text-align: left;
 }
 .pt-style {
-    font-size: 0.74rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
-    font-weight: 600;
+    font-weight: 400;
     text-align: left;
 }
 .pt-style.flash   { color: #fbbf24; }
@@ -868,8 +868,8 @@ h1.screen-title {
 
 .send-route-inline {
     color: #fff;
-    font-weight: 800;
-    font-size: 0.95rem;
+    font-weight: 700;
+    font-size: 0.9rem;
     margin-right: 10px;
     letter-spacing: -0.1px;
 }
@@ -892,7 +892,7 @@ h1.screen-title {
     border-radius: 0 8px 8px 0;
     background: rgba(255,255,255,0.04);
     border-left: 2px solid var(--disc-color, #555);
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     box-shadow: inset 4px 0 0 0 rgba(0,0,0,0.3);
 }
 .profile-table-detail.expanded { display: grid; }
@@ -904,7 +904,7 @@ h1.screen-title {
 .pt-detail-label {
     color: var(--text-muted);
     font-weight: 700;
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 1.2px;
     align-self: center;
@@ -912,7 +912,7 @@ h1.screen-title {
 .pt-detail-value {
     color: #fff;
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
 }
 
 /* Boards-mode tab pills — flex-grow so all 4 fit, wrap when needed */
@@ -923,7 +923,7 @@ h1.screen-title {
     margin-bottom: 16px;
 }
 .board-tabs .pill {
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     padding: 9px 12px;
     flex: 1 1 calc(50% - 4px);
     text-align: center;
@@ -933,19 +933,19 @@ h1.screen-title {
 .lb-empty {
     color: #555;
     font-style: italic;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     text-align: center;
     padding: 24px 16px;
-    font-weight: 500;
+    font-weight: 400;
     border: 1px dashed rgba(255,255,255,0.06);
-    border-radius: 12px;
+    border-radius: 14px;
 }
 
 /* Top-level segmented control */
 .seg-ctrl {
     display: flex;
     background: var(--input-bg);
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 4px;
     margin-bottom: 16px;
     border: 1px solid rgba(255,255,255,0.03);
@@ -954,8 +954,8 @@ h1.screen-title {
     flex: 1;
     text-align: center;
     padding: 11px 0;
-    font-size: 0.78rem;
-    font-weight: 800;
+    font-size: 0.8rem;
+    font-weight: 700;
     color: var(--text-muted);
     cursor: pointer;
     transition: color 0.25s, background 0.25s;
@@ -986,8 +986,8 @@ h1.screen-title {
     text-align: center;
     background: var(--input-bg);
     border: 1px solid transparent;
-    border-radius: 11px;
-    font-weight: 800;
+    border-radius: 14px;
+    font-weight: 700;
     font-size: 0.8rem;
     color: var(--text-muted);
     cursor: pointer;
@@ -1034,7 +1034,7 @@ h1.screen-title {
     display: flex;
     gap: 6px;
     padding: 6px;
-    border-radius: 28px;
+    border-radius: 14px;
     border: 1px solid rgba(255,255,255,0.05);
     z-index: 100;
     box-shadow: 0 20px 40px rgba(0,0,0,0.7);
@@ -1045,9 +1045,9 @@ h1.screen-title {
     color: var(--text-muted);
     border: none;
     padding: 12px 8px;
-    border-radius: 22px;
-    font-weight: 800;
-    font-size: 0.85rem;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 0.9rem;
     cursor: pointer;
     transition: 0.25s;
     white-space: nowrap;
@@ -1069,8 +1069,8 @@ h1.screen-title {
     background: var(--primary);
     color: #000;
     border: none;
-    font-size: 1.8rem;
-    font-weight: 900;
+    font-size: 1.15rem;
+    font-weight: 700;
     cursor: pointer;
     box-shadow: 0 10px 30px rgba(16,185,129,0.4), 0 4px 12px rgba(0,0,0,0.5);
     z-index: 99;
@@ -1103,7 +1103,7 @@ h1.screen-title {
     width: 100%;
     max-width: 520px;
     max-height: 90vh;
-    border-radius: 20px 20px 0 0;
+    border-radius: 14px 20px 0 0;
     padding: 20px;
     transform: translateY(100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1162,7 +1162,7 @@ h1.screen-title {
     background: rgba(255,255,255,0.05);
     color: var(--text-muted);
     border: none;
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1172,8 +1172,8 @@ h1.screen-title {
 }
 .modal-close:active { background: rgba(255,255,255,0.1); }
 .modal-title {
-    font-size: 1.4rem;
-    font-weight: 800;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: #fff;
     margin-bottom: 6px;
     letter-spacing: -0.5px;
@@ -1191,7 +1191,7 @@ h1.screen-title {
     padding: 10px 18px;
     border-radius: 0 0 16px 16px;
     font-weight: 700;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     border: 1px solid var(--border);
     border-top: none;
     z-index: 90;
@@ -1228,9 +1228,9 @@ h1.screen-title {
     backdrop-filter: blur(10px);
     color: #fff;
     padding: 12px 24px;
-    border-radius: 24px;
+    border-radius: 14px;
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     border: 1px solid var(--border);
     transition: 0.3s;
     z-index: 1000;
@@ -1246,8 +1246,8 @@ h1.screen-title {
     gap: 4px;
     background: rgba(255,255,255,0.04);
     padding: 6px 12px;
-    border-radius: 16px;
-    font-size: 0.78rem;
+    border-radius: 14px;
+    font-size: 0.8rem;
     color: #d4d4d4;
     font-weight: 700;
     cursor: pointer;
@@ -1260,10 +1260,10 @@ h1.screen-title {
 .switcher-link strong { color: #fff; }
 
 .modal-subtitle {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     color: var(--text-muted);
     margin-bottom: 16px;
-    font-weight: 600;
+    font-weight: 400;
 }
 
 .pill-row {
@@ -1289,8 +1289,8 @@ h1.screen-title {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-weight: 800;
-    font-size: 0.65rem;
+    font-weight: 700;
+    font-size: 0.7rem;
     color: var(--text-muted);
     margin: 18px 0 8px 0;
     text-transform: uppercase;
@@ -1306,7 +1306,7 @@ h1.screen-title {
     background: rgba(16,185,129,0.15);
     color: var(--primary);
     font-size: 0.7rem;
-    font-weight: 800;
+    font-weight: 700;
     cursor: pointer;
     font-style: normal;
     letter-spacing: 0;
@@ -1332,21 +1332,21 @@ h1.screen-title {
 }
 .info-row:last-child { border-bottom: none; }
 .info-term {
-    font-size: 0.95rem;
-    font-weight: 800;
+    font-size: 0.9rem;
+    font-weight: 700;
     color: #fff;
     margin-bottom: 4px;
 }
 .info-def {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     color: var(--text-muted);
     line-height: 1.5;
-    font-weight: 500;
+    font-weight: 400;
 }
 
 /* Grade conversion table (in info modal) */
 .grade-conv-note {
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
     text-align: center;
     margin-bottom: 14px;
@@ -1355,13 +1355,13 @@ h1.screen-title {
 }
 .grade-conv-note .disclaimer {
     display: block;
-    font-size: 0.68rem;
+    font-size: 0.7rem;
     opacity: 0.7;
     margin-top: 2px;
 }
 .grade-conv-table {
     background: var(--input-bg);
-    border-radius: 12px;
+    border-radius: 14px;
     max-height: 55vh;        /* table itself becomes the scroll container */
     overflow-x: hidden;
     overflow-y: auto;
@@ -1373,8 +1373,8 @@ h1.screen-title {
     justify-items: center;
     gap: 12px;
     padding: 10px 16px;
-    font-size: 0.62rem;
-    font-weight: 800;
+    font-size: 0.7rem;
+    font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1.3px;
@@ -1395,12 +1395,12 @@ h1.screen-title {
 }
 .grade-conv-row:last-child { border-bottom: none; }
 .grade-conv-norway {
-    font-size: 1.05rem;
-    font-weight: 800;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: #fff;
 }
 .grade-conv-cell {
-    font-size: 0.92rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: #d4d4d4;
 }
@@ -1416,7 +1416,7 @@ h1.screen-title {
     padding: 6px 12px;
     border-radius: 8px;
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     cursor: pointer;
     font-family: inherit;
     transition: 0.15s;
@@ -1435,11 +1435,11 @@ h1.screen-title {
     margin-top: 8px;
     background: var(--input-bg);
     border: 1px solid var(--border);
-    border-radius: 11px;
+    border-radius: 14px;
     color: #fff;
     font-family: inherit;
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 400;
     outline: none;
     color-scheme: dark;
 }
@@ -1452,8 +1452,8 @@ h1.screen-title {
     padding: 16px;
     width: 100%;
     border-radius: 14px;
-    font-weight: 800;
-    font-size: 1rem;
+    font-weight: 700;
+    font-size: 0.9rem;
     cursor: pointer;
     margin-top: 24px;
     transition: all 0.15s;
@@ -1466,9 +1466,9 @@ h1.screen-title {
     padding: 11px 18px;
     background: var(--input-bg);
     border: 1px solid transparent;
-    border-radius: 11px;
-    font-weight: 800;
-    font-size: 0.85rem;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 0.9rem;
     color: var(--text-muted);
     cursor: pointer;
     transition: all 0.15s ease;
@@ -1511,10 +1511,10 @@ h1.screen-title {
     padding: 16px;
     background: var(--input-bg);
     border: 1px solid rgba(255,255,255,0.04);
-    border-radius: 12px;
+    border-radius: 14px;
     color: #fff;
     font-weight: 700;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     cursor: pointer;
     text-align: left;
     font-family: inherit;
@@ -1528,29 +1528,29 @@ h1.screen-title {
     color: var(--text-muted);
     border-color: transparent;
     text-align: center;
-    font-weight: 600;
+    font-weight: 400;
 }
 .action-sheet-summary {
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
     margin-bottom: 16px;
-    font-weight: 600;
+    font-weight: 400;
     padding: 10px 12px;
     background: rgba(0,0,0,0.3);
-    border-radius: 10px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     gap: 8px;
 }
 .action-sheet-summary .grade {
     color: #fff;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 /* Long-press visual feedback */
 .send-row.pressing {
     background: rgba(16,185,129,0.06);
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 
@@ -1560,8 +1560,8 @@ h1.screen-title {
     border: 1px solid rgba(245,158,11,0.3);
     color: #fbbf24;
     padding: 10px 14px;
-    border-radius: 10px;
-    font-size: 0.78rem;
+    border-radius: 14px;
+    font-size: 0.8rem;
     font-weight: 700;
     margin-bottom: 16px;
     display: flex;
@@ -1581,11 +1581,11 @@ h1.screen-title {
     padding: 12px 14px;
     background: var(--input-bg);
     border: 1px solid var(--border);
-    border-radius: 11px;
+    border-radius: 14px;
     color: #fff;
     font-family: inherit;
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 400;
     outline: none;
 }
 .add-name-input:focus { border-color: rgba(16,185,129,0.5); }
@@ -1594,9 +1594,9 @@ h1.screen-title {
     background: var(--primary);
     color: #000;
     border: none;
-    border-radius: 11px;
-    font-weight: 800;
-    font-size: 0.85rem;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 0.9rem;
     cursor: pointer;
     font-family: inherit;
     white-space: nowrap;
@@ -1633,7 +1633,7 @@ h1.screen-title {
 }
 .skel-name { width: 55%; height: 1.4rem; margin-bottom: 6px; }
 .skel-time { width: 40%; height: 0.75rem; }
-.skel-pill { width: 90px; height: 28px; border-radius: 18px; flex-shrink: 0; }
+.skel-pill { width: 90px; height: 28px; border-radius: 14px; flex-shrink: 0; }
 .skel-summary { width: 50%; height: 1.4rem; margin: 0 auto; }
 @keyframes skel-shimmer {
     0%, 100% { background-position: 100% 0; }
@@ -1646,10 +1646,10 @@ h1.screen-title {
     padding: 14px;
     background: var(--input-bg);
     border: 1px dashed rgba(255,255,255,0.1);
-    border-radius: 12px;
+    border-radius: 14px;
     color: var(--text-muted);
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     margin: 12px 0 24px 0;
     cursor: pointer;
     font-family: inherit;
@@ -1665,27 +1665,27 @@ body.modal-open { overflow: hidden; }
 
 /* ===== LOCATION PAGE ===== */
 .loc-header { margin-bottom: 18px; }
-.loc-name { font-size: 2rem; font-weight: 900; color: #fff; letter-spacing: -1px; margin-bottom: 8px; }
+.loc-name { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -1px; margin-bottom: 8px; }
 .loc-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .loc-badge {
-    font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
     padding: 4px 10px; border-radius: 8px; background: rgba(255,255,255,0.06); color: var(--text-muted);
 }
 .loc-badge.crag { background: rgba(16,185,129,0.15); color: var(--disc-out-rope); }
 .loc-badge.gym  { background: rgba(6,182,212,0.15);  color: var(--disc-in-rope); }
-.loc-disciplines { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
+.loc-disciplines { font-size: 0.8rem; color: var(--text-muted); font-weight: 400; }
 .loc-stats {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px;
     padding: 16px 12px; background: var(--card-bg); border-radius: var(--radius); border: 1px solid rgba(255,255,255,0.03);
 }
 .loc-stat { text-align: center; }
-.loc-stat-val { font-size: 1.4rem; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+.loc-stat-val { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
 .loc-stat-val.empty { color: #444; }
-.loc-stat-label { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-top: 4px; }
+.loc-stat-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-top: 4px; }
 .loc-toggle { display: flex; gap: 6px; margin-bottom: 14px; }
-.loc-toggle .pill { flex: 1; text-align: center; font-size: 0.78rem; padding: 9px 0; }
+.loc-toggle .pill { flex: 1; text-align: center; font-size: 0.8rem; padding: 9px 0; }
 .gb-route {
-    border-radius: 12px; margin-bottom: 8px;
+    border-radius: 14px; margin-bottom: 8px;
     border: 1px solid rgba(255,255,255,0.03);
     border-left: 2px solid rgba(var(--row-rgb, 85,85,85), 0.9);
     background: linear-gradient(90deg, rgba(var(--row-rgb, 85,85,85), 0.13) 0%, rgba(var(--row-rgb, 85,85,85), 0.04) 40%, transparent 74%), var(--card-bg);
@@ -1697,24 +1697,24 @@ body.modal-open { overflow: hidden; }
 .gb-route[data-disc="Out Boulder"] { --row-rgb: 168,85,247; }
 .gb-route[data-disc="Trad"]        { --row-rgb: 244,63,94; }
 .gb-route-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 16px 10px 16px; }
-.gb-route-name { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: -0.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gb-route-grade { font-size: 1.05rem; font-weight: 800; color: var(--disc-color, var(--primary)); white-space: nowrap; }
+.gb-route-name { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -0.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gb-route-grade { font-size: 1.15rem; font-weight: 700; color: var(--disc-color, var(--primary)); white-space: nowrap; }
 .gb-ticks { padding: 0 16px 12px 16px; display: none; flex-direction: column; gap: 5px; }
 .gb-route.expanded .gb-ticks { display: flex; }
 .gb-route-head { cursor: pointer; }
 .gb-route-caret { display: inline-block; margin-left: 6px; color: var(--text-muted); font-size: 0.7rem; transition: transform 0.2s; }
 .gb-route.expanded .gb-route-caret { transform: rotate(180deg); }
-.gb-tick { display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; color: #a3a3a3; font-weight: 600; }
+.gb-tick { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: #a3a3a3; font-weight: 400; }
 .gb-tick-climber { color: #d4d4d4; font-weight: 700; cursor: pointer; }
 .gb-tick-style { font-size: 0.7rem; color: var(--text-muted); }
 .gb-tick-style.flash   { color: #fbbf24; }
 .gb-tick-style.onsight { color: #c084fc; }
 .loc-recent-row {
     display: grid; grid-template-columns: 54px 1fr auto auto; gap: 10px; align-items: center;
-    padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.85rem;
+    padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.9rem;
 }
 .loc-recent-row:last-child { border-bottom: none; }
-.loc-recent-date { font-size: 0.74rem; color: var(--text-muted); font-weight: 600; }
+.loc-recent-date { font-size: 0.8rem; color: var(--text-muted); font-weight: 400; }
 /* Discipline wash on location climb rows — same gradual language as the feed */
 .loc-list-row, .loc-recent-row {
     border-left: 2px solid rgba(var(--row-rgb, 85,85,85), 0.9);
@@ -1726,39 +1726,39 @@ body.modal-open { overflow: hidden; }
 .loc-list-row[data-disc="Out Boulder"], .loc-recent-row[data-disc="Out Boulder"] { --row-rgb: 168,85,247; }
 .loc-list-row[data-disc="Trad"], .loc-recent-row[data-disc="Trad"]               { --row-rgb: 244,63,94; }
 .loc-recent-climber { color: #fff; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.loc-recent-route { font-size: 0.74rem; color: var(--text-muted); }
-.loc-recent-grade { font-weight: 800; color: #fff; }
+.loc-recent-route { font-size: 0.8rem; color: var(--text-muted); }
+.loc-recent-grade { font-weight: 700; color: #fff; }
 .s-where-link { cursor: pointer; }
 .pt-where-link { cursor: pointer; text-decoration: underline dotted rgba(255,255,255,0.25); text-underline-offset: 3px; }
-.gb-count { font-size: 0.78rem; font-weight: 800; color: var(--text-muted); }
+.gb-count { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
 .loc-lenses { margin-bottom: 14px; }
 .loc-lenses .pill { flex: 1; text-align: center; }
-.loc-list { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: 12px; overflow: hidden; }
+.loc-list { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: 14px; overflow: hidden; }
 .loc-list-row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); }
 .loc-list-row:last-child { border-bottom: none; }
-.loc-list-grade { font-size: 1rem; font-weight: 800; color: #fff; min-width: 36px; }
+.loc-list-grade { font-size: 0.9rem; font-weight: 700; color: #fff; min-width: 36px; }
 .loc-list-climber { color: #d4d4d4; font-weight: 700; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dist-chart { display: flex; align-items: stretch; justify-content: space-around; gap: 8px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius); padding: 16px 12px 12px 12px; height: 210px; }
 .dist-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
 .dist-bar-track { position: relative; flex: 1; width: 100%; max-width: 34px; }
-.dist-bar { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 5px 5px 0 0; min-height: 4px; transition: height 0.4s cubic-bezier(0.4,0,0.2,1); }
-.dist-count { position: absolute; left: -4px; right: -4px; text-align: center; font-size: 0.74rem; font-weight: 800; color: #fff; transition: bottom 0.4s cubic-bezier(0.4,0,0.2,1); }
-.dist-label { font-size: 0.62rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.dist-bar { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 8px 5px 0 0; min-height: 4px; transition: height 0.4s cubic-bezier(0.4,0,0.2,1); }
+.dist-count { position: absolute; left: -4px; right: -4px; text-align: center; font-size: 0.8rem; font-weight: 700; color: #fff; transition: bottom 0.4s cubic-bezier(0.4,0,0.2,1); }
+.dist-label { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
 
 /* ===== NERD STATS (hidden) ===== */
 .nerd-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px; }
-.nerd-cell { background: var(--input-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: 12px; padding: 14px; text-align: center; }
-.nerd-val { font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+.nerd-cell { background: var(--input-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: 14px; padding: 14px; text-align: center; }
+.nerd-val { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
 .nerd-val.accent { color: var(--primary); }
-.nerd-label { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-top: 5px; }
-.nerd-sub { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1.3px; color: var(--text-muted); margin: 18px 0 8px; }
+.nerd-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-top: 5px; }
+.nerd-sub { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.3px; color: var(--text-muted); margin: 18px 0 8px; }
 .nerd-line { display: flex; justify-content: space-between; align-items: center; padding: 11px 4px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.9rem; }
 .nerd-line:last-child { border-bottom: none; }
-.nerd-line .k { color: var(--text-muted); font-weight: 600; }
-.nerd-line .v { color: #fff; font-weight: 800; }
+.nerd-line .k { color: var(--text-muted); font-weight: 400; }
+.nerd-line .v { color: #fff; font-weight: 700; }
 
 /* Secret-stats period-vs-previous deltas */
-.sd-delta { display: inline-block; margin-top: 5px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 6px; }
+.sd-delta { display: inline-block; margin-top: 5px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 8px; }
 .sd-delta.up   { color: var(--primary); background: rgba(16,185,129,0.12); }
 .sd-delta.down { color: var(--danger);  background: rgba(239,68,68,0.12); }
 .sd-delta.flat { color: var(--text-muted); background: rgba(255,255,255,0.05); }
@@ -1776,14 +1776,14 @@ body.modal-open { overflow: hidden; }
 
 /* Secret stats monthly calendar */
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.cal-month { font-size: 0.95rem; font-weight: 800; color: #fff; }
-.cal-nav { width: 36px; height: 36px; border-radius: 10px; background: var(--input-bg); border: 1px solid rgba(255,255,255,0.05); color: #fff; font-size: 1.2rem; font-weight: 800; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+.cal-month { font-size: 0.9rem; font-weight: 700; color: #fff; }
+.cal-nav { width: 36px; height: 36px; border-radius: 14px; background: var(--input-bg); border: 1px solid rgba(255,255,255,0.05); color: #fff; font-size: 1.15rem; font-weight: 700; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
 .cal-nav:active { transform: scale(0.92); }
 .cal-nav.cal-disabled { opacity: 0.3; pointer-events: none; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
 .cal-wd-row { margin-bottom: 5px; }
-.cal-wd { text-align: center; font-size: 0.6rem; font-weight: 800; color: var(--text-muted); }
-.cal-cell { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 0.72rem; font-weight: 700; color: #d4d4d4; background: #1c1c1c; }
+.cal-wd { text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); }
+.cal-cell { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 0.8rem; font-weight: 700; color: #d4d4d4; background: #1c1c1c; }
 .cal-empty { background: transparent; }
 .cal-l0 { background: #1c1c1c; color: #555; }
 .cal-l1 { background: rgba(16,185,129,0.30); color: #fff; }
@@ -1915,7 +1915,7 @@ body.disco .disco-me {
 <div class="view" id="view-secret">
     <button class="profile-back" id="secret-back">← Back</button>
     <div class="profile-name" id="secret-name">—</div>
-    <div style="margin:-12px 0 16px; font-size:0.72rem; font-weight:800; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Secret stats</div>
+    <div style="margin:-12px 0 16px; font-size: 0.8rem; font-weight: 700; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Secret stats</div>
 
     <div class="seg-ctrl" id="secret-window">
         <button class="seg-item" data-win="30">30d</button>
@@ -1952,14 +1952,14 @@ body.disco .disco-me {
 <div class="view" id="view-spots">
     <button class="profile-back" id="spots-back">← Back</button>
     <div class="profile-name">All spots</div>
-    <div style="margin:-12px 0 18px; font-size:0.72rem; font-weight:800; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Every crag &amp; gym</div>
+    <div style="margin:-12px 0 18px; font-size: 0.8rem; font-weight: 700; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Every crag &amp; gym</div>
     <div id="spots-list"></div>
 </div>
 
 <div class="view" id="view-captop10">
     <button class="profile-back" id="captop10-back">← Back</button>
     <div class="profile-name" id="captop10-name">—</div>
-    <div style="margin:-12px 0 16px; font-size:0.72rem; font-weight:800; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Capacity · last 60 days</div>
+    <div style="margin:-12px 0 16px; font-size: 0.8rem; font-weight: 700; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Capacity · last 60 days</div>
     <div class="cap-tabs scroll" id="captop10-tabs"></div>
     <div id="captop10-list"></div>
 </div>
@@ -1967,7 +1967,7 @@ body.disco .disco-me {
 <div class="view" id="view-peak">
     <button class="profile-back" id="peak-back">← Back</button>
     <div class="profile-name">Peak</div>
-    <div style="margin:-12px 0 16px; font-size:0.72rem; font-weight:800; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Hardest grade · rolling 30 days</div>
+    <div style="margin:-12px 0 16px; font-size: 0.8rem; font-weight: 700; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Hardest grade · rolling 30 days</div>
     <div class="cap-tabs scroll" id="peak-tabs"></div>
     <div id="peak-chart"></div>
     <div id="peak-legend"></div>
@@ -2001,7 +2001,7 @@ body.disco .disco-me {
             <button class="add-name-save" id="where-add-save">Save</button>
         </div>
 
-        <div class="field-label hidden" id="route-name-label">Route name <span style="color: var(--text-muted); font-weight: 600; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
+        <div class="field-label hidden" id="route-name-label">Route name <span style="color: var(--text-muted); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
         <input type="text" class="add-name-input hidden" id="logger-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom: 0; width: 100%;" autocomplete="off">
         <div class="pill-row route-suggest-row hidden" id="route-suggest-logger" style="margin-top:8px;"></div>
 
@@ -2016,7 +2016,7 @@ body.disco .disco-me {
         </div>
         <div class="pill-row" id="logger-style"></div>
 
-        <div class="field-label hidden" id="belayer-label">Belayer <span style="color: var(--text-muted); font-weight: 600; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
+        <div class="field-label hidden" id="belayer-label">Belayer <span style="color: var(--text-muted); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
         <div class="pill-row scroll hidden" id="logger-belayer"></div>
         <div class="add-name-row hidden" id="belayer-add-row">
             <input type="text" class="add-name-input" id="belayer-add-input" placeholder="Belayer name" maxlength="20">
@@ -2068,12 +2068,12 @@ body.disco .disco-me {
                 <button class="add-name-save" id="attempt-where-add-save">Save</button>
             </div>
 
-            <div class="field-label hidden" id="attempt-route-label">Route name <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
+            <div class="field-label hidden" id="attempt-route-label">Route name <span style="color:var(--text-muted);font-weight: 400;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
             <input type="text" class="add-name-input hidden" id="attempt-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom:0;width:100%;" autocomplete="off">
             <div class="pill-row route-suggest-row hidden" id="route-suggest-attempt" style="margin-top:8px;"></div>
 
             <div class="field-label">
-                Grade <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">tried</span>
+                Grade <span style="color:var(--text-muted);font-weight: 400;text-transform:none;letter-spacing:0;margin-left:4px;">tried</span>
                 <button class="info-icon hidden" id="attempt-grade-info">i</button>
             </div>
             <div class="pill-row scroll" id="attempt-grade"></div>
@@ -2082,7 +2082,7 @@ body.disco .disco-me {
             <div class="pill-row hidden" id="attempt-outcome-type"></div>
             <div class="pill-row" id="attempt-count"></div>
 
-            <div class="field-label hidden" id="attempt-belayer-label">Belayer <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
+            <div class="field-label hidden" id="attempt-belayer-label">Belayer <span style="color:var(--text-muted);font-weight: 400;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
             <div class="pill-row scroll hidden" id="attempt-belayer"></div>
             <div class="add-name-row hidden" id="attempt-belayer-add-row">
                 <input type="text" class="add-name-input" id="attempt-belayer-add-input" placeholder="Belayer name" maxlength="20">
@@ -5142,7 +5142,7 @@ function sendRowHtml(s, discipline) {
         ? `<span class="send-style-tag tr">TR</span>`
         : isSpecial
             ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
-            : `<span style="color:#666; font-weight:600;">${escapeHTML(s.Style)}</span>`;
+            : `<span style="color:#666; font-weight: 400;">${escapeHTML(s.Style)}</span>`;
     // In Boulder: per-gym circuit colour keyed off this send's gym. Other disciplines
     // have no colour scale, so they render no dot — unchanged.
     let dot = '';
@@ -7554,7 +7554,7 @@ function renderSpotsDirectory() {
     const gyms  = all.filter(s => s.type !== 'crag').sort((a, b) => a.name.localeCompare(b.name));
     const section = (title, rows) => rows.length ? `<div class="lb-section-title">${title}</div>` + rows.map(s => `
         <div class="lb-row" data-loc="${escapeHTML(s.name)}">
-            <div class="lb-rank" style="font-size:0.85rem;">${s.type === 'crag' ? '▲' : '■'}</div>
+            <div class="lb-rank" style="font-size: 0.9rem;">${s.type === 'crag' ? '▲' : '■'}</div>
             <div class="lb-bar-wrap"><div class="lb-name">${escapeHTML(s.name)}</div></div>
             <div class="lb-grade"><div class="lb-grade-pct">${s.sends} send${s.sends === 1 ? '' : 's'}</div></div>
         </div>`).join('') : '';
