@@ -239,6 +239,9 @@ h1.screen-title {
 /* Worked (attempt) rows in the climb list: same shape as send rows, deliberately muted —
    context, not achievement. */
 .attempt-row { opacity: 0.85; }
+.fight-row { display: flex; align-items: center; gap: 6px; }
+.fight-word { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: #8a8a8a; width: 52px; flex: 0 0 auto; }
+.route-suggest-row { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
 .send-style-tag.worked { color: #8a8a8a; background: rgba(255,255,255,0.05); }
 .send-grade.muted { color: #a3a3a3; font-weight: 700; }
 
@@ -1999,8 +2002,8 @@ body.disco .disco-me {
         </div>
 
         <div class="field-label hidden" id="route-name-label">Route name <span style="color: var(--text-muted); font-weight: 600; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
-        <input type="text" class="add-name-input hidden" id="logger-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom: 0; width: 100%;" list="route-suggestions" autocomplete="off">
-        <datalist id="route-suggestions"></datalist>
+        <input type="text" class="add-name-input hidden" id="logger-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom: 0; width: 100%;" autocomplete="off">
+        <div class="pill-row route-suggest-row hidden" id="route-suggest-logger" style="margin-top:8px;"></div>
 
         <div class="field-label">
             Grade
@@ -2066,8 +2069,8 @@ body.disco .disco-me {
             </div>
 
             <div class="field-label hidden" id="attempt-route-label">Route name <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
-            <input type="text" class="add-name-input hidden" id="attempt-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom:0;width:100%;" list="attempt-route-suggestions" autocomplete="off">
-            <datalist id="attempt-route-suggestions"></datalist>
+            <input type="text" class="add-name-input hidden" id="attempt-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom:0;width:100%;" autocomplete="off">
+            <div class="pill-row route-suggest-row hidden" id="route-suggest-attempt" style="margin-top:8px;"></div>
 
             <div class="field-label">
                 Grade <span style="color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px;">tried</span>
@@ -2975,22 +2978,52 @@ function renderBelayerPills() {
     }
 }
 
-function populateRouteSuggestions() {
-    const dl = document.getElementById('route-suggestions');
-    if (!dl) return;
-    const where = LoggerState.where;
-    const seen = new Set();
-    const opts = [];
-    State.logs.forEach(l => {
-        if (!l.RouteName) return;
-        if (where && l.Where !== where) return;  // routes previously logged at this crag
-        const n = String(l.RouteName).trim();
-        if (!n || seen.has(n.toLowerCase())) return;
-        seen.add(n.toLowerCase());
-        opts.push(`<option value="${escapeHTML(n)}"></option>`);
-    });
-    dl.innerHTML = opts.join('');
+// Route-name suggestions: our own pill row (native <datalist> removed — device-lottery UI).
+// Source = logs ∪ attempts at this crag, most recent first. Quiet until you type.
+function routeNamesFor(where) {
+    const seen = new Set(), out = [];
+    [...State.logs, ...(State.attempts || [])]
+        .filter(x => x.RouteName && (!where || x.Where === where))
+        .sort((a, b) => String(b.Date).localeCompare(String(a.Date)))
+        .forEach(x => {
+            const n = String(x.RouteName).trim();
+            if (!n || seen.has(n.toLowerCase())) return;
+            seen.add(n.toLowerCase()); out.push(n);
+        });
+    return out;
 }
+function renderRouteSuggest(rowId, inputId, where) {
+    const row = document.getElementById(rowId), input = document.getElementById(inputId);
+    if (!row || !input) return;
+    if (document.activeElement !== input) { row.classList.add('hidden'); row.innerHTML = ''; return; }
+    const q = input.value.trim().toLowerCase();
+    if (!q) { row.classList.add('hidden'); row.innerHTML = ''; return; }
+    let names = routeNamesFor(where);
+    const pre = names.filter(n => n.toLowerCase().startsWith(q));
+    const sub = names.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q));
+    names = [...pre, ...sub].filter(n => n.toLowerCase() !== q).slice(0, 6);
+    if (!names.length) { row.classList.add('hidden'); row.innerHTML = ''; return; }
+    row.classList.remove('hidden');
+    row.innerHTML = names.map(n => `<button class="pill" data-rname="${escapeHTML(n)}">${escapeHTML(n)}</button>`).join('');
+    // pointerdown fires BEFORE blur — tap lands, keyboard stays up
+    row.querySelectorAll('[data-rname]').forEach(el => el.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        haptic('tap');
+        input.value = el.dataset.rname;
+        row.classList.add('hidden');
+    }));
+}
+function attachRouteSuggest(inputId, rowId, getWhere) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const rerender = () => renderRouteSuggest(rowId, inputId, getWhere());
+    input.addEventListener('focus', rerender);
+    input.addEventListener('input', rerender);
+    input.addEventListener('blur', () => setTimeout(() => document.getElementById(rowId)?.classList.add('hidden'), 150));
+}
+attachRouteSuggest('logger-route-name', 'route-suggest-logger', () => LoggerState.where);
+attachRouteSuggest('attempt-route-name', 'route-suggest-attempt', () => AttemptState.where);
+function populateRouteSuggestions() { renderRouteSuggest('route-suggest-logger', 'logger-route-name', LoggerState.where); }
 
 function updateRouteNameVisibility() {
     const isOut = isOutdoor(LoggerState.discipline);
@@ -3002,9 +3035,13 @@ function updateRouteNameVisibility() {
 
 function getLocationsForDiscipline(disc) {
     const wantType = isOutdoor(disc) ? 'crag' : 'gym';
+    const seen = new Set();   // twin rows (trim/NFC/case variants) render as one pill
     return State.locations
         .filter(l => {
             if (l.Type !== wantType) return false;
+            const key = String(l.Name || '').trim().normalize('NFC').toLowerCase();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
             // Disciplines is comma-separated; if missing, fall back to type-only matching
             // (graceful degradation for any locations not yet tagged)
             const discList = String(l.Disciplines || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -3216,9 +3253,10 @@ async function addLocation(rawName) {
     const disciplines = [LoggerState.discipline]; // tag with current discipline
     
     // Check existing — but allow same name if it exists for a different discipline
+    const norm = s => String(s || '').trim().normalize('NFC').toLowerCase();
     const existingMatch = State.locations.find(l =>
         l.Type === type &&
-        String(l.Name || '').toLowerCase() === name.toLowerCase()
+        norm(l.Name) === norm(name)
     );
     if (existingMatch) {
         // Already exists with this type. If it doesn't include this discipline, expand it.
@@ -6683,44 +6721,49 @@ function refreshAttemptSaveState() {
 
 // Outcome (rests|falls) — roped/Trad only; hidden for boulder.
 function renderAttemptOutcomeType() {
+    // Retired as a pill row — rests/falls/clipstick now live inside the count matrix.
     const label = document.getElementById('attempt-outcome-label');
     const c = document.getElementById('attempt-outcome-type');
-    if (!c) return;
-    if (!AttemptState.discipline) { c.classList.add('hidden'); c.innerHTML = ''; if (label) label.textContent = 'Outcome'; return; }
-    if (!attemptNeedsOutcome()) {
-        c.classList.add('hidden'); c.innerHTML = '';
-        if (label) label.textContent = 'Goes';                 // boulder: the count row IS the goes
-        AttemptState.outcome = '';
-        return;
-    }
-    if (label) label.textContent = 'Outcome';
-    c.classList.remove('hidden');
-    const opts = [{ v: 'rests', label: 'Rests' }, { v: 'falls', label: 'Falls' }];
-    c.innerHTML = opts.map(o =>
-        `<button class="pill ${AttemptState.outcome === o.v ? 'active' : ''}" data-outcome="${o.v}">${o.label}</button>`
-    ).join('');
-    c.querySelectorAll('[data-outcome]').forEach(el => el.addEventListener('click', () => {
-        haptic('tap');
-        AttemptState.outcome = el.dataset.outcome;
-        renderAttemptOutcomeType();
-        refreshAttemptSaveState();
-    }));
+    if (c) { c.classList.add('hidden'); c.innerHTML = ''; }
+    if (!label) return;
+    if (!AttemptState.discipline) { label.textContent = 'How did it go?'; return; }
+    if (!attemptNeedsOutcome()) { label.textContent = 'Goes'; AttemptState.outcome = ''; return; }
+    label.textContent = 'How did it go?';
 }
 
 // Count buckets — discipline-aware vocabulary; selection cleared when crossing boulder↔rope.
 function renderAttemptCount() {
     const c = document.getElementById('attempt-count');
     if (!c) return;
-    if (!AttemptState.discipline) { c.innerHTML = ''; return; }
+    if (!AttemptState.discipline) { c.innerHTML = ''; c.style.flexDirection = ''; return; }
     const buckets = attemptBuckets();
     if (AttemptState.countBucket && !buckets.some(b => b.v === AttemptState.countBucket)) {
-        AttemptState.countBucket = null;                       // vocabulary changed → invalid pick
+        AttemptState.countBucket = null;
+        if (attemptNeedsOutcome()) AttemptState.outcome = null;
     }
-    c.innerHTML = buckets.map(b =>
-        `<button class="pill ${AttemptState.countBucket === b.v ? 'active' : ''}" data-bucket="${b.v}">${b.label}</button>`
-    ).join('');
-    c.querySelectorAll('[data-bucket]').forEach(el => el.addEventListener('click', () => {
+    if (!attemptNeedsOutcome()) {
+        c.style.flexDirection = '';
+        c.innerHTML = buckets.map(b =>
+            `<button class="pill ${AttemptState.countBucket === b.v ? 'active' : ''}" data-bucket="${b.v}">${b.label}</button>`
+        ).join('');
+        c.querySelectorAll('[data-bucket]').forEach(el => el.addEventListener('click', () => {
+            haptic('tap');
+            AttemptState.countBucket = el.dataset.bucket;
+            renderAttemptCount();
+            refreshAttemptSaveState();
+        }));
+        return;
+    }
+    // Rope matrix: every pill = (outcome, count) pair; one tap sets both; single-select.
+    // Mildest→worst top to bottom: clipstick, rests, falls.
+    c.style.flexDirection = 'column';
+    const rows = [{ v: 'clipstick', word: 'Clipstick' }, { v: 'rests', word: 'Rests' }, { v: 'falls', word: 'Falls' }];
+    c.innerHTML = rows.map(r => `<div class="fight-row"><span class="fight-word">${r.word}</span>${
+        buckets.map(b => `<button class="pill ${AttemptState.outcome === r.v && AttemptState.countBucket === b.v ? 'active' : ''}" data-outcome="${r.v}" data-bucket="${b.v}">${b.label}</button>`).join('')
+    }</div>`).join('');
+    c.querySelectorAll('[data-outcome]').forEach(el => el.addEventListener('click', () => {
         haptic('tap');
+        AttemptState.outcome = el.dataset.outcome;
         AttemptState.countBucket = el.dataset.bucket;
         renderAttemptCount();
         refreshAttemptSaveState();
@@ -6905,21 +6948,7 @@ function updateAttemptRouteVisibility() {
     if (!isOut) document.getElementById('attempt-route-name').value = '';
     if (isOut) populateAttemptRouteSuggestions();
 }
-function populateAttemptRouteSuggestions() {
-    const dl = document.getElementById('attempt-route-suggestions');
-    if (!dl) return;
-    const where = AttemptState.where;
-    const seen = new Set(), opts = [];
-    State.logs.forEach(l => {
-        if (!l.RouteName) return;
-        if (where && l.Where !== where) return;
-        const n = String(l.RouteName).trim();
-        if (!n || seen.has(n.toLowerCase())) return;
-        seen.add(n.toLowerCase());
-        opts.push(`<option value="${escapeHTML(n)}"></option>`);
-    });
-    dl.innerHTML = opts.join('');
-}
+function populateAttemptRouteSuggestions() { renderRouteSuggest('route-suggest-attempt', 'attempt-route-name', AttemptState.where); }
 
 function updateAttemptBelayerVisibility() {
     const show = isRopeDiscipline(AttemptState.discipline);
