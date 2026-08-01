@@ -1686,6 +1686,54 @@ body.modal-open { overflow: hidden; }
 .loc-go-acts a { flex: 1; text-align: center; padding: 12px 6px; font-size: 0.8rem;
     color: var(--primary); text-decoration: none; }
 .loc-go-acts a + a { border-left: 1px solid rgba(255,255,255,0.05); }
+/* crag page tabs */
+.loc-tabs { display: flex; gap: 6px; margin: 14px 0 4px; }
+.loc-tabs button { flex: 1; text-align: center; padding: 9px 0; border-radius: 999px; font-size: 0.8rem;
+    color: var(--text-muted); background: var(--card-bg); border: none; font-family: inherit; }
+.loc-tabs button.on { background: rgba(16,185,129,0.14); color: var(--primary); font-weight: 700; }
+.loc-listnote { color: var(--text-muted); font-size: 0.7rem; margin: 10px 2px 2px; }
+/* grade band header */
+.loc-band { display: flex; align-items: center; gap: 8px; margin: 14px 2px 7px; }
+.loc-band span { color: var(--text-muted); font-size: 0.7rem; font-weight: 700; letter-spacing: .06em; }
+.loc-band i { flex: 1; height: 1px; background: rgba(255,255,255,0.07); display: block; }
+/* route row: tick marker · name+who · grade+style */
+.rt { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 11px;
+    padding: 11px 13px 11px 10px; border-radius: 8px; background: var(--card-bg); margin-bottom: 6px; }
+.rt.proj { border: 1px solid rgba(180,134,58,0.28); }
+.rt-mk { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; justify-self: center; }
+.rt-mk.done { background: #0f7a5a; }
+.rt-mk.done svg { width: 10px; height: 10px; fill: #04140f; }
+.rt-mk.work { border: 1.5px dashed #b4863a; }
+.rt-mk.work i { width: 5px; height: 5px; border-radius: 50%; background: #b4863a; display: block; }
+.rt-mk.none { border: 1.5px solid rgba(255,255,255,0.10); }
+.rt-name { color: var(--text); }
+.rt.none .rt-name { color: #4d545c; }
+.rt-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.rt-who { display: flex; }
+.rt-av { width: 17px; height: 17px; border-radius: 50%; margin-right: -5px; display: grid; place-items: center;
+    font-size: 9px; font-weight: 700; color: #0b0d0f; border: 1.5px solid var(--card-bg); background: #7f8b95; }
+.rt-av.me { background: #0f7a5a; color: #eafff7; }
+.rt-note { color: var(--text-muted); font-size: 0.7rem; }
+.rt-grade { color: var(--text); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.rt.none .rt-grade { color: var(--text-muted); }
+.rt-style { display: block; color: var(--text-muted); font-size: 0.7rem; font-weight: 400; margin-top: 2px; }
+/* history */
+.hsum { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 12px 14px; background: var(--card-bg);
+    border-radius: var(--radius); font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; }
+.hsum b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.hvisit { position: relative; padding: 0 0 15px 20px; }
+.hvisit::before { content:''; position:absolute; left:5px; top:5px; width:8px; height:8px; border-radius:50%;
+    background:#0f7a5a; box-shadow:0 0 0 3px rgba(15,122,90,.18); }
+.hvisit::after { content:''; position:absolute; left:8.5px; top:15px; bottom:0; width:1px;
+    background:rgba(255,255,255,0.07); }
+.hvisit:last-child::after { display:none; }
+.hvisit .when { color: var(--text); font-size: 0.8rem; font-weight: 700; }
+.hvisit .what { color: #b8bec6; font-size: 0.8rem; margin-top: 2px; }
+.hvisit .what b { color: var(--text); font-weight: 700; }
+.hvisit .extra { color: #b4863a; font-size: 0.7rem; margin-top: 2px; }
+.hvisit .fa { color: var(--gold); font-size: 0.7rem; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; margin-top: 3px; display: inline-block; }
+.hsince { color: var(--text-muted); font-size: 0.7rem; padding: 2px 0 4px 20px; }
 .loc-name { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -1px; margin-bottom: 8px; }
 .loc-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .loc-badge {
@@ -1925,10 +1973,7 @@ body.disco .disco-me {
             </div>
         </div>
     </div>
-    <div class="seg-ctrl" id="location-scope">
-        <button class="seg-item active" data-loc-scope="everyone">Everyone</button>
-        <button class="seg-item" data-loc-scope="you">You</button>
-    </div>
+    <div class="loc-tabs" id="location-tabs"></div>
     <div class="loc-stats" id="location-stats"></div>
     <div class="loc-lenses pill-row" id="location-lenses"></div>
     <div id="location-main"></div>
@@ -7794,6 +7839,115 @@ function renderGettingThere(name) {
         </div>`;
 }
 
+let locationTab = 'routes';
+let historyExpanded = false;
+
+// Every named route the crew has touched here: sends + attempts, merged.
+function crawlRoutes(name) {
+    const rows = new Map();
+    const push = (r, obj, kind) => {
+        const key = String(r).trim(); if (!key) return;
+        if (!rows.has(key)) rows.set(key, { route: key, ticks: [], tries: [] });
+        rows.get(key)[kind].push(obj);
+    };
+    State.logs.forEach(l => { if (l.Where === name && l.RouteName) push(l.RouteName, l, 'ticks'); });
+    (State.attempts || []).forEach(a => { if (a.Where === name && a.RouteName) push(a.RouteName, a, 'tries'); });
+    return [...rows.values()].map(r => {
+        let bestIdx = -1, grade = null, disc = null;
+        [...r.ticks, ...r.tries].forEach(t => {
+            const scale = AppConfig.grades[t.Discipline]; if (!scale) return;
+            const i = scale.labels.indexOf(getBaseGrade(t.Grade));
+            if (i > bestIdx) { bestIdx = i; grade = t.Grade; disc = t.Discipline; }
+        });
+        const mine = r.ticks.filter(t => t.ClimberName === State.activeUser);
+        const myTry = r.tries.filter(t => t.ClimberName === State.activeUser);
+        const people = [...new Set(r.ticks.map(t => t.ClimberName))];
+        const firstTick = r.ticks.slice().sort((a, b) => getCleanDate(a.Date).localeCompare(getCleanDate(b.Date)))[0];
+        return { ...r, grade, disc, bestIdx, people, mine, myTry, firstTick };
+    }).sort((a, b) => b.bestIdx - a.bestIdx || a.route.localeCompare(b.route));
+}
+function bandOf(g) { return String(g || '').replace(/[+\-]$/, ''); }
+function avatarsFor(people) {
+    const ordered = [...people].sort((a, b) => (a === State.activeUser ? -1 : b === State.activeUser ? 1 : 0));
+    return ordered.slice(0, 4).map(p =>
+        `<span class="rt-av ${p === State.activeUser ? 'me' : ''}">${escapeHTML(p.slice(0, 1).toUpperCase())}</span>`).join('');
+}
+function routeNote(r) {
+    const others = r.people.filter(p => p !== State.activeUser);
+    if (r.mine.length && r.firstTick && r.firstTick.ClimberName === State.activeUser && r.people.length === 1)
+        return 'first crew ascent';
+    if (r.people.length >= 3) return 'crew favourite';
+    if (r.mine.length && others.length === 1) return 'you &amp; ' + escapeHTML(others[0]);
+    if (r.mine.length) return 'you';
+    if (others.length) return escapeHTML(others[0]) + ', ' + escapeHTML(formatShortDate(getCleanDate(r.ticks[0].Date)));
+    if (r.tries.length) return 'worked, not sent';
+    return '';
+}
+function renderCragRoutes(name) {
+    const routes = crawlRoutes(name);
+    if (!routes.length) return '<div class="lb-empty">No named routes logged here yet.</div>';
+    let html = '<div class="loc-listnote">Routes the crew has logged — not the whole crag.</div>';
+    let band = null;
+    routes.forEach(r => {
+        const b = bandOf(r.grade);
+        if (b !== band) { band = b; html += `<div class="loc-band"><span>${escapeHTML(b)}</span><i></i></div>`; }
+        const sent = r.mine.length > 0, worked = !sent && r.myTry.length > 0;
+        const mk = sent ? '<span class="rt-mk done"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span>'
+                 : worked ? '<span class="rt-mk work"><i></i></span>'
+                 : '<span class="rt-mk none"></span>';
+        const style = sent ? escapeHTML(String(r.mine[0].Style || '').toLowerCase())
+                    : worked ? 'unsent' : (r.people.length ? 'not yours' : 'open');
+        html += `<div class="rt ${worked ? 'proj' : ''} ${sent || worked ? '' : 'none'}">
+            ${mk}
+            <div><div class="rt-name">${escapeHTML(r.route)}</div>
+                <div class="rt-meta">${r.people.length ? `<span class="rt-who">${avatarsFor(r.people)}</span>` : ''}
+                <span class="rt-note">${routeNote(r)}</span></div></div>
+            <div class="rt-grade">${escapeHTML(r.grade || '?')}<span class="rt-style">${style}</span></div>
+        </div>`;
+    });
+    return html;
+}
+function renderLocationHistory(name) {
+    const me = State.activeUser;
+    if (!me) return '<div class="lb-empty">Pick your name to see your history here.</div>';
+    const mineLogs = State.logs.filter(l => l.Where === name && l.ClimberName === me);
+    const mineTries = (State.attempts || []).filter(a => a.Where === name && a.ClimberName === me);
+    if (!mineLogs.length && !mineTries.length) return '<div class="lb-empty">You haven\'t climbed here yet.</div>';
+    const byDate = {};
+    mineLogs.forEach(l => { const d = getCleanDate(l.Date); (byDate[d] = byDate[d] || { sends: [], tries: [] }).sends.push(l); });
+    mineTries.forEach(a => { const d = getCleanDate(a.Date); (byDate[d] = byDate[d] || { sends: [], tries: [] }).tries.push(a); });
+    const dates = Object.keys(byDate).sort().reverse();
+    const hardest = hardestGradeOf(mineLogs);
+    const working = new Set(mineTries.map(a => a.RouteName).filter(Boolean)).size;
+    let html = `<div class="hsum"><span>Visits <b>${dates.length}</b></span>
+        <span>Sends <b>${mineLogs.length}</b></span>
+        <span>Max <b>${escapeHTML(hardest || '—')}</b></span>
+        ${working ? `<span>Working <b>${working}</b></span>` : ''}</div><div style="padding:14px 3px 0">`;
+    const shown = historyExpanded ? dates : dates.slice(0, 3);
+    shown.forEach(d => {
+        const v = byDate[d];
+        const sends = sortSendsByScore(v.sends, v.sends[0] ? v.sends[0].Discipline : 'Out Rope');
+        const what = sends.length
+            ? sends.slice(0, 3).map(s => `${escapeHTML(s.RouteName || 'unnamed')} <b>${escapeHTML(s.Grade)}</b>${
+                  isTopRope(s.Style) ? ' TR' : (String(s.Style).toLowerCase() === 'send' ? '' : ' ' + escapeHTML(String(s.Style).toLowerCase()))}`).join(' · ')
+            : 'no sends';
+        const extra = v.tries.length
+            ? `worked ${v.tries.map(a => escapeHTML(a.RouteName || a.Grade)).join(', ')}` : '';
+        const firstEver = sends.some(s => {
+            const r = crawlRoutes(name).find(x => x.route === (s.RouteName || '').trim());
+            return r && r.firstTick && r.firstTick.ClimberName === me && r.people.length === 1;
+        });
+        html += `<div class="hvisit"><div class="when">${escapeHTML(formatRelativeTime(d + 'T12:00:00'))}</div>
+            <div class="what">${what}</div>
+            ${extra ? `<div class="extra">${extra}</div>` : ''}
+            ${firstEver ? '<div class="fa">First crew ascent</div>' : ''}</div>`;
+    });
+    html += `<div class="hsince">First climbed here ${escapeHTML(formatShortDate(dates[dates.length - 1]))}</div></div>`;
+    if (dates.length > 3) html += `<button class="load-more-btn" id="hist-more">${
+        historyExpanded ? 'Show less' : `Show all ${dates.length} visits`}</button>`;
+    return html;
+}
+
 function renderLocationPage() {
     const name = locationName;
     if (!name) return;
@@ -7808,65 +7962,50 @@ function renderLocationPage() {
     const discs = [...new Set(allHere.map(l => l.Discipline))].filter(Boolean);
     document.getElementById('location-disciplines').textContent = discs.join(' · ');
 
-    // scope-filtered sends
-    let sends = allHere;
-    if (locationScope === 'you' && State.activeUser) {
-        sends = sends.filter(l => l.ClimberName === State.activeUser);
-    }
-    document.querySelectorAll('#location-scope .seg-item').forEach(el => {
-        el.classList.toggle('active', el.dataset.locScope === locationScope);
-    });
+    // tabs
+    const e = locEntryFor(name);
+    const hasGo = !!(parseLatLng(e.ParkLatLng) || parseLatLng(e.CragLatLng) || e.WalkMin || e.Aspect || e.Notes);
+    const tabs = [['routes', isCrag ? 'Routes' : 'Climbs'], ['history', 'Your history']];
+    if (hasGo) tabs.push(['go', 'Getting there']);
+    if (!tabs.some(t => t[0] === locationTab)) locationTab = 'routes';
+    const tabsEl = document.getElementById('location-tabs');
+    tabsEl.innerHTML = tabs.map(([k, l]) =>
+        `<button class="${k === locationTab ? 'on' : ''}" data-loc-tab="${k}">${l}</button>`).join('');
+    tabsEl.querySelectorAll('[data-loc-tab]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        locationTab = el.dataset.locTab;
+        if (locationTab !== 'history') historyExpanded = false;
+        renderLocationPage();
+    }));
 
-    // stats
-    const total = sends.length;
-    let midVal, midLabel;
-    if (isCrag) {
-        midVal = new Set(sends.map(s => (s.RouteName || '').trim()).filter(Boolean)).size;
-        midLabel = 'Routes';
-    } else if (locationScope === 'you') {
-        midVal = new Set(sends.map(s => getCleanDate(s.Date))).size;
-        midLabel = 'Days';
-    } else {
-        midVal = new Set(sends.map(s => getCleanDate(s.Date))).size;
-        midLabel = 'Days';
-    }
-    const hardest = hardestGradeOf(sends);
-    const visitors = new Set(allHere.map(s => s.ClimberName).filter(Boolean)).size;
-    document.getElementById('location-stats').innerHTML = `
-        <div class="loc-stat"><div class="loc-stat-val">${total}</div><div class="loc-stat-label">Sends</div></div>
-        <div class="loc-stat"><div class="loc-stat-val">${midVal}</div><div class="loc-stat-label">${escapeHTML(midLabel)}</div></div>
-        <div class="loc-stat"><div class="loc-stat-val">${visitors}</div><div class="loc-stat-label">Visitors</div></div>
-        <div class="loc-stat"><div class="loc-stat-val ${hardest ? '' : 'empty'}">${escapeHTML(hardest || '—')}</div><div class="loc-stat-label">Hardest</div></div>`;
-
-    // lens pills (crag: hardest/popular/recent; gym: hardest/recent)
-    const lenses = isCrag
-        ? [['hardest', 'Hardest'], ['popular', 'Popular'], ['recent', 'Recent']]
-        : [['hardest', 'Hardest'], ['recent', 'Recent']];
-    if (!lenses.some(l => l[0] === locationLens)) locationLens = 'hardest';
-    const lensEl = document.getElementById('location-lenses');
-    lensEl.innerHTML = lenses.map(([key, label]) =>
-        `<button class="pill ${key === locationLens ? 'active' : ''}" data-loc-lens="${key}">${label}</button>`
-    ).join('');
-    lensEl.querySelectorAll('[data-loc-lens]').forEach(el => {
-        el.addEventListener('click', () => {
-            haptic('tap');
-            locationLens = el.dataset.locLens;
-            renderLocationPage();
-        });
-    });
-
-    // main content by lens
+    const statsEl = document.getElementById('location-stats');
     const mainEl = document.getElementById('location-main');
-    if (locationLens === 'recent') {
-        mainEl.innerHTML = renderLocationRecentList(sends);
-    } else if (isCrag) {
-        mainEl.innerHTML = renderTopRoutes(sends, locationLens);
-    } else {
-        mainEl.innerHTML = renderGymHardest(sends);
-    }
+    const distEl = document.getElementById('location-dist');
+    const goEl = document.getElementById('location-getting');
+    statsEl.style.display = locationTab === 'routes' ? '' : 'none';
+    goEl.style.display = locationTab === 'go' ? '' : 'none';
 
-    // grade distribution (gym only)
-    document.getElementById('location-dist').innerHTML = isCrag ? '' : renderGradeDistribution(sends);
+    if (locationTab === 'routes') {
+        const routeCount = new Set(allHere.map(s => (s.RouteName || '').trim()).filter(Boolean)).size;
+        const hardest = hardestGradeOf(allHere);
+        const visitors = new Set(allHere.map(s => s.ClimberName).filter(Boolean)).size;
+        const mid = isCrag ? routeCount : new Set(allHere.map(s => getCleanDate(s.Date))).size;
+        statsEl.innerHTML = `
+            <div class="loc-stat"><div class="loc-stat-val">${allHere.length}</div><div class="loc-stat-label">Sends</div></div>
+            <div class="loc-stat"><div class="loc-stat-val">${mid}</div><div class="loc-stat-label">${isCrag ? 'Logged' : 'Days'}</div></div>
+            <div class="loc-stat"><div class="loc-stat-val">${visitors}</div><div class="loc-stat-label">Visitors</div></div>
+            <div class="loc-stat"><div class="loc-stat-val ${hardest ? '' : 'empty'}">${escapeHTML(hardest || '—')}</div><div class="loc-stat-label">Hardest</div></div>`;
+        mainEl.innerHTML = isCrag ? renderCragRoutes(name) : renderGymHardest(allHere);
+        distEl.innerHTML = isCrag ? '' : renderGradeDistribution(allHere);
+    } else if (locationTab === 'history') {
+        mainEl.innerHTML = renderLocationHistory(name);
+        distEl.innerHTML = '';
+        const more = document.getElementById('hist-more');
+        if (more) more.addEventListener('click', () => { haptic('tap'); historyExpanded = !historyExpanded; renderLocationPage(); });
+    } else {
+        mainEl.innerHTML = '';
+        distEl.innerHTML = '';
+    }
 
     applyLocationHero(name);
     renderGettingThere(name);
@@ -8012,13 +8151,7 @@ function renderGradeDistribution(sends) {
 }
 
 // Static handlers (the location view exists at page load)
-document.querySelectorAll('#location-scope .seg-item').forEach(el => {
-    el.addEventListener('click', () => {
-        haptic('tap');
-        locationScope = el.dataset.locScope;
-        renderLocationPage();
-    });
-});
+
 document.getElementById('location-back').addEventListener('click', () => {
     haptic('tap');
     navBack();
