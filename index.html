@@ -1665,6 +1665,27 @@ body.modal-open { overflow: hidden; }
 
 /* ===== LOCATION PAGE ===== */
 .loc-header { margin-bottom: 18px; }
+/* photo hero — falls back to a discipline gradient when a crag has no image */
+.loc-hero { position: relative; height: 210px; margin: -24px -20px 14px; background:
+    radial-gradient(120% 80% at 20% 8%, #2f3f49, transparent 62%),
+    linear-gradient(160deg,#3d4d55 0%,#27343c 42%,#161d22 76%,var(--dark) 100%); }
+.loc-hero.has-photo { background-size: cover; background-position: 50% 46%; }
+.loc-hero::after { content:''; position:absolute; inset:0; background:
+    linear-gradient(180deg, rgba(5,5,5,.42) 0%, rgba(5,5,5,.16) 34%, rgba(5,5,5,.74) 76%, var(--dark) 100%); }
+.loc-hero .loc-hero-in { position:absolute; left:20px; right:20px; bottom:12px; z-index:2; }
+.loc-hero .loc-name { text-shadow: 0 1px 12px rgba(0,0,0,.65); margin-bottom: 4px; }
+.loc-hero .loc-meta { text-shadow: 0 1px 10px rgba(0,0,0,.6); }
+/* getting there */
+.loc-go { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius);
+    overflow: hidden; margin-top: 18px; }
+.loc-go-map { width: 100%; height: 220px; border: 0; display: block; background: #0f1614; }
+.loc-facts { display: flex; flex-wrap: wrap; gap: 9px 16px; padding: 11px 14px;
+    font-size: 0.7rem; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.05); }
+.loc-facts b { color: var(--text); font-weight: 700; }
+.loc-go-acts { display: flex; border-top: 1px solid rgba(255,255,255,0.05); }
+.loc-go-acts a { flex: 1; text-align: center; padding: 12px 6px; font-size: 0.8rem;
+    color: var(--primary); text-decoration: none; }
+.loc-go-acts a + a { border-left: 1px solid rgba(255,255,255,0.05); }
 .loc-name { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -1px; margin-bottom: 8px; }
 .loc-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .loc-badge {
@@ -1895,11 +1916,13 @@ body.disco .disco-me {
 
 <div class="view" id="view-location">
     <button class="profile-back" id="location-back">← Back</button>
-    <div class="loc-header">
-        <div class="loc-name" id="location-name">—</div>
-        <div class="loc-meta">
-            <span class="loc-badge" id="location-badge">—</span>
-            <span class="loc-disciplines" id="location-disciplines"></span>
+    <div class="loc-hero" id="location-hero">
+        <div class="loc-hero-in">
+            <div class="loc-name" id="location-name">—</div>
+            <div class="loc-meta">
+                <span class="loc-badge" id="location-badge">—</span>
+                <span class="loc-disciplines" id="location-disciplines"></span>
+            </div>
         </div>
     </div>
     <div class="seg-ctrl" id="location-scope">
@@ -1910,6 +1933,7 @@ body.disco .disco-me {
     <div class="loc-lenses pill-row" id="location-lenses"></div>
     <div id="location-main"></div>
     <div id="location-dist"></div>
+    <div id="location-getting"></div>
 </div>
 
 <div class="view" id="view-secret">
@@ -7690,6 +7714,86 @@ function showLocation(name, fromView) {
     navRecordView('location', { name: locationName, from: locationBackView });
 }
 
+/* ===== CRAG DETAILS: photo, coordinates, approach =====
+   Data lives in the Locations sheet (header-mapped, so new columns flow through doGet with no
+   backend change): ParkLatLng, CragLatLng, WalkMin, Aspect, Notes.
+   Photo is a file in /crags/<slug>.jpg — no column needed, the crag name IS the lookup.
+   Every field is optional; each one missing just removes its own piece of the page. */
+function locSlug(s) {
+    return String(s || '').toLowerCase().normalize('NFC').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+function parseLatLng(v) {
+    const m = String(v || '').match(/(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)/);
+    if (!m) return null;
+    const lat = parseFloat(m[1].replace(',', '.')), lng = parseFloat(m[2].replace(',', '.'));
+    if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
+}
+function locEntryFor(name) {
+    const k = String(name || '').trim().normalize('NFC').toLowerCase();
+    return State.locations.find(l => String(l.Name || '').trim().normalize('NFC').toLowerCase() === k) || {};
+}
+const ASPECT_WORD = { N:'North', NE:'North-east', E:'East', SE:'South-east',
+                      S:'South', SW:'South-west', W:'West', NW:'North-west' };
+function metresBetween(a, b) {   // haversine, for the parking→crag distance
+    const R = 6371000, r = x => x * Math.PI / 180;
+    const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
+    const h = Math.sin(dLat/2)**2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng/2)**2;
+    return Math.round(2 * R * Math.asin(Math.sqrt(h)));
+}
+// Photo: probe it once; only swap the gradient out if the file actually exists.
+const _locPhotoCache = {};
+function applyLocationHero(name) {
+    const hero = document.getElementById('location-hero');
+    if (!hero) return;
+    hero.classList.remove('has-photo');
+    hero.style.backgroundImage = '';
+    const url = 'crags/' + locSlug(name) + '.jpg';
+    const use = () => { hero.style.backgroundImage = `url("${url}")`; hero.classList.add('has-photo'); };
+    if (_locPhotoCache[url] === true) { use(); return; }
+    if (_locPhotoCache[url] === false) return;
+    const img = new Image();
+    img.onload  = () => { _locPhotoCache[url] = true;  if (locationName === name) use(); };
+    img.onerror = () => { _locPhotoCache[url] = false; };
+    img.src = url;
+}
+function renderGettingThere(name) {
+    const el = document.getElementById('location-getting');
+    if (!el) return;
+    const e = locEntryFor(name);
+    const park = parseLatLng(e.ParkLatLng), crag = parseLatLng(e.CragLatLng);
+    const walk = String(e.WalkMin || '').trim();
+    const aspect = String(e.Aspect || '').trim().toUpperCase();
+    const notes = String(e.Notes || '').trim();
+    if (!park && !crag && !walk && !aspect && !notes) { el.innerHTML = ''; return; }
+
+    let mapHtml = '';
+    const focus = park || crag;
+    if (focus) {
+        const pts = [park, crag].filter(Boolean);
+        const pad = 0.004;
+        const lats = pts.map(p => p.lat), lngs = pts.map(p => p.lng);
+        const bbox = [Math.min(...lngs) - pad, Math.min(...lats) - pad,
+                      Math.max(...lngs) + pad, Math.max(...lats) + pad].join(',');
+        const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${focus.lat},${focus.lng}`;
+        mapHtml = `<iframe class="loc-go-map" loading="lazy" src="${src}"></iframe>`;
+    }
+    const facts = [];
+    if (walk) facts.push(`Walk <b>${escapeHTML(walk)} min</b>`);
+    if (park && crag) facts.push(`Approach <b>${metresBetween(park, crag)} m</b>`);
+    if (aspect && ASPECT_WORD[aspect]) facts.push(`Faces <b>${ASPECT_WORD[aspect]}</b>`);
+    if (notes) facts.push(escapeHTML(notes));
+    const acts = [];
+    if (park) acts.push(`<a href="https://www.google.com/maps/dir/?api=1&destination=${park.lat},${park.lng}&travelmode=driving" target="_blank" rel="noopener">Drive to parking</a>`);
+    if (crag) acts.push(`<a href="https://www.google.com/maps/dir/?api=1&destination=${crag.lat},${crag.lng}&travelmode=walking" target="_blank" rel="noopener">Walk to crag</a>`);
+
+    el.innerHTML = `<div class="profile-section-title">Getting there</div>
+        <div class="loc-go">${mapHtml}
+            ${facts.length ? `<div class="loc-facts">${facts.map(f => `<span>${f}</span>`).join('')}</div>` : ''}
+            ${acts.length ? `<div class="loc-go-acts">${acts.join('')}</div>` : ''}
+        </div>`;
+}
+
 function renderLocationPage() {
     const name = locationName;
     if (!name) return;
@@ -7763,6 +7867,9 @@ function renderLocationPage() {
 
     // grade distribution (gym only)
     document.getElementById('location-dist').innerHTML = isCrag ? '' : renderGradeDistribution(sends);
+
+    applyLocationHero(name);
+    renderGettingThere(name);
 }
 
 // Crag: group by route; sort by grade (Hardest) or send count (Popular)
