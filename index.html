@@ -675,9 +675,14 @@ h1.screen-title {
 .histogram-tabs {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
     margin-bottom: 12px;
 }
+.histogram-tabs::-webkit-scrollbar { display: none; }
+.histogram-tabs .pill { flex: 0 0 auto; }
 .histogram-tabs .pill {
     font-size: 0.8rem;
     padding: 8px 12px;
@@ -1669,6 +1674,7 @@ body.modal-open { overflow: hidden; }
 #view-location .profile-back { position: relative; z-index: 3; color: #fff; background: rgba(0,0,0,0.42);
     backdrop-filter: blur(6px); border-radius: 999px; padding: 6px 12px; margin-bottom: 0; }
 @media (max-width: 380px) { .loc-hero { margin-left: -14px !important; margin-right: -14px !important; } }
+#view-profile { padding-bottom: 120px; }   /* FAB + tab bar clearance */
 .prof-standings { display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
     color: var(--text-muted); font-size: 0.7rem; margin: 2px 2px 4px; }
 .prof-standings svg { width: 9px; height: 9px; fill: var(--gold); flex: 0 0 auto; }
@@ -1994,7 +2000,7 @@ body.disco .disco-me {
     <div class="profile-name" id="profile-name">—</div>
 <div class="prof-standings" id="profile-standings"></div>
 
-<div class="prof-shelf"><h2>Hardest</h2><span>all-time</span></div>
+<div class="prof-shelf"><h2>Hardest</h2><span>last 60 days</span></div>
 <div class="bests-strip" id="profile-bests"></div>
 
 <div class="prof-shelf"><h2>Form</h2><span id="profile-form-disc">—</span></div>
@@ -6432,7 +6438,8 @@ function getBestsFor(climber) {
         State.logs.forEach(log => {
             if (log.ClimberName !== climber) return;
             if (log.Discipline !== disc) return;
-            if (isTopRope(log.Style)) return;   // all-time now
+            if (!isWithinWindow(log.Date, 60)) return;   // recent form; all-time lives in Milestones
+            if (isTopRope(log.Style)) return;
             const idx = scale.labels.indexOf(getBaseGrade(log.Grade));
             if (idx > bestScoreIdx) bestScoreIdx = idx;
         });
@@ -6461,7 +6468,7 @@ function renderStandings(climber) {
         if (cap.dormant) return;
         const me = cap.ranked.find(r => r.climber === climber);
         const shortDisc = d.replace(/^In /, '').toLowerCase();
-        if (me && me.rank <= 3) items.push({ rank: me.rank, label: 'form · ' + shortDisc });
+        if (me && me.rank <= 3) items.push({ rank: me.rank, label: 'in form \u2013 ' + shortDisc });
     });
     if (!items.length) { el.innerHTML = ''; return; }
     items.sort((a, b) => a.rank - b.rank);
@@ -6775,8 +6782,13 @@ function renderCapacityChart(climber, discipline = profileHistoDiscipline, mode 
     const scale = AppConfig.grades[discipline];
     if (!scale) { container.innerHTML = ''; return; }
     const scores = withData.map(s => s.score);
-    const yMin = Math.min(...scores) - 4;
-    const yMax = Math.max(...scores) + 4;
+    // Bracket the data with real grade bands so the axis always shows a scale,
+    // not one lonely label when the line has been flat.
+    const _lo = Math.min(...scores), _hi = Math.max(...scores);
+    const _below = scale.scores.filter(s => s <= _lo).sort((a, b) => b - a);
+    const _above = scale.scores.filter(s => s >= _hi).sort((a, b) => a - b);
+    const yMin = (_below[1] ?? _below[0] ?? _lo) - 3;
+    const yMax = (_above[1] ?? _above[0] ?? _hi) + 3;
     const yRange = Math.max(1, yMax - yMin);
     const W = 320, H = 150;
     const padL = 34, padR = 12, padT = 14, padB = 26;
@@ -6974,7 +6986,7 @@ function showProfile(climber) {
         return;
     }
     
-    document.getElementById('profile-name').innerHTML = nameCrown(climber) + escapeHTML(climber.toUpperCase());
+    document.getElementById('profile-name').innerHTML = nameCrown(climber) + escapeHTML(climber);
     // Default the pyramid to whichever discipline this climber most recently logged
     const recentLog = State.logs
         .filter(log => log.ClimberName === climber && AppConfig.disciplines.includes(log.Discipline))
@@ -7720,8 +7732,13 @@ function drawGradeLineChart(snapshots, discipline, containerId) {
     const scale = AppConfig.grades[discipline];
     if (!scale) { container.innerHTML = ''; return; }
     const scores = withData.map(s => s.score);
-    const yMin = Math.min(...scores) - 4;
-    const yMax = Math.max(...scores) + 4;
+    // Bracket the data with real grade bands so the axis always shows a scale,
+    // not one lonely label when the line has been flat.
+    const _lo = Math.min(...scores), _hi = Math.max(...scores);
+    const _below = scale.scores.filter(s => s <= _lo).sort((a, b) => b - a);
+    const _above = scale.scores.filter(s => s >= _hi).sort((a, b) => a - b);
+    const yMin = (_below[1] ?? _below[0] ?? _lo) - 3;
+    const yMax = (_above[1] ?? _above[0] ?? _hi) + 3;
     const yRange = Math.max(1, yMax - yMin);
     const W = 320, H = 150;
     const padL = 34, padR = 12, padT = 14, padB = 26;
