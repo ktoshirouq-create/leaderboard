@@ -1804,6 +1804,17 @@ body.modal-open { overflow: hidden; }
     font-size: 9px; font-weight: 700; color: #0b0d0f; border: 1.5px solid var(--card-bg); background: #7f8b95; }
 .rt-av.me { background: #0f7a5a; color: #eafff7; }
 .rt-note { color: var(--text-muted); font-size: 0.7rem; }
+.rt.open { background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent); }
+.rt-asc { grid-column: 1 / -1; margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,0.07); }
+.rt-asc div { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0;
+    color: var(--text-muted); font-size: 0.7rem; }
+.rt-asc b { color: var(--text); font-weight: 700; }
+.rt-av { cursor: pointer; }
+.loc-latest { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding: 1px 1px 10px; }
+.loc-latest::-webkit-scrollbar { display: none; }
+.loc-latest .lt { flex: 0 0 auto; background: var(--card-bg); border-radius: 999px; padding: 6px 11px;
+    font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
+.loc-latest .lt b { color: var(--text); font-weight: 700; }
 .rt-grade { color: var(--text); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 .rt-style { display: block; color: var(--text-muted); font-size: 0.7rem; font-weight: 400; margin-top: 2px; }
 /* history */
@@ -5545,7 +5556,7 @@ function renderJointCard(group, idx) {
         <div class="session-header">
             <div class="s-name-block">
                 <div class="s-name">${title}</div>
-                <div class="s-time">${escapeHTML(formatShortDate(group.date))} · ${escapeHTML(relTime)}</div>
+                <div class="s-time">${escapeHTML(/ago|now|today|yesterday/i.test(relTime) ? formatShortDate(group.date) + ' · ' + relTime : formatShortDate(group.date))}</div>
             </div>
             <div class="s-where">${whereHtml}</div>
         </div>
@@ -5938,7 +5949,7 @@ function renderJointDayCard(group, idx) {
         <div class="session-header">
             <div class="s-name-block">
                 <div class="s-name">${title}</div>
-                <div class="s-time">${escapeHTML(formatShortDate(group.date))} · ${escapeHTML(relTime)}</div>
+                <div class="s-time">${escapeHTML(/ago|now|today|yesterday/i.test(relTime) ? formatShortDate(group.date) + ' · ' + relTime : formatShortDate(group.date))}</div>
             </div>
             <div class="s-where">${whereHtml}</div>
         </div>
@@ -8326,7 +8337,7 @@ function bandOf(g) { return String(g || '').replace(/[+\-]$/, ''); }
 function avatarsFor(people) {
     const ordered = [...people].sort((a, b) => (a === State.activeUser ? -1 : b === State.activeUser ? 1 : 0));
     return ordered.slice(0, 4).map(p =>
-        `<span class="rt-av ${p === State.activeUser ? 'me' : ''}">${escapeHTML(p.slice(0, 1).toUpperCase())}</span>`).join('');
+        `<span class="rt-av ${p === State.activeUser ? 'me' : ''}" data-rt-climber="${escapeHTML(p)}" title="${escapeHTML(p)}">${escapeHTML(p.slice(0, 1).toUpperCase())}</span>`).join('');
 }
 function routeNote(r) {
     const others = r.people.filter(p => p !== State.activeUser);
@@ -8340,7 +8351,15 @@ function routeNote(r) {
 function renderCragRoutes(name) {
     const routes = crawlRoutes(name);
     if (!routes.length) return '<div class="lb-empty">No named routes logged here yet.</div>';
-    let html = '<div class="loc-listnote">Routes the crew has logged — not the whole crag.</div>';
+    // who's been here lately — a different question from which routes are good
+    const recent = [...State.logs.filter(l => l.Where === name)]
+        .sort((a, b) => getCleanDate(b.Date).localeCompare(getCleanDate(a.Date))).slice(0, 6);
+    const seenDay = new Set();
+    const latest = recent.filter(l => { const k = l.ClimberName + getCleanDate(l.Date);
+        if (seenDay.has(k)) return false; seenDay.add(k); return true; })
+        .map(l => `<span class="lt"><b>${escapeHTML(l.ClimberName)}</b> · ${escapeHTML(formatShortDate(getCleanDate(l.Date)))}</span>`).join('');
+    let html = latest ? `<div class="loc-latest">${latest}</div>` : '';
+    html += '<div class="loc-listnote">Routes the crew has logged — not the whole crag.</div>';
     let band = null;
     routes.forEach(r => {
         const b = bandOf(r.grade);
@@ -8352,12 +8371,17 @@ function renderCragRoutes(name) {
         // style only when it's yours to describe — silence beats "not yours" / "open"
         const style = sent ? escapeHTML(String(r.mine[0].Style || '').toLowerCase())
                     : worked ? 'working' : '';
-        html += `<div class="rt ${worked ? 'proj' : ''}">
+        // every ascent of this route, newest first — who, how, when
+        const ascents = [...r.ticks].sort((a, b) => getCleanDate(b.Date).localeCompare(getCleanDate(a.Date)))
+            .map(t => `<div><span><b>${escapeHTML(t.ClimberName)}</b> · ${escapeHTML(String(t.Style || '').toLowerCase())}</span>
+                       <span>${escapeHTML(formatShortDate(getCleanDate(t.Date)))}</span></div>`).join('');
+        html += `<div class="rt ${worked ? 'proj' : ''}" data-rt-expand="${escapeHTML(r.route)}">
             ${mk}
             <div><div class="rt-name">${escapeHTML(r.route)}</div>
                 <div class="rt-meta">${r.people.length ? `<span class="rt-who">${avatarsFor(r.people)}</span>` : ''}
                 <span class="rt-note">${routeNote(r)}</span></div></div>
             <div class="rt-grade">${escapeHTML(r.grade || '?')}<span class="rt-style">${style}</span></div>
+            ${ascents ? `<div class="rt-asc hidden">${ascents}</div>` : ''}
         </div>`;
     });
     return html;
@@ -8441,11 +8465,21 @@ function renderLocationPage() {
         const visitors = new Set(allHere.map(s => s.ClimberName).filter(Boolean)).size;
         const mid = isCrag ? routeCount : new Set(allHere.map(s => getCleanDate(s.Date))).size;
         statsEl.innerHTML = `
-            <div class="loc-stat"><div class="loc-stat-val">${allHere.length}</div><div class="loc-stat-label">Sends</div></div>
+            <div class="loc-stat"><div class="loc-stat-val">${allHere.filter(s => !isTopRope(s.Style)).length}</div><div class="loc-stat-label">Sends</div></div>
             <div class="loc-stat"><div class="loc-stat-val">${mid}</div><div class="loc-stat-label">${isCrag ? 'Logged' : 'Days'}</div></div>
             <div class="loc-stat"><div class="loc-stat-val">${visitors}</div><div class="loc-stat-label">Visitors</div></div>
             <div class="loc-stat"><div class="loc-stat-val ${hardest ? '' : 'empty'}">${escapeHTML(hardest || '—')}</div><div class="loc-stat-label">Hardest</div></div>`;
         mainEl.innerHTML = isCrag ? renderCragRoutes(name) : renderGymHardest(allHere);
+        mainEl.querySelectorAll('[data-rt-climber]').forEach(el => el.addEventListener('click', (e) => {
+            e.stopPropagation(); haptic('tap'); showProfile(el.dataset.rtClimber, 'location');
+        }));
+        mainEl.querySelectorAll('[data-rt-expand]').forEach(el => el.addEventListener('click', () => {
+            const asc = el.querySelector('.rt-asc');
+            if (!asc) return;
+            haptic('tap');
+            asc.classList.toggle('hidden');
+            el.classList.toggle('open', !asc.classList.contains('hidden'));
+        }));
         distEl.innerHTML = isCrag ? '' : renderGradeDistribution(allHere);
     } else if (locationTab === 'history') {
         mainEl.innerHTML = renderLocationHistory(name);
