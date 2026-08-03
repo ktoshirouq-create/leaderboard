@@ -1669,6 +1669,36 @@ body.modal-open { overflow: hidden; }
 #view-location .profile-back { position: relative; z-index: 3; color: #fff; background: rgba(0,0,0,0.42);
     backdrop-filter: blur(6px); border-radius: 999px; padding: 6px 12px; margin-bottom: 0; }
 @media (max-width: 380px) { .loc-hero { margin-left: -14px !important; margin-right: -14px !important; } }
+/* ===== profile: standings line, shelves, boxless bests, form, milestones ===== */
+.prof-standings { display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+    color: var(--text-muted); font-size: 0.7rem; margin: 2px 2px 4px; }
+.prof-standings svg { width: 9px; height: 9px; fill: var(--gold); flex: 0 0 auto; }
+.prof-standings .lead { color: var(--gold); }
+.prof-standings .sep { color: #565e66; }
+.prof-shelf { display: flex; align-items: baseline; justify-content: space-between; margin: 24px 2px 10px; }
+.prof-shelf h2 { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-muted); }
+.prof-shelf span { color: #565e66; font-size: 0.7rem; }
+.bests-strip { display: grid; grid-template-columns: repeat(5, 1fr); background: none; padding: 0; gap: 0; }
+.best-cell { text-align: center; padding: 2px 0; border-left: 1px solid rgba(255,255,255,0.07); background: none; }
+.best-cell:first-child { border-left: 0; }
+.best-grade { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.best-grade.empty { color: #565e66; font-weight: 400; }
+.best-disc { font-size: 9px; color: var(--text-muted); margin-top: 3px; line-height: 1.25;
+    letter-spacing: 0; text-transform: none; }
+.form-line { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px; }
+.form-l { color: var(--text-muted); font-size: 0.7rem; }
+.form-v { font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.form-bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.07); margin: 8px 2px 0; overflow: hidden; }
+.form-bar i { display: block; height: 100%; border-radius: 2px; }
+.form-foot { color: var(--text-muted); font-size: 0.7rem; margin: 6px 2px 12px; }
+.mst { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 11px;
+    padding: 11px 2px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.mst-ic { justify-self: center; color: var(--text-muted); font-size: 0.8rem; line-height: 1; }
+.mst-t { color: var(--text); font-size: 0.8rem; }
+.mst-t b { font-weight: 700; }
+.mst-s { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
+.mst-d { color: var(--text-muted); font-size: 0.7rem; text-align: right; white-space: nowrap; }
 .loc-hero { position: relative; height: 210px; margin: -46px -20px 14px; background:
     radial-gradient(120% 80% at 20% 8%, #2f3f49, transparent 62%),
     linear-gradient(160deg,#3d4d55 0%,#27343c 42%,#161d22 76%,var(--dark) 100%); }
@@ -1945,18 +1975,22 @@ body.disco .disco-me {
     <button class="profile-back" id="profile-back">← Back</button>
     <div class="switcher-link hidden" id="profile-switcher">Switch user ▾</div>
     <div class="profile-name" id="profile-name">—</div>
-<div class="profile-section-title" style="margin-top: 0;">Hardest · last 60 days</div>
+<div class="prof-standings" id="profile-standings"></div>
+
+<div class="prof-shelf"><h2>Hardest</h2><span>all-time</span></div>
 <div class="bests-strip" id="profile-bests"></div>
-    
-    <div class="profile-section-title">Grade pyramid · last 60 days</div>
-    <div class="histogram-tabs" id="histogram-tabs"></div>
-    <div class="histogram" id="histogram"></div>
-    
-    <div class="profile-section-title">Capacity over time · last 6 months</div>
-    <div id="profile-capacity-chart"></div>
-    
-    <div class="profile-section-title">Last 30 days</div>
-    <div id="profile-sessions"></div>
+
+<div class="prof-shelf"><h2>Form</h2><span id="profile-form-disc">—</span></div>
+<div class="histogram-tabs" id="histogram-tabs"></div>
+<div id="profile-form"></div>
+<div id="profile-capacity-chart"></div>
+<div class="histogram hidden" id="histogram"></div>
+
+<div class="prof-shelf"><h2>Milestones</h2><span>all-time</span></div>
+<div id="profile-milestones"></div>
+
+<div class="prof-shelf"><h2>Recent</h2><span>last 30 days</span></div>
+<div id="profile-sessions"></div>
 </div>
 
 <div class="view" id="view-location">
@@ -2201,6 +2235,30 @@ body.disco .disco-me {
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="modal-title" id="nerd-title">Nerd stats</div>
         <div id="nerd-body"></div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="quicklog-modal">
+    <div class="modal-sheet">
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
+        <div class="modal-title" id="qk-title">—</div>
+        <div class="qk-sub" id="qk-sub"></div>
+        <div id="qk-warn"></div>
+        <div class="field-label" style="margin-top:16px">How did you do it?</div>
+        <div class="pill-row" id="qk-styles"></div>
+        <button class="btn-main" id="qk-submit" style="margin-top:18px">Log it</button>
+        <button class="qk-samelink" id="qk-cancel">Cancel</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="quickmulti-modal">
+    <div class="modal-sheet">
+        <div class="modal-handle-zone"><div class="modal-handle"></div></div>
+        <div class="modal-title">I climbed these too</div>
+        <div class="qk-sub" id="qm-sub"></div>
+        <div id="qm-list" style="margin-top:12px"></div>
+        <button class="btn-main" id="qm-submit" style="margin-top:18px">Log</button>
+        <button class="qk-samelink" id="qm-cancel">Cancel</button>
     </div>
 </div>
 
@@ -2668,7 +2726,8 @@ function attachSwipeToClose(overlayId) {
 
 // Wire all modals
 ['logger-modal', 'switcher-modal', 'identity-prompt', 'info-modal',  
- 'nerd-modal', 'action-sheet-modal', 'confirm-modal', 'rename-modal', 'session-modal'].forEach(attachSwipeToClose);
+ 'nerd-modal', 'action-sheet-modal', 'confirm-modal', 'rename-modal', 'session-modal',
+ 'quicklog-modal', 'quickmulti-modal'].forEach(attachSwipeToClose);
 
 // Back button (popstate): reconcile the UI to wherever the browser history now sits.
 window.addEventListener('popstate', reconcile);
@@ -2884,6 +2943,8 @@ function openSwitcher() {
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
             renderBestsStrip(profileClimber);
+            renderStandings(profileClimber);
+            renderMilestones(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
@@ -3722,6 +3783,8 @@ async function submitLog() {
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
             renderBestsStrip(profileClimber);
+            renderStandings(profileClimber);
+            renderMilestones(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
@@ -5051,6 +5114,8 @@ async function performDelete(log) {
     if (State.activeView === 'boards') applyBoardMode();
     if (State.activeView === 'profile' && profileClimber) {
         renderBestsStrip(profileClimber);
+        renderStandings(profileClimber);
+        renderMilestones(profileClimber);
         renderHistogram(profileClimber);
         renderProfileSessions(profileClimber);
     }
@@ -5075,6 +5140,8 @@ async function performDelete(log) {
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
             renderBestsStrip(profileClimber);
+            renderStandings(profileClimber);
+            renderMilestones(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
@@ -5277,7 +5344,7 @@ function renderJointCard(group, idx) {
                 <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
-            <div class="jc-sends">${sendsHtml}</div>
+            <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date, m.sections || [])}</div>
         </div>`;
     }).join('');
     const stateClass = group._failed ? 'failed' : (group._optimistic ? 'syncing' : '');
@@ -5535,6 +5602,7 @@ function renderDayCard(day, idx) {
         <div class="s-summary">${summaryHtml}</div>
         <div class="day-sections">${sectionsHtml}</div>
         ${totalClimbs > 0 ? `<button class="expand-btn"><span class="expand-arrow">▾</span> View ${totalClimbs} climb${totalClimbs > 1 ? 's' : ''}</button>
+        ${qkCardExtras(day.climber, day.date, day.sections)}
         <div class="session-children">${day.sections.flatMap(s => [
             ...sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline)),
             ...(s.sends.length ? sortSendsByScore(s.attempts, s.discipline).map(a => attemptRowHtml(a, s.discipline)) : [])
@@ -5640,7 +5708,7 @@ function renderJointDayCard(group, idx) {
                 <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
-            <div class="jc-sends">${sendsHtml}</div>
+            <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date, m.sections || [])}</div>
         </div>`;
     }).join('');
 
@@ -6221,14 +6289,141 @@ function getBestsFor(climber) {
         State.logs.forEach(log => {
             if (log.ClimberName !== climber) return;
             if (log.Discipline !== disc) return;
-            if (!isWithinWindow(log.Date, 60)) return;
-            if (isTopRope(log.Style)) return;
+            if (isTopRope(log.Style)) return;   // all-time now — Milestones territory
             const idx = scale.labels.indexOf(getBaseGrade(log.Grade));
             if (idx > bestScoreIdx) bestScoreIdx = idx;
         });
         result[disc] = bestScoreIdx >= 0 ? scale.labels[bestScoreIdx] : null;
     });
     return result;
+}
+
+/* ===== STANDINGS: live, losable. One quiet line — crown gold, placings grey, no values. ===== */
+const DISC_RGB = { 'In Boulder': '245,158,11', 'In Rope': '6,182,212', 'Out Rope': '16,185,129',
+                   'Out Boulder': '168,85,247', 'Trad': '244,63,94' };
+function renderStandings(climber) {
+    const el = document.getElementById('profile-standings');
+    if (!el) return;
+    const items = [];
+    const crownSvg = `<svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.6 10H4.6z"/></svg>`;
+    const place = (rows, key, label) => {
+        const ranked = key === 'score' ? assignTiedRanksByScore(rows) : assignTiedRanksByCount(rows);
+        const me = ranked.find(r => r.climber === climber);
+        if (!me || me.rank > 3) return;
+        items.push({ rank: me.rank, label });
+    };
+    place(computeHardest(), 'score', 'hardest');
+    place(computeOutdoor(), 'count', 'outdoor days');
+    place(computeAddicted(), 'count', 'most days');
+    AppConfig.disciplines.forEach(d => {
+        const cap = computeCapacity(d);
+        if (cap.dormant) return;
+        const me = cap.ranked.find(r => r.climber === climber);
+        if (me && me.rank <= 3) items.push({ rank: me.rank, label: `capacity · ${d.toLowerCase()}` });
+    });
+    if (!items.length) { el.innerHTML = ''; return; }
+    items.sort((a, b) => a.rank - b.rank);
+    el.innerHTML = items.slice(0, 4).map((it, i) => {
+        const sep = i ? '<span class="sep">·</span>' : '';
+        return it.rank === 1
+            ? `${sep}${crownSvg}<span class="lead">Most ${escapeHTML(it.label)}</span>`
+            : `${sep}<span>#${it.rank} ${escapeHTML(it.label)}</span>`;
+    }).join(' ');
+}
+
+/* ===== FORM: working level + progress + the trend line, one discipline at a time ===== */
+function renderProfileForm(climber, disc) {
+    const el = document.getElementById('profile-form');
+    const lbl = document.getElementById('profile-form-disc');
+    if (!el) return;
+    if (lbl) lbl.textContent = disc;
+    const cap = computeCapacity(disc);
+    const me = cap.ranked.find(r => r.climber === climber);
+    const rgb = DISC_RGB[disc] || '255,255,255';
+    if (!me) {
+        const warm = cap.warming.find(r => r.climber === climber);
+        el.innerHTML = `<div class="form-foot" style="margin-top:0">${warm
+            ? `${warm.sendCount} send${warm.sendCount === 1 ? '' : 's'} in ${CAP_WINDOW} days — ${CAP_QUALIFY} needed for a working level.`
+            : `No sends in the last ${CAP_WINDOW} days.`}</div>`;
+        return;
+    }
+    const prog = gradeProgress(me.avgScore, disc);
+    const hist = computeCapacityHistory(climber, disc, 'lead') || [];
+    let trend = '';
+    if (hist.length >= 2) {
+        const first = hist[0].value, last = hist[hist.length - 1].value;
+        trend = last > first ? ' · rising' : last < first ? ' · easing' : ' · steady';
+    }
+    el.innerHTML = `<div class="form-line"><span class="form-l">Working level</span>
+            <span class="form-v" style="color:rgb(${rgb})">${escapeHTML(prog.current)}</span></div>
+        <div class="form-bar"><i style="width:${prog.pct}%;background:rgb(${rgb})"></i></div>
+        <div class="form-foot">${prog.next ? `${prog.pct}% to ${escapeHTML(prog.next)}` : 'top of the scale'}${trend}
+            · average of your top ${CAP_POOL} sends in ${CAP_WINDOW} days</div>`;
+}
+
+/* ===== MILESTONES: all-time, permanent. Hardest ever, levels crossed, streak, send counts. ===== */
+function computeMilestones(climber) {
+    const mine = State.logs.filter(l => l.ClimberName === climber && !isTopRope(l.Style));
+    const out = [];
+    // hardest ever, per discipline
+    AppConfig.disciplines.forEach(disc => {
+        const scale = AppConfig.grades[disc]; if (!scale) return;
+        let best = null, bestIdx = -1;
+        mine.forEach(l => {
+            if (l.Discipline !== disc) return;
+            const i = scale.labels.indexOf(getBaseGrade(l.Grade));
+            if (i > bestIdx) { bestIdx = i; best = l; }
+        });
+        if (best) out.push({ icon: '↑', date: getCleanDate(best.Date),
+            title: `Hardest ever · <b>${escapeHTML(best.Grade)}</b>`,
+            sub: `${escapeHTML(disc)} · ${escapeHTML(best.Where || '')}${best.Style ? ' · ' + escapeHTML(String(best.Style).toLowerCase()) : ''}` });
+    });
+    // levels crossed — first time each band was reached
+    AppConfig.disciplines.forEach(disc => {
+        const dates = [...new Set(mine.filter(l => l.Discipline === disc).map(l => getCleanDate(l.Date)))].sort();
+        let prevBand = null;
+        dates.forEach(d => {
+            const cap = capacityAsOf(climber, disc, d);
+            if (cap === null) return;
+            const band = gradeProgress(cap, disc).current;
+            if (prevBand && band !== prevBand && gradeIdx(cap, disc) > AppConfig.grades[disc].labels.indexOf(prevBand)) {
+                out.push({ icon: '✦', date: d, title: `Leveled up · <b>${escapeHTML(prevBand)} → ${escapeHTML(band)}</b>`,
+                    sub: `${escapeHTML(disc)} capacity` });
+            }
+            if (band !== prevBand) prevBand = band;
+        });
+    });
+    // longest streak of consecutive climbing days
+    const days = [...new Set(State.logs.filter(l => l.ClimberName === climber).map(l => getCleanDate(l.Date)))].sort();
+    let best = 0, run = 0, runEnd = null;
+    days.forEach((d, i) => {
+        if (i && dDiff(d, days[i - 1]) === 1) run++; else run = 1;
+        if (run > best) { best = run; runEnd = d; }
+    });
+    if (best >= 3) out.push({ icon: '◆', date: runEnd, title: `Longest streak · <b>${best} days</b>`, sub: 'In a row' });
+    // send-count marks
+    const all = State.logs.filter(l => l.ClimberName === climber)
+        .sort((a, b) => getCleanDate(a.Date).localeCompare(getCleanDate(b.Date)));
+    [100, 250, 500, 1000].forEach(n => {
+        if (all.length >= n) out.push({ icon: '◆', date: getCleanDate(all[n - 1].Date),
+            title: `<b>${n}th send</b>`, sub: 'Logged' });
+    });
+    return out.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+let milestonesExpanded = false;
+function renderMilestones(climber) {
+    const el = document.getElementById('profile-milestones');
+    if (!el) return;
+    const rows = computeMilestones(climber);
+    if (!rows.length) { el.innerHTML = `<div class="form-foot" style="margin-top:0">Nothing yet — keep climbing.</div>`; return; }
+    const shown = milestonesExpanded ? rows : rows.slice(0, 5);
+    el.innerHTML = shown.map(m => `<div class="mst"><span class="mst-ic">${m.icon}</span>
+        <div><div class="mst-t">${m.title}</div><div class="mst-s">${m.sub}</div></div>
+        <div class="mst-d">${escapeHTML(formatShortDate(m.date))}</div></div>`).join('')
+        + (rows.length > 5 ? `<button class="load-more-btn" id="mst-more">${
+            milestonesExpanded ? 'Show less' : `Show all ${rows.length}`}</button>` : '');
+    const more = document.getElementById('mst-more');
+    if (more) more.addEventListener('click', () => { haptic('tap'); milestonesExpanded = !milestonesExpanded; renderMilestones(climber); });
 }
 
 function renderBestsStrip(climber) {
@@ -6316,9 +6511,11 @@ function renderHistogram(climber) {
     if (totalSends === 0) {
         container.innerHTML = histoToggle + '<div class="histo-empty">No sends in this discipline in 60 days.</div>';
         wireHistoToggle();
+        renderProfileForm(climber, profileHistoDiscipline);
         renderCapacityChart(climber);
         return;
     }
+    renderProfileForm(climber, profileHistoDiscipline);
     const maxCount = Math.max(...data.map(d => d.count));
     const scale = AppConfig.grades[profileHistoDiscipline];
     const useDot = scale && scale.colors && scale.colors.length === scale.labels.length;
@@ -6626,6 +6823,9 @@ function showProfile(climber) {
     if (!climber) {
         document.getElementById('profile-name').textContent = '—';
         document.getElementById('profile-bests').innerHTML = '';
+        document.getElementById('profile-standings').innerHTML = '';
+        document.getElementById('profile-milestones').innerHTML = '';
+        document.getElementById('profile-form').innerHTML = '';
         document.getElementById('histogram-tabs').innerHTML = '';
         document.getElementById('histogram').innerHTML = '';
         document.getElementById('profile-sessions').innerHTML = `
@@ -6647,6 +6847,8 @@ function showProfile(climber) {
         .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))[0];
     if (recentLog) profileHistoDiscipline = recentLog.Discipline;
     renderBestsStrip(climber);
+    renderStandings(climber);
+    renderMilestones(climber);
     renderHistogram(climber);
     renderProfileSessions(climber);
     
@@ -7145,6 +7347,36 @@ async function submitAttempt() {
     }
 }
 document.getElementById('attempt-submit').addEventListener('click', submitAttempt);
+// ---- quick-log wiring ----
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-qk-log]');
+    if (!btn) return;
+    e.stopPropagation();
+    haptic('tap');
+    const s = State.logs.find(l => l.LogId === btn.dataset.qkLog);
+    if (s) openQuickLog(s);
+});
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-qk-multi]');
+    if (!btn) return;
+    e.stopPropagation();
+    haptic('tap');
+    openQuickLogMulti(btn.dataset.qkMulti, btn.dataset.qkDate, btn.dataset.qkWhere || '');
+});
+document.getElementById('qk-cancel').addEventListener('click', () => { haptic('tap'); closeModal('quicklog-modal'); });
+document.getElementById('qm-cancel').addEventListener('click', () => { haptic('tap'); closeModal('quickmulti-modal'); });
+document.getElementById('qk-submit').addEventListener('click', () => {
+    if (!qkTarget) return;
+    const rows = [qkRowFrom(qkTarget, qkStyle)];
+    closeModal('quicklog-modal');
+    qkWrite(rows);
+});
+document.getElementById('qm-submit').addEventListener('click', () => {
+    const rows = qkMulti.filter(m => m.on).map(m => qkRowFrom(m.s, m.style));
+    if (!rows.length) return;
+    closeModal('quickmulti-modal');
+    qkWrite(rows);
+});
 document.getElementById('session-close').addEventListener('click', () => closeModal('session-modal'));
 document.getElementById('session-modal').addEventListener('click', e => {
     if (e.target.id === 'session-modal') closeModal('session-modal');
@@ -8668,6 +8900,8 @@ async function refreshData(silent = false) {
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
             renderBestsStrip(profileClimber);
+            renderStandings(profileClimber);
+            renderMilestones(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
