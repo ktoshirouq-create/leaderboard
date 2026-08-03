@@ -180,7 +180,7 @@ h1.screen-title {
     line-height: 1;
 }
 /* Standout — lowest tier: faint muted text, no pill. */
-.hl-eyebrow.pr, .hl-eyebrow.hl-eyebrow-faint {
+.hl-eyebrow.hl-eyebrow-faint, .hl-eyebrow.levelup {
     color: var(--text-muted);
     background: transparent;
     padding: 0;
@@ -364,7 +364,7 @@ h1.screen-title {
     color: #a3a3a3;
     white-space: nowrap;
 }
-.jc-max { color: var(--disc-color); font-weight: 700; }
+.jc-max { color: rgb(var(--disc-rgb, 16 185 129)); font-weight: 700; }
 .jc-caret { color: var(--text-muted); font-size: 0.7rem; transition: transform 0.2s; display: inline-block; }
 .jc-climber.expanded .jc-caret { transform: rotate(180deg); }
 .jc-sends { display: none; padding: 2px 0 10px 0; }
@@ -4536,7 +4536,8 @@ function highlightMarkup(session, hl) {
     if (hl === undefined) hl = detectHighlight(session.climber, session.discipline, session.date);
     if (!hl) return '';
     if (hl.kind === 'pr') {
-        return `<div class="hl-eyebrow">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</div>`;
+        // personal record — nobody was out-ranked, so it stays out of gold
+        return `<div class="hl-eyebrow hl-eyebrow-faint">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</div>`;
     }
     if (hl.kind === 'rank' && hl.tier === 'top5') {
         return `<div class="hl-eyebrow">${rankLabel(hl)}</div>`;
@@ -5277,7 +5278,7 @@ function renderSessionCard(session, idx) {
     if (trCount > 0)   summaryItems.push(`<span>${trCount} TR</span>`);
     if (maxGrade)      summaryItems.push(`<span class="max-grade">max <span class="grade-value">${escapeHTML(maxGrade)}</span></span>`);
     const summaryHtml = summaryItems.join('<span class="dot">·</span>');
-    const relTime  = formatRelativeTime(session.timestamp);
+    const relTime  = formatRelativeTime(session.date + 'T12:00:00');   // age of the climb, not of the log
     const dateText = formatShortDate(session.date);
     // Show "climb date · relative time" only when relTime is genuinely relative.
     // Once it falls back to a raw date (7+ days old log), the second date adds
@@ -5491,9 +5492,9 @@ function inlineBadge(climber, disc, date) { return inlineBadgeFor(detectHighligh
 function inlineBadgeFor(hl) {
     if (!hl) return '';
     if (hl.kind === 'rank')     return `<span class="hl-eyebrow"><span class="hl-rosette">${hl.tier === 'crown' ? RANK_CROWN_SVG : '▲'}</span> ${rankLabel(hl)}</span>`;
-    if (hl.kind === 'pr')       return `<span class="hl-eyebrow">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</span>`;
+    if (hl.kind === 'pr')       return `<span class="hl-eyebrow hl-eyebrow-faint">↑ ${escapeHTML(hl.label)} · ${escapeHTML(hl.grade)}</span>`;
     if (hl.kind === 'board')    return `<span class="hl-eyebrow"><span class="hl-rosette">▲</span> ${escapeHTML(hl.label)}</span>`;
-    if (hl.kind === 'levelup')  return `<span class="hl-eyebrow"><span class="hl-rosette">✦</span> ${lvlJump(hl.from, hl.to)}</span>`;
+    if (hl.kind === 'levelup')  return `<span class="hl-eyebrow hl-eyebrow-faint"><span class="hl-rosette">✦</span> ${lvlJump(hl.from, hl.to)}</span>`;
     if (hl.kind === 'standout') {
         const detail = escapeHTML(hl.grade);
         return `<span class="hl-eyebrow hl-eyebrow-faint">${escapeHTML(hl.label)} · ${detail}</span>`;
@@ -5513,7 +5514,7 @@ function renderJointCard(group, idx) {
     const title = names.length === 2
         ? `${escapeHTML(names[0])} &amp; ${escapeHTML(names[1])}`
         : `${escapeHTML(names[0])}, ${escapeHTML(names[1])} &amp; co`;
-    const relTime = formatRelativeTime(group.timestamp);
+    const relTime = formatRelativeTime(group.date + 'T12:00:00');
     const whereHtml = group.wheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
     const rowsHtml = ordered.map(m => {
         const leadSends = m.sends.filter(s => !isTopRope(s.Style));
@@ -5788,12 +5789,15 @@ function renderDayCard(day, idx) {
     const allWheres = [...new Set(day.sections.flatMap(s => s.sends.concat(s.attempts)).map(x => x.Where).filter(Boolean))];
     const whereHtml = allWheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
 
-    const relTime = formatRelativeTime(day.timestamp);
+    const relTime = formatRelativeTime(day.date + 'T12:00:00');
     const dateText = formatShortDate(day.date);
     const isRel = /ago|now|today|yesterday/i.test(relTime);
     const timeText = isRel ? `${dateText} · ${relTime}` : dateText;
 
-    const sectionsHtml = day.sections.map(dayClimbSectionHtml).join('');
+    // One discipline and nothing worked? The headline already said it — don't repeat
+    // the same numbers in a section row underneath.
+    const soloSection = day.sections.length === 1 && !day.sections[0].attempts.length;
+    const sectionsHtml = soloSection ? '' : day.sections.map(dayClimbSectionHtml).join('');
 
     // Sends always count; attempts join the expander only for sections that have sends
     // (sendless sections keep their inline "worked" line instead).
@@ -5890,7 +5894,7 @@ function renderJointDayCard(group, idx) {
     const jointDiscs = new Set();
     group.members.forEach(m => m.sections.forEach(s => jointDiscs.add(s.discipline)));
     const jointDisc = jointDiscs.size === 1 ? [...jointDiscs][0] : null;
-    const relTime = formatRelativeTime(group.timestamp);
+    const relTime = formatRelativeTime(group.date + 'T12:00:00');
     const allWheres = [...new Set(group.members.flatMap(m => m.sections.flatMap(s => s.sends.concat(s.attempts)).map(x => x.Where)).filter(Boolean))];
     const whereHtml = allWheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
 
