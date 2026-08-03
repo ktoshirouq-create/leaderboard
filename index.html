@@ -1669,23 +1669,20 @@ body.modal-open { overflow: hidden; }
 #view-location .profile-back { position: relative; z-index: 3; color: #fff; background: rgba(0,0,0,0.42);
     backdrop-filter: blur(6px); border-radius: 999px; padding: 6px 12px; margin-bottom: 0; }
 @media (max-width: 380px) { .loc-hero { margin-left: -14px !important; margin-right: -14px !important; } }
-/* ===== profile: standings line, shelves, boxless bests, form, milestones ===== */
 .prof-standings { display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
     color: var(--text-muted); font-size: 0.7rem; margin: 2px 2px 4px; }
 .prof-standings svg { width: 9px; height: 9px; fill: var(--gold); flex: 0 0 auto; }
 .prof-standings .lead { color: var(--gold); }
 .prof-standings .sep { color: #565e66; }
 .prof-shelf { display: flex; align-items: baseline; justify-content: space-between; margin: 24px 2px 10px; }
-.prof-shelf h2 { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--text-muted); }
+.prof-shelf h2 { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
 .prof-shelf span { color: #565e66; font-size: 0.7rem; }
 .bests-strip { display: grid; grid-template-columns: repeat(5, 1fr); background: none; padding: 0; gap: 0; }
 .best-cell { text-align: center; padding: 2px 0; border-left: 1px solid rgba(255,255,255,0.07); background: none; }
 .best-cell:first-child { border-left: 0; }
 .best-grade { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .best-grade.empty { color: #565e66; font-weight: 400; }
-.best-disc { font-size: 9px; color: var(--text-muted); margin-top: 3px; line-height: 1.25;
-    letter-spacing: 0; text-transform: none; }
+.best-disc { font-size: 9px; color: var(--text-muted); margin-top: 3px; line-height: 1.25; letter-spacing: 0; text-transform: none; }
 .form-line { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px; }
 .form-l { color: var(--text-muted); font-size: 0.7rem; }
 .form-v { font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
@@ -1699,6 +1696,26 @@ body.modal-open { overflow: hidden; }
 .mst-t b { font-weight: 700; }
 .mst-s { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
 .mst-d { color: var(--text-muted); font-size: 0.7rem; text-align: right; white-space: nowrap; }
+.qk-add { width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(16,185,129,0.45);
+    color: var(--primary); display: grid; place-items: center; font-size: 14px; line-height: 1;
+    background: rgba(16,185,129,0.07); flex: 0 0 auto; margin-left: 8px; }
+.qk-add.done { border-color: transparent; background: none; color: var(--text-muted); font-size: 11px; }
+.qk-prompt { display: flex; align-items: center; gap: 8px; margin: 0 16px 10px; padding: 9px 11px;
+    border-radius: 8px; background: rgba(16,185,129,0.09); border: 1px solid rgba(16,185,129,0.22); }
+.qk-prompt span { color: #b8bec6; font-size: 0.8rem; flex: 1; }
+.qk-prompt b { color: var(--text); font-weight: 700; }
+.qk-prompt button { background: none; border: 0; color: var(--primary); font-family: inherit; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.qk-sub { color: var(--text-muted); font-size: 0.7rem; margin: 2px 0 0; }
+.qk-warn { margin: 12px 0 0; padding: 9px 11px; border-radius: 8px; background: rgba(232,184,75,0.10); color: var(--gold); font-size: 0.7rem; }
+.qk-row { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 11px; padding: 11px 2px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.qk-box { width: 19px; height: 19px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.16); display: grid; place-items: center; justify-self: center; }
+.qk-box.on { background: var(--primary); border-color: var(--primary); }
+.qk-box.on svg { width: 11px; height: 11px; fill: #04241a; }
+.qk-n { color: var(--text); font-size: 0.8rem; }
+.qk-s { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
+.qk-style { color: var(--primary); font-size: 0.7rem; white-space: nowrap; }
+.qk-style.off { color: #565e66; }
+.qk-samelink { display: block; width: 100%; text-align: center; color: var(--primary); background: none; border: 0; font-family: inherit; font-size: 0.8rem; padding: 11px; }
 .loc-hero { position: relative; height: 210px; margin: -46px -20px 14px; background:
     radial-gradient(120% 80% at 20% 8%, #2f3f49, transparent 62%),
     linear-gradient(160deg,#3d4d55 0%,#27343c 42%,#161d22 76%,var(--dark) 100%); }
@@ -2250,7 +2267,6 @@ body.disco .disco-me {
         <button class="qk-samelink" id="qk-cancel">Cancel</button>
     </div>
 </div>
-
 <div class="modal-overlay" id="quickmulti-modal">
     <div class="modal-sheet">
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
@@ -2261,7 +2277,6 @@ body.disco .disco-me {
         <button class="qk-samelink" id="qm-cancel">Cancel</button>
     </div>
 </div>
-
 <div class="modal-overlay" id="action-sheet-modal">
     <div class="modal-sheet">
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
@@ -5266,6 +5281,129 @@ function renderSessionCard(session, idx) {
 }
 
 // ===== send-row builder (shared by single + joint cards) =====
+/* ===== QUICK-LOG: log the same climb your partner just logged ===== */
+let qkTarget = null;
+let qkStyle = null;
+let qkMulti = [];
+function qkAlreadyLogged(s) {
+    const d = getCleanDate(s.Date);
+    return State.logs.some(l => l.ClimberName === State.activeUser
+        && getCleanDate(l.Date) === d && l.Where === s.Where && l.Discipline === s.Discipline
+        && ((s.RouteName && String(l.RouteName || '').trim() === String(s.RouteName).trim())
+            || (!s.RouteName && getBaseGrade(l.Grade) === getBaseGrade(s.Grade))));
+}
+function qkAddMarkup(s) {
+    if (!State.activeUser || !s || s.ClimberName === State.activeUser) return '';
+    if (qkAlreadyLogged(s)) return '<span class="qk-add done" title="already in your log">\u2713</span>';
+    return `<button class="qk-add" data-qk-log="${escapeHTML(s.LogId || '')}" aria-label="Log this for me">+</button>`;
+}
+function qkStylesFor(s) {
+    const base = isTopRope(s.Style) ? ['TR / Auto', 'Send'] : ['Send', 'Flash', 'Onsight', 'TR / Auto'];
+    const before = s.RouteName && State.logs.some(l => l.ClimberName === State.activeUser
+        && String(l.RouteName || '').trim() === String(s.RouteName).trim());
+    return before ? base.filter(x => x !== 'Flash' && x !== 'Onsight') : base;
+}
+function qkStyleValue(label) { return label === 'TR / Auto' ? 'Top-rope' : label; }
+function openQuickLog(s) {
+    if (!State.activeUser) { showToast('Pick your name first'); return; }
+    qkTarget = s;
+    const styles = qkStylesFor(s);
+    qkStyle = styles.map(qkStyleValue).includes(String(s.Style)) ? String(s.Style) : qkStyleValue(styles[0]);
+    renderQuickLog();
+    openModal('quicklog-modal');
+}
+function renderQuickLog() {
+    const s = qkTarget; if (!s) return;
+    document.getElementById('qk-title').innerHTML =
+        escapeHTML(s.RouteName || s.Grade) + (s.RouteName ? ' \u00b7 ' + escapeHTML(s.Grade) : '');
+    document.getElementById('qk-sub').textContent =
+        `${s.Where || ''} \u00b7 ${s.Discipline} \u00b7 ${formatShortDate(getCleanDate(s.Date))} \u2014 same as ${s.ClimberName}'s`;
+    const box = document.getElementById('qk-styles');
+    box.innerHTML = qkStylesFor(s).map(lbl =>
+        `<button class="pill ${qkStyleValue(lbl) === qkStyle ? 'active' : ''}" data-qk-style="${escapeHTML(lbl)}">${lbl}</button>`).join('');
+    box.querySelectorAll('[data-qk-style]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap'); qkStyle = qkStyleValue(el.dataset.qkStyle); renderQuickLog();
+    }));
+    document.getElementById('qk-warn').innerHTML = qkAlreadyLogged(s)
+        ? '<div class="qk-warn">You already have a climb like this logged that day.</div>' : '';
+}
+function qkRowFrom(s, style) {
+    return { discipline: s.Discipline, where: s.Where, grade: s.Grade, style,
+             date: getCleanDate(s.Date), routeName: s.RouteName || '' };
+}
+async function qkWrite(rows) {
+    const optimistic = rows.map(r => ({
+        LogId: 'optimistic-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+        Timestamp: new Date().toISOString(), ClimberName: State.activeUser,
+        Discipline: r.discipline, Where: r.where, Grade: r.grade, Style: r.style,
+        Date: r.date, RouteName: r.routeName || '', Belayer: '', _optimistic: true
+    }));
+    optimistic.forEach(o => State.logs.unshift(o));
+    renderFeed(); haptic('commit');
+    let failed = 0;
+    for (const r of rows) {
+        try {
+            const res = await fetch(AppConfig.api, {
+                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'logSend', climber: State.activeUser,
+                    discipline: r.discipline, where: r.where, grade: r.grade, style: r.style,
+                    date: r.date, routeName: r.routeName || '', belayer: '' })
+            });
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || 'Server error');
+        } catch (err) { failed++; }
+    }
+    if (failed) {
+        optimistic.forEach(o => { const i = State.logs.findIndex(l => l.LogId === o.LogId); if (i >= 0) State.logs.splice(i, 1); });
+        renderFeed(); haptic('error');
+        showToast(failed === rows.length ? 'Could not log' : failed + ' of ' + rows.length + ' failed');
+    } else {
+        showToast(rows.length === 1 ? '\u2713 Logged' : '\u2713 Logged ' + rows.length + ' climbs');
+        fetchData();
+    }
+}
+function openQuickLogMulti(climber, date, where) {
+    if (!State.activeUser) { showToast('Pick your name first'); return; }
+    const theirs = State.logs.filter(l => l.ClimberName === climber
+        && getCleanDate(l.Date) === getCleanDate(date) && (!where || l.Where === where));
+    qkMulti = theirs.map(s => ({ s, on: !qkAlreadyLogged(s), style: String(s.Style || 'Send'), dupe: qkAlreadyLogged(s) }));
+    renderQuickLogMulti(climber);
+    openModal('quickmulti-modal');
+}
+function renderQuickLogMulti(climber) {
+    const first = qkMulti[0];
+    document.getElementById('qm-sub').textContent = first
+        ? `${climber}'s session \u00b7 ${first.s.Where || ''} \u00b7 ${formatShortDate(getCleanDate(first.s.Date))}` : '';
+    const list = document.getElementById('qm-list');
+    list.innerHTML = qkMulti.map((m, i) => `<div class="qk-row">
+        <span class="qk-box ${m.on ? 'on' : ''}" data-qm-toggle="${i}">${m.on ? '<svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>' : ''}</span>
+        <div><div class="qk-n">${escapeHTML(m.s.RouteName || m.s.Grade)}</div>
+            <div class="qk-s">${escapeHTML(m.s.Grade)} \u00b7 ${m.dupe ? 'already in your log'
+                : escapeHTML(climber) + ' logged ' + escapeHTML(String(m.s.Style).toLowerCase())}</div></div>
+        <span class="qk-style ${m.on ? '' : 'off'}">${m.on ? escapeHTML(m.style) : '\u2014'}</span></div>`).join('');
+    list.querySelectorAll('[data-qm-toggle]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap');
+        const i = +el.dataset.qmToggle;
+        qkMulti[i].on = !qkMulti[i].on;
+        renderQuickLogMulti(climber);
+    }));
+    const n = qkMulti.filter(m => m.on).length;
+    const btn = document.getElementById('qm-submit');
+    btn.textContent = n ? 'Log ' + n + ' climb' + (n === 1 ? '' : 's') : 'Nothing selected';
+    btn.disabled = !n;
+}
+function qkCardExtras(climber, date) {
+    if (!State.activeUser || climber === State.activeUser || !date) return '';
+    const d = getCleanDate(date);
+    const theirs = State.logs.filter(l => l.ClimberName === climber && getCleanDate(l.Date) === d);
+    if (!theirs.length || !theirs.some(s => !qkAlreadyLogged(s))) return '';
+    const belayed = theirs.filter(l => String(l.Belayer || '').trim() === State.activeUser).length;
+    const attrs = `data-qk-multi="${escapeHTML(climber)}" data-qk-date="${escapeHTML(d)}" data-qk-where="${escapeHTML(theirs[0].Where || '')}"`;
+    const prompt = belayed
+        ? `<div class="qk-prompt"><span>${escapeHTML(climber)} says <b>you</b> belayed ${belayed} climb${belayed === 1 ? '' : 's'}. Log yours?</span><button ${attrs}>Log</button></div>`
+        : '';
+    return prompt + `<button class="qk-samelink" ${attrs}>I climbed these too \u2192</button>`;
+}
 function sendRowHtml(s, discipline) {
     const styleNorm = String(s.Style || '').toLowerCase();
     const isSpecial = (styleNorm === 'flash' || styleNorm === 'onsight');
@@ -5292,6 +5430,7 @@ function sendRowHtml(s, discipline) {
     return `<div class="send-row" data-disc="${escapeHTML(discipline)}">
             <div class="send-meta">${routeNamePart}${tag}</div>
             <div class="send-grade">${dot}${escapeHTML(s.Grade)}</div>
+            ${qkAddMarkup(s)}
         </div>`;
 }
 
@@ -5344,7 +5483,7 @@ function renderJointCard(group, idx) {
                 <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
-            <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date, m.sections || [])}</div>
+            <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date)}</div>
         </div>`;
     }).join('');
     const stateClass = group._failed ? 'failed' : (group._optimistic ? 'syncing' : '');
@@ -5602,7 +5741,7 @@ function renderDayCard(day, idx) {
         <div class="s-summary">${summaryHtml}</div>
         <div class="day-sections">${sectionsHtml}</div>
         ${totalClimbs > 0 ? `<button class="expand-btn"><span class="expand-arrow">▾</span> View ${totalClimbs} climb${totalClimbs > 1 ? 's' : ''}</button>
-        ${qkCardExtras(day.climber, day.date, day.sections)}
+        ${qkCardExtras(day.climber, day.date)}
         <div class="session-children">${day.sections.flatMap(s => [
             ...sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline)),
             ...(s.sends.length ? sortSendsByScore(s.attempts, s.discipline).map(a => attemptRowHtml(a, s.discipline)) : [])
@@ -5708,7 +5847,7 @@ function renderJointDayCard(group, idx) {
                 <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
-            <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date, m.sections || [])}</div>
+            <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date)}</div>
         </div>`;
     }).join('');
 
@@ -6289,7 +6428,7 @@ function getBestsFor(climber) {
         State.logs.forEach(log => {
             if (log.ClimberName !== climber) return;
             if (log.Discipline !== disc) return;
-            if (isTopRope(log.Style)) return;   // all-time now — Milestones territory
+            if (isTopRope(log.Style)) return;   // all-time now
             const idx = scale.labels.indexOf(getBaseGrade(log.Grade));
             if (idx > bestScoreIdx) bestScoreIdx = idx;
         });
@@ -6298,7 +6437,6 @@ function getBestsFor(climber) {
     return result;
 }
 
-/* ===== STANDINGS: live, losable. One quiet line — crown gold, placings grey, no values. ===== */
 const DISC_RGB = { 'In Boulder': '245,158,11', 'In Rope': '6,182,212', 'Out Rope': '16,185,129',
                    'Out Boulder': '168,85,247', 'Trad': '244,63,94' };
 function renderStandings(climber) {
@@ -6306,20 +6444,19 @@ function renderStandings(climber) {
     if (!el) return;
     const items = [];
     const crownSvg = `<svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.6 10H4.6z"/></svg>`;
-    const place = (rows, key, label) => {
-        const ranked = key === 'score' ? assignTiedRanksByScore(rows) : assignTiedRanksByCount(rows);
+    const place = (rows, kind, label) => {
+        const ranked = kind === 'score' ? assignTiedRanksByScore(rows) : assignTiedRanksByCount(rows);
         const me = ranked.find(r => r.climber === climber);
-        if (!me || me.rank > 3) return;
-        items.push({ rank: me.rank, label });
+        if (me && me.rank <= 3) items.push({ rank: me.rank, label });
     };
     place(computeHardest(), 'score', 'hardest');
     place(computeOutdoor(), 'count', 'outdoor days');
-    place(computeAddicted(), 'count', 'most days');
+    place(computeAddicted(), 'count', 'days out');
     AppConfig.disciplines.forEach(d => {
         const cap = computeCapacity(d);
         if (cap.dormant) return;
         const me = cap.ranked.find(r => r.climber === climber);
-        if (me && me.rank <= 3) items.push({ rank: me.rank, label: `capacity · ${d.toLowerCase()}` });
+        if (me && me.rank <= 3) items.push({ rank: me.rank, label: 'capacity · ' + d.toLowerCase() });
     });
     if (!items.length) { el.innerHTML = ''; return; }
     items.sort((a, b) => a.rank - b.rank);
@@ -6330,8 +6467,6 @@ function renderStandings(climber) {
             : `${sep}<span>#${it.rank} ${escapeHTML(it.label)}</span>`;
     }).join(' ');
 }
-
-/* ===== FORM: working level + progress + the trend line, one discipline at a time ===== */
 function renderProfileForm(climber, disc) {
     const el = document.getElementById('profile-form');
     const lbl = document.getElementById('profile-form-disc');
@@ -6348,24 +6483,23 @@ function renderProfileForm(climber, disc) {
         return;
     }
     const prog = gradeProgress(me.avgScore, disc);
-    const hist = computeCapacityHistory(climber, disc, 'lead') || [];
     let trend = '';
-    if (hist.length >= 2) {
-        const first = hist[0].value, last = hist[hist.length - 1].value;
-        trend = last > first ? ' · rising' : last < first ? ' · easing' : ' · steady';
-    }
+    try {
+        const hist = computeCapacityHistory(climber, disc, 'lead') || [];
+        if (hist.length >= 2) {
+            const a = hist[0].value ?? hist[0].score, b = hist[hist.length - 1].value ?? hist[hist.length - 1].score;
+            if (typeof a === 'number' && typeof b === 'number') trend = b > a ? ' · rising' : b < a ? ' · easing' : ' · steady';
+        }
+    } catch (e) {}
     el.innerHTML = `<div class="form-line"><span class="form-l">Working level</span>
             <span class="form-v" style="color:rgb(${rgb})">${escapeHTML(prog.current)}</span></div>
         <div class="form-bar"><i style="width:${prog.pct}%;background:rgb(${rgb})"></i></div>
         <div class="form-foot">${prog.next ? `${prog.pct}% to ${escapeHTML(prog.next)}` : 'top of the scale'}${trend}
             · average of your top ${CAP_POOL} sends in ${CAP_WINDOW} days</div>`;
 }
-
-/* ===== MILESTONES: all-time, permanent. Hardest ever, levels crossed, streak, send counts. ===== */
 function computeMilestones(climber) {
     const mine = State.logs.filter(l => l.ClimberName === climber && !isTopRope(l.Style));
     const out = [];
-    // hardest ever, per discipline
     AppConfig.disciplines.forEach(disc => {
         const scale = AppConfig.grades[disc]; if (!scale) return;
         let best = null, bestIdx = -1;
@@ -6376,37 +6510,33 @@ function computeMilestones(climber) {
         });
         if (best) out.push({ icon: '↑', date: getCleanDate(best.Date),
             title: `Hardest ever · <b>${escapeHTML(best.Grade)}</b>`,
-            sub: `${escapeHTML(disc)} · ${escapeHTML(best.Where || '')}${best.Style ? ' · ' + escapeHTML(String(best.Style).toLowerCase()) : ''}` });
+            sub: `${escapeHTML(disc)}${best.Where ? ' · ' + escapeHTML(best.Where) : ''}` });
     });
-    // levels crossed — first time each band was reached
     AppConfig.disciplines.forEach(disc => {
+        const scale = AppConfig.grades[disc]; if (!scale) return;
         const dates = [...new Set(mine.filter(l => l.Discipline === disc).map(l => getCleanDate(l.Date)))].sort();
         let prevBand = null;
         dates.forEach(d => {
             const cap = capacityAsOf(climber, disc, d);
             if (cap === null) return;
             const band = gradeProgress(cap, disc).current;
-            if (prevBand && band !== prevBand && gradeIdx(cap, disc) > AppConfig.grades[disc].labels.indexOf(prevBand)) {
-                out.push({ icon: '✦', date: d, title: `Leveled up · <b>${escapeHTML(prevBand)} → ${escapeHTML(band)}</b>`,
-                    sub: `${escapeHTML(disc)} capacity` });
+            if (prevBand && band !== prevBand && scale.labels.indexOf(band) > scale.labels.indexOf(prevBand)) {
+                out.push({ icon: '✦', date: d, title: `Leveled up · <b>${escapeHTML(prevBand)} → ${escapeHTML(band)}</b>`, sub: `${escapeHTML(disc)} capacity` });
             }
             if (band !== prevBand) prevBand = band;
         });
     });
-    // longest streak of consecutive climbing days
     const days = [...new Set(State.logs.filter(l => l.ClimberName === climber).map(l => getCleanDate(l.Date)))].sort();
-    let best = 0, run = 0, runEnd = null;
+    let bestRun = 0, run = 0, runEnd = null;
     days.forEach((d, i) => {
         if (i && dDiff(d, days[i - 1]) === 1) run++; else run = 1;
-        if (run > best) { best = run; runEnd = d; }
+        if (run > bestRun) { bestRun = run; runEnd = d; }
     });
-    if (best >= 3) out.push({ icon: '◆', date: runEnd, title: `Longest streak · <b>${best} days</b>`, sub: 'In a row' });
-    // send-count marks
+    if (bestRun >= 3) out.push({ icon: '◆', date: runEnd, title: `Longest streak · <b>${bestRun} days</b>`, sub: 'In a row' });
     const all = State.logs.filter(l => l.ClimberName === climber)
         .sort((a, b) => getCleanDate(a.Date).localeCompare(getCleanDate(b.Date)));
     [100, 250, 500, 1000].forEach(n => {
-        if (all.length >= n) out.push({ icon: '◆', date: getCleanDate(all[n - 1].Date),
-            title: `<b>${n}th send</b>`, sub: 'Logged' });
+        if (all.length >= n) out.push({ icon: '◆', date: getCleanDate(all[n - 1].Date), title: `<b>${n}th send</b>`, sub: 'Logged' });
     });
     return out.sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
@@ -6420,12 +6550,10 @@ function renderMilestones(climber) {
     el.innerHTML = shown.map(m => `<div class="mst"><span class="mst-ic">${m.icon}</span>
         <div><div class="mst-t">${m.title}</div><div class="mst-s">${m.sub}</div></div>
         <div class="mst-d">${escapeHTML(formatShortDate(m.date))}</div></div>`).join('')
-        + (rows.length > 5 ? `<button class="load-more-btn" id="mst-more">${
-            milestonesExpanded ? 'Show less' : `Show all ${rows.length}`}</button>` : '');
+        + (rows.length > 5 ? `<button class="load-more-btn" id="mst-more">${milestonesExpanded ? 'Show less' : 'Show all ' + rows.length}</button>` : '');
     const more = document.getElementById('mst-more');
     if (more) more.addEventListener('click', () => { haptic('tap'); milestonesExpanded = !milestonesExpanded; renderMilestones(climber); });
 }
-
 function renderBestsStrip(climber) {
     const bests = getBestsFor(climber);
     document.getElementById('profile-bests').innerHTML = AppConfig.disciplines.map(d => {
@@ -7347,21 +7475,18 @@ async function submitAttempt() {
     }
 }
 document.getElementById('attempt-submit').addEventListener('click', submitAttempt);
-// ---- quick-log wiring ----
 document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-qk-log]');
-    if (!btn) return;
-    e.stopPropagation();
-    haptic('tap');
-    const s = State.logs.find(l => l.LogId === btn.dataset.qkLog);
+    const b = e.target.closest('[data-qk-log]');
+    if (!b) return;
+    e.stopPropagation(); haptic('tap');
+    const s = State.logs.find(l => l.LogId === b.dataset.qkLog);
     if (s) openQuickLog(s);
 });
 document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-qk-multi]');
-    if (!btn) return;
-    e.stopPropagation();
-    haptic('tap');
-    openQuickLogMulti(btn.dataset.qkMulti, btn.dataset.qkDate, btn.dataset.qkWhere || '');
+    const b = e.target.closest('[data-qk-multi]');
+    if (!b) return;
+    e.stopPropagation(); haptic('tap');
+    openQuickLogMulti(b.dataset.qkMulti, b.dataset.qkDate, b.dataset.qkWhere || '');
 });
 document.getElementById('qk-cancel').addEventListener('click', () => { haptic('tap'); closeModal('quicklog-modal'); });
 document.getElementById('qm-cancel').addEventListener('click', () => { haptic('tap'); closeModal('quickmulti-modal'); });
