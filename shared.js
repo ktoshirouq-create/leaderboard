@@ -144,7 +144,10 @@ const escapeHTML = (str) => {
 const formatShortDate = (dStr) => {
     const clean = getCleanDate(dStr);
     const [y, m, d] = clean.split('-');
-    return `${parseInt(d, 10)} ${AppConfig.months[parseInt(m, 10)-1]}`;
+    // Show the year when it isn't this one — otherwise "10 Aug" from last year
+    // reads as a date next week.
+    const yr = String(new Date().getFullYear()) === y ? '' : ` ${y.slice(2)}`;
+    return `${parseInt(d, 10)} ${AppConfig.months[parseInt(m, 10)-1]}${yr}`;
 };
 
 // Get scoring scale for a discipline
