@@ -173,14 +173,14 @@ h1.screen-title {
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.8px;
-    color: var(--disc-color, var(--primary));
+    color: var(--gold);
     background: var(--disc-tint, rgba(255,255,255,0.05));
     padding: 3px 8px;
     border-radius: 8px;
     line-height: 1;
 }
 /* Standout — lowest tier: faint muted text, no pill. */
-.hl-eyebrow.hl-eyebrow-faint {
+.hl-eyebrow.pr, .hl-eyebrow.hl-eyebrow-faint {
     color: var(--text-muted);
     background: transparent;
     padding: 0;
@@ -189,6 +189,8 @@ h1.screen-title {
 }
 /* Highlight banner — a crisp dark top strip (mirrors the expand bar at the bottom),
    discipline-coloured text. Reads as a deliberate badge, not extra card padding. */
+/* Trophy tiers: banner (loudest, one per card) > member badge > personal chip.
+   Gold is the competitive colour — you out-ranked someone. Personal PRs stay grey. */
 .hl-banner {
     display: flex;
     align-items: center;
@@ -197,8 +199,8 @@ h1.screen-title {
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 1px;
-    color: var(--disc-color, var(--primary));
-    background: rgba(0,0,0,0.28);
+    color: var(--gold);
+    background: linear-gradient(90deg, rgba(232,184,75,0.16), transparent 72%);
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 /* Pull the name up under the strip so there's no dead gap above it */
@@ -500,7 +502,7 @@ h1.screen-title {
 .lb-grade-val {
     font-size: 1.15rem;
     font-weight: 700;
-    color: var(--primary);
+    color: rgb(var(--row-rgb, 16 185 129));
     white-space: nowrap;
 }
 .lb-grade-pct {
@@ -538,7 +540,7 @@ h1.screen-title {
 }
 .hardest-row[data-disc="In Boulder"]  { --row-rgb: 245,158,11; }
 .hardest-row[data-disc="In Rope"]     { --row-rgb: 6,182,212; }
-.hardest-row[data-disc="Out Rope"]    { --row-rgb: 16,185,129; }
+.hardest-row[data-disc="Out Rope"]    { --row-rgb: 15,122,90; }
 .hardest-row[data-disc="Out Boulder"] { --row-rgb: 168,85,247; }
 .hardest-row[data-disc="Trad"]        { --row-rgb: 244,63,94; }
 .hardest-row:active { background: #1a1a1a; transform: scale(0.99); }
@@ -569,7 +571,7 @@ h1.screen-title {
 .hardest-grade {
     font-size: 1.15rem;
     font-weight: 700;
-    color: var(--primary);
+    color: rgb(var(--row-rgb, 16 185 129));
     white-space: nowrap;
 }
 .hardest-detail {
@@ -586,7 +588,7 @@ h1.screen-title {
 .rk-top, .rk-right, .rk-n { position: absolute; z-index: 4; pointer-events: none; }
 .rk-top   { top: 0; right: 0; height: 3px; width: 46%; }
 .rk-right { top: 0; right: 0; width: 3px; height: 64%; }
-.rk-n     { top: 5px; right: 8px; font-size: 0.7rem; font-weight: 700; }
+.rk-n     { display: none; }   /* rank already reads on the left — one place is enough */
 .rk-g.rk-top   { background: linear-gradient(270deg, var(--gold) 0%, rgba(251,191,36,0.4) 50%, transparent 100%); }
 .rk-g.rk-right { background: linear-gradient(180deg, var(--gold) 0%, rgba(251,191,36,0.4) 50%, transparent 100%); }
 .rk-g.rk-n     { color: var(--gold); }
@@ -923,10 +925,16 @@ h1.screen-title {
 /* Boards-mode tab pills — flex-grow so all 4 fit, wrap when needed */
 .board-tabs {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
     gap: 6px;
     margin-bottom: 16px;
+    padding: 1px;
 }
+#view-boards { padding-bottom: 120px; }   /* FAB + tab bar clearance */
+.board-tabs::-webkit-scrollbar { display: none; }
+.board-tabs .pill { flex: 0 0 auto; }
 .board-tabs .pill {
     font-size: 0.8rem;
     padding: 9px 12px;
@@ -1415,15 +1423,26 @@ h1.screen-title {
     font-weight: 700;
     color: #d4d4d4;
 }
-/* the Norway cell selects the same row — same target, quieter than the French pill */
+/* the Norway cell selects the same row — it must LOOK tappable at rest, not only once picked */
 .grade-conv-pick {
-    background: none;
-    border: 1px solid transparent;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #d4d4d4;
+    padding: 6px 12px;
     border-radius: 8px;
-    padding: 6px 4px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
     font-family: inherit;
+    transition: 0.15s;
+    justify-self: center;
 }
-.grade-conv-pick.active { border-color: rgba(16,185,129,0.45); color: var(--primary); }
+.grade-conv-pick:active { transform: scale(0.94); }
+.grade-conv-pick.active {
+    background: rgba(16,185,129,0.12);
+    border-color: rgba(16,185,129,0.45);
+    color: var(--primary);
+}
 .grade-conv-french-list {
     display: flex;
     flex-wrap: wrap;
@@ -5434,11 +5453,14 @@ function qkCardExtras(climber, date) {
     const multiLink = missing >= 3 ? `<button class="qk-samelink" ${attrs}>I climbed these too \u2192</button>` : '';
     return prompt + multiLink;
 }
+// A top-rope with a named belayer was definitely roped by a human; without one it may
+// have been an autobelay. Say what we know, not more.
+function trLabelFor(s) { return String(s.Belayer || '').trim() ? 'TR' : 'TR / Auto'; }
 function sendRowHtml(s, discipline) {
     const styleNorm = String(s.Style || '').toLowerCase();
     const isSpecial = (styleNorm === 'flash' || styleNorm === 'onsight');
     const tag = isTopRope(s.Style)
-        ? `<span class="send-style-tag tr">TR</span>`
+        ? `<span class="send-style-tag tr">${trLabelFor(s)}</span>`
         : isSpecial
             ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
             : `<span style="color:#666; font-weight: 400;">${escapeHTML(s.Style)}</span>`;
@@ -5642,6 +5664,21 @@ const DAY_PROJ_GRADE_COLOR = {
     'Out Boulder': '#8a6bb0', 'Trad': '#b05a6a'
 };
 
+// Lead vs TR split — a top-rope is a climb, but it isn't a send, and the app should say so.
+function daySendSplit(day) {
+    let lead = 0, tr = 0;
+    day.sections.forEach(sec => sec.sends.forEach(s => { isTopRope(s.Style) ? tr++ : lead++; }));
+    return { lead, tr };
+}
+function dayHardestTRGrade(day) {
+    let g = null, sc = -1;
+    day.sections.forEach(sec => sec.sends.forEach(s => {
+        if (!isTopRope(s.Style)) return;
+        const v = getScoredValue(s.Grade, 'Send', sec.discipline);
+        if (v > sc) { sc = v; g = s.Grade; }
+    }));
+    return g;
+}
 function dayHardestSendGrade(day) {
     let g = null, sc = -1;
     day.sections.forEach(sec => {
@@ -5734,9 +5771,16 @@ function renderDayCard(day, idx) {
     // gets a quiet character word instead of "0 sends".
     const hardest = dayHardestSendGrade(day);
     let summaryHtml;
-    if (day.totalSends > 0) {
-        summaryHtml = `<span>${day.totalSends} send${day.totalSends === 1 ? '' : 's'}</span>` +
+    const split = daySendSplit(day);
+    if (split.lead > 0) {
+        summaryHtml = `<span>${split.lead} send${split.lead === 1 ? '' : 's'}</span>` +
+            (split.tr ? `<span class="dot">·</span><span>${split.tr} TR</span>` : '') +
             (hardest ? `<span class="dot">·</span><span class="max-grade">hardest <span class="grade-value">${escapeHTML(hardest)}</span></span>` : '');
+    } else if (split.tr > 0) {
+        // TR-only day: no phantom "sends", and the grade still gets shown — quietly.
+        const trg = dayHardestTRGrade(day);
+        summaryHtml = `<span>${split.tr} TR</span>` +
+            (trg ? `<span class="dot">·</span><span style="color:#8a8a8a">hardest on TR <b style="color:#b8bec6">${escapeHTML(trg)}</b></span>` : '');
     } else {
         summaryHtml = `<span style="color:#8a8a8a">projecting</span>`;
     }
@@ -5869,9 +5913,13 @@ function renderJointDayCard(group, idx) {
         ]).join('');
         const workedN = m.sections.reduce((n, s) => n + s.attempts.length, 0);
         const hardest = dayHardestSendGrade(m);
-        const summary = m.totalSends > 0
-            ? `${m.totalSends} send${m.totalSends === 1 ? '' : 's'}${workedN ? ` · ${workedN} worked` : ''}${hardest ? ` · max <span class="jc-max">${escapeHTML(hardest)}</span>` : ''}`
-            : 'projecting';
+        const msplit = daySendSplit(m);
+        const mtr = msplit.tr ? ` · ${msplit.tr} TR` : '';
+        const summary = msplit.lead > 0
+            ? `${msplit.lead} send${msplit.lead === 1 ? '' : 's'}${mtr}${workedN ? ` · ${workedN} worked` : ''}${hardest ? ` · max <span class="jc-max">${escapeHTML(hardest)}</span>` : ''}`
+            : (msplit.tr > 0
+                ? `${msplit.tr} TR${(() => { const g = dayHardestTRGrade(m); return g ? ` · max TR <span class="jc-max">${escapeHTML(g)}</span>` : ''; })()}`
+                : 'projecting');
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
                 <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
