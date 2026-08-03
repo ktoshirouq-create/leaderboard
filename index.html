@@ -1409,6 +1409,15 @@ h1.screen-title {
     font-weight: 700;
     color: #d4d4d4;
 }
+/* the Norway cell selects the same row — same target, quieter than the French pill */
+.grade-conv-pick {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 6px 4px;
+    font-family: inherit;
+}
+.grade-conv-pick.active { border-color: rgba(16,185,129,0.45); color: var(--primary); }
 .grade-conv-french-list {
     display: flex;
     flex-wrap: wrap;
@@ -3710,12 +3719,12 @@ function openGradeConversionModal(target, rerender) {
     const rowsHtml = filtered.map(c => `
         <div class="grade-conv-row">
             <button class="grade-conv-pill ${c.french === currentGrade ? 'active' : ''}" data-french="${escapeHTML(c.french)}">${escapeHTML(c.french)}</button>
-            <div class="grade-conv-cell">${escapeHTML(c.norway)}</div>
+            <button class="grade-conv-cell grade-conv-pick ${c.french === currentGrade ? 'active' : ''}" data-french="${escapeHTML(c.french)}">${escapeHTML(c.norway)}</button>
             <div class="grade-conv-cell">${escapeHTML(c.usa)}</div>
         </div>`).join('');
     
     const tableHtml = `
-        <div class="grade-conv-note">Tap a French grade to select it<span class="disclaimer">Approximate — charts vary</span></div>
+        <div class="grade-conv-note">Tap either grade to select that row<span class="disclaimer">Approximate — charts vary</span></div>
         <div class="grade-conv-table">
             <div class="grade-conv-headers">
                 <div>French</div>
@@ -3730,7 +3739,7 @@ function openGradeConversionModal(target, rerender) {
     openModal('info-modal');
     
     // Wire pill clicks: select that French grade and close modal
-    document.querySelectorAll('.grade-conv-pill').forEach(el => {
+    document.querySelectorAll('.grade-conv-pill, .grade-conv-pick').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
             const newGrade = el.dataset.french;
@@ -5304,12 +5313,18 @@ function qkAddMarkup(s) {
     return `<button class="qk-add" data-qk-log="${escapeHTML(s.LogId || '')}" aria-label="Log this for me">+</button>`;
 }
 function qkStylesFor(s) {
-    const base = isTopRope(s.Style) ? ['TR / Auto', 'Send'] : ['Send', 'Flash', 'Onsight', 'TR / Auto'];
+    // Their style preselects yours — it never limits it. You can flash what they top-roped,
+    // or onsight something you climbed first and logged second.
+    // "Auto" only exists indoors; outdoors the rope option is plain TR.
+    const trLabel = isOutdoor(s.Discipline) ? 'TR' : 'TR / Auto';
+    const base = ['Send', 'Flash', 'Onsight', trLabel];
+    // Onsight and flash are impossible on a route you've already been on.
     const before = s.RouteName && State.logs.some(l => l.ClimberName === State.activeUser
-        && String(l.RouteName || '').trim() === String(s.RouteName).trim());
+        && String(l.RouteName || '').trim() === String(s.RouteName).trim()
+        && getCleanDate(l.Date) < getCleanDate(s.Date));
     return before ? base.filter(x => x !== 'Flash' && x !== 'Onsight') : base;
 }
-function qkStyleValue(label) { return label === 'TR / Auto' ? 'Top-rope' : label; }
+function qkStyleValue(label) { return (label === 'TR / Auto' || label === 'TR') ? 'Top-rope' : label; }
 function openQuickLog(s) {
     if (!State.activeUser) { showToast('Pick your name first'); return; }
     qkTarget = s;
@@ -6455,28 +6470,35 @@ function renderStandings(climber) {
     if (!el) return;
     const items = [];
     const crownSvg = `<svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.6 10H4.6z"/></svg>`;
-    const place = (rows, kind, label) => {
+    // Each board gets its own wording — a #1 is never "Most hardest", and a shared top
+    // spot says so rather than claiming the title outright.
+    const place = (rows, kind, top, placing) => {
         const ranked = kind === 'score' ? assignTiedRanksByScore(rows) : assignTiedRanksByCount(rows);
         const me = ranked.find(r => r.climber === climber);
-        if (me && me.rank <= 3) items.push({ rank: me.rank, label });
+        if (!me || me.rank > 3) return;
+        const shared = ranked.filter(r => r.rank === me.rank).length > 1;
+        items.push({ rank: me.rank, shared, top, placing });
     };
-    place(computeHardest(), 'score', 'hardest');
-    place(computeOutdoor(), 'count', 'outdoor days');
-    place(computeAddicted(), 'count', 'days out');
+    place(computeHardest(), 'score', 'Hardest in the crew', 'hardest');
+    place(computeOutdoor(), 'count', 'Most outdoor days', 'outdoor days');
+    place(computeAddicted(), 'count', 'Most days climbed', 'days climbed');
     AppConfig.disciplines.forEach(d => {
         const cap = computeCapacity(d);
         if (cap.dormant) return;
         const me = cap.ranked.find(r => r.climber === climber);
         const shortDisc = d.replace(/^In /, '').toLowerCase();
-        if (me && me.rank <= 3) items.push({ rank: me.rank, label: 'in form \u2013 ' + shortDisc });
+        if (!me || me.rank > 3) return;
+        const shared = cap.ranked.filter(r => r.rank === me.rank).length > 1;
+        items.push({ rank: me.rank, shared,
+            top: 'Top form \u2013 ' + shortDisc, placing: 'in form \u2013 ' + shortDisc });
     });
     if (!items.length) { el.innerHTML = ''; return; }
     items.sort((a, b) => a.rank - b.rank);
     el.innerHTML = items.slice(0, 3).map((it, i) => {
         const sep = i ? '<span class="sep">·</span>' : '';
-        return it.rank === 1
-            ? `${sep}${crownSvg}<span class="lead">Most ${escapeHTML(it.label)}</span>`
-            : `${sep}<span>#${it.rank} ${escapeHTML(it.label)}</span>`;
+        if (it.rank === 1 && !it.shared) return `${sep}${crownSvg}<span class="lead">${escapeHTML(it.top)}</span>`;
+        if (it.rank === 1) return `${sep}${crownSvg}<span class="lead">Joint #1 ${escapeHTML(it.placing)}</span>`;
+        return `${sep}<span>#${it.rank} ${escapeHTML(it.placing)}${it.shared ? ' (tied)' : ''}</span>`;
     }).join(' ');
 }
 function renderProfileForm(climber, disc) {
@@ -8304,7 +8326,7 @@ function renderLocationHistory(name) {
         const v = byDate[d];
         const sends = sortSendsByScore(v.sends, v.sends[0] ? v.sends[0].Discipline : 'Out Rope');
         const what = sends.length
-            ? sends.slice(0, 3).map(s => `${escapeHTML(s.RouteName || 'unnamed')} <b>${escapeHTML(s.Grade)}</b>${
+            ? sends.slice(0, 3).map(s => `${s.RouteName ? escapeHTML(s.RouteName) + ' ' : ''}<b>${escapeHTML(s.Grade)}</b>${
                   isTopRope(s.Style) ? ' TR' : (String(s.Style).toLowerCase() === 'send' ? '' : ' ' + escapeHTML(String(s.Style).toLowerCase()))}`).join(' · ')
             : 'no sends';
         const extra = v.tries.length
