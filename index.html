@@ -242,7 +242,7 @@ h1.screen-title {
    context, not achievement. */
 .attempt-row { opacity: 0.85; }
 .fight-row { display: flex; align-items: center; gap: 6px; }
-.fight-word { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #8a8a8a; width: 52px; flex: 0 0 auto; }
+.fight-word { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #8a8a8a; width: 62px; flex: 0 0 auto; }
 .route-suggest-row { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
 .send-style-tag.worked { color: #8a8a8a; background: rgba(255,255,255,0.05); }
 .send-grade.muted { color: #a3a3a3; font-weight: 700; }
@@ -1741,6 +1741,17 @@ body.modal-open { overflow: hidden; }
     color: var(--primary); display: grid; place-items: center; font-size: 14px; line-height: 1;
     background: rgba(16,185,129,0.07); flex: 0 0 auto; margin-left: 8px; }
 .qk-add.done { border-color: transparent; background: none; color: var(--text-muted); font-size: 11px; }
+.upd-bar { position: fixed; left: 12px; right: 12px; bottom: 86px; z-index: 60; display: none;
+    align-items: center; gap: 10px; background: #171b20; border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 999px; padding: 9px 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.5); }
+.upd-bar.show { display: flex; }
+.upd-bar span { flex: 1; color: #b8bec6; font-size: 0.7rem; }
+.upd-bar button { background: none; border: 0; font-family: inherit; font-size: 0.7rem;
+    font-weight: 700; color: var(--primary); }
+.upd-bar button.x { color: #565e66; font-size: 0.8rem; font-weight: 400; }
+.qk-belayed { color: var(--text-muted); font-size: 0.7rem; padding: 0 16px 8px; }
+.card-belayer { color: var(--text-muted); font-size: 0.7rem; padding: 2px 18px 0; }
+.card-belayer b { color: #b8bec6; font-weight: 700; }
 .qk-prompt { display: flex; align-items: center; gap: 8px; margin: 0 16px 10px; padding: 9px 11px;
     border-radius: 8px; background: rgba(16,185,129,0.09); border: 1px solid rgba(16,185,129,0.22); }
 .qk-prompt span { color: #b8bec6; font-size: 0.8rem; flex: 1; }
@@ -2321,6 +2332,12 @@ body.disco .disco-me {
         <div class="modal-title" id="nerd-title">Nerd stats</div>
         <div id="nerd-body"></div>
     </div>
+</div>
+
+<div class="upd-bar" id="upd-bar">
+    <span>New version ready</span>
+    <button id="upd-reload">Reload</button>
+    <button class="x" id="upd-dismiss">✕</button>
 </div>
 
 <div class="modal-overlay" id="quicklog-modal">
@@ -5462,9 +5479,8 @@ function qkCardExtras(climber, date) {
     if (!missing) return '';
     const belayed = theirs.filter(l => String(l.Belayer || '').trim() === State.activeUser).length;
     const attrs = `data-qk-multi="${escapeHTML(climber)}" data-qk-date="${escapeHTML(d)}" data-qk-where="${escapeHTML(theirs[0].Where || '')}"`;
-    const prompt = belayed
-        ? `<div class="qk-prompt"><span>${escapeHTML(climber)} says <b>you</b> belayed ${belayed} climb${belayed === 1 ? '' : 's'}. Log yours?</span><button ${attrs}>Log</button></div>`
-        : '';
+    // State, not a task: say what you did and offer nothing. The per-row + is the only offer.
+    const prompt = belayed ? `<div class="qk-belayed">you belayed ${belayed} of these</div>` : '';
     // With one or two climbs the per-row + says it better; the multi-select only earns
     // its place when there's a real batch to log.
     const multiLink = missing >= 3 ? `<button class="qk-samelink" ${attrs}>I climbed these too \u2192</button>` : '';
@@ -5682,6 +5698,15 @@ const DAY_PROJ_GRADE_COLOR = {
 };
 
 // Lead vs TR split — a top-rope is a climb, but it isn't a send, and the app should say so.
+// The belayer field has been write-only until now — surface it on the day it belongs to.
+function dayBelayerLine(day) {
+    const names = [...new Set(day.sections.flatMap(s => s.sends)
+        .map(s => String(s.Belayer || '').trim()).filter(Boolean))];
+    if (!names.length) return '';
+    const txt = names.length === 1 ? names[0]
+        : names.slice(0, -1).join(', ') + ' & ' + names[names.length - 1];
+    return `<div class="card-belayer">belayed by <b>${escapeHTML(txt)}</b></div>`;
+}
 function daySendSplit(day) {
     let lead = 0, tr = 0;
     day.sections.forEach(sec => sec.sends.forEach(s => { isTopRope(s.Style) ? tr++ : lead++; }));
@@ -5833,6 +5858,7 @@ function renderDayCard(day, idx) {
         </div>
         ${(dethroneChip || moreHl.length) ? `<div class="hl-chips">${dethroneChip}${moreHl.map(chipMarkup).join('')}</div>` : ''}
         <div class="s-summary">${summaryHtml}</div>
+        ${day.climber === State.activeUser ? dayBelayerLine(day) : ''}
         <div class="day-sections">${sectionsHtml}</div>
         ${totalClimbs > 0 ? `<button class="expand-btn"><span class="expand-arrow">▾</span> View ${totalClimbs} climb${totalClimbs > 1 ? 's' : ''}</button>
         ${qkCardExtras(day.climber, day.date)}
@@ -7304,17 +7330,21 @@ function renderAttemptCount() {
     }
     // Rope matrix: every pill = (outcome, count) pair; one tap sets both; single-select.
     // Mildest→worst top to bottom: clipstick, rests, falls.
+    // Two labelled rows: what happened, then how many. Labels stay explicit — the unlabelled
+    // number row is what made the old version easy to half-fill — and nothing is preselected,
+    // so unfinished looks unfinished.
     c.style.flexDirection = 'column';
-    const rows = [{ v: 'clipstick', word: 'Clipstick' }, { v: 'rests', word: 'Rests' }, { v: 'falls', word: 'Falls' }];
-    c.innerHTML = rows.map(r => `<div class="fight-row"><span class="fight-word">${r.word}</span>${
-        buckets.map(b => `<button class="pill ${AttemptState.outcome === r.v && AttemptState.countBucket === b.v ? 'active' : ''}" data-outcome="${r.v}" data-bucket="${b.v}">${b.label}</button>`).join('')
-    }</div>`).join('');
+    const outs = [{ v: 'clipstick', word: 'Clipstick' }, { v: 'rests', word: 'Rests' }, { v: 'falls', word: 'Falls' }];
+    c.innerHTML = `<div class="fight-row"><span class="fight-word">What</span>${
+        outs.map(o => `<button class="pill ${AttemptState.outcome === o.v ? 'active' : ''}" data-outcome="${o.v}">${o.word}</button>`).join('')
+    }</div><div class="fight-row"><span class="fight-word">How many</span>${
+        buckets.map(b => `<button class="pill ${AttemptState.countBucket === b.v ? 'active' : ''}" data-bucket="${b.v}">${b.label}</button>`).join('')
+    }</div>`;
     c.querySelectorAll('[data-outcome]').forEach(el => el.addEventListener('click', () => {
-        haptic('tap');
-        AttemptState.outcome = el.dataset.outcome;
-        AttemptState.countBucket = el.dataset.bucket;
-        renderAttemptCount();
-        refreshAttemptSaveState();
+        haptic('tap'); AttemptState.outcome = el.dataset.outcome; renderAttemptCount(); refreshAttemptSaveState();
+    }));
+    c.querySelectorAll('[data-bucket]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap'); AttemptState.countBucket = el.dataset.bucket; renderAttemptCount(); refreshAttemptSaveState();
     }));
 }
 
@@ -9280,7 +9310,30 @@ updateNavLabel();
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
+        navigator.serviceWorker.register('sw.js').then(reg => {
+            if (!reg) return;
+            // The app updates often and phones hold the old cache. Say so once, quietly,
+            // and let the person decide — no modal, no blocking, dismissable.
+            const offer = (worker) => {
+                if (!worker) return;
+                const bar = document.getElementById('upd-bar');
+                if (!bar) return;
+                bar.classList.add('show');
+                document.getElementById('upd-reload').onclick = () => {
+                    worker.postMessage({ type: 'SKIP_WAITING' });
+                    setTimeout(() => location.reload(), 120);
+                };
+                document.getElementById('upd-dismiss').onclick = () => bar.classList.remove('show');
+            };
+            if (reg.waiting) offer(reg.waiting);
+            reg.addEventListener('updatefound', () => {
+                const w = reg.installing;
+                if (!w) return;
+                w.addEventListener('statechange', () => {
+                    if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w);
+                });
+            });
+        }).catch(() => {});
     });
 }
 
