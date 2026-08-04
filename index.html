@@ -1804,17 +1804,28 @@ body.modal-open { overflow: hidden; }
     font-size: 9px; font-weight: 700; color: #0b0d0f; border: 1.5px solid var(--card-bg); background: #7f8b95; }
 .rt-av.me { background: #0f7a5a; color: #eafff7; }
 .rt-note { color: var(--text-muted); font-size: 0.7rem; }
+.ht-row { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 12px;
+    padding: 12px 14px; border-radius: var(--radius); background: var(--card-bg); margin-bottom: 7px;
+    border-left: 2px solid rgba(var(--row-rgb, 16 185 129), 0.85); }
+.ht-row[data-disc="In Boulder"]  { --row-rgb: 245,158,11; }
+.ht-row[data-disc="In Rope"]     { --row-rgb: 6,182,212; }
+.ht-row[data-disc="Out Rope"]    { --row-rgb: 15,122,90; }
+.ht-row[data-disc="Out Boulder"] { --row-rgb: 168,85,247; }
+.ht-row[data-disc="Trad"]        { --row-rgb: 244,63,94; }
+.ht-rank { justify-self: center; color: var(--text-muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ht-name { color: var(--text); font-size: 0.9rem; }
+.ht-sub { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
+.ht-grade { color: rgb(var(--row-rgb, 16 185 129)); font-weight: 700; font-size: 1.15rem;
+    font-variant-numeric: tabular-nums; text-align: right; }
+.ht-live { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--gold); margin-left: 6px; vertical-align: middle; }
+.ht-legend { color: var(--text-muted); font-size: 0.7rem; margin: 2px 2px 12px; }
 .rt.open { background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent); }
 .rt-asc { grid-column: 1 / -1; margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,0.07); }
 .rt-asc div { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0;
     color: var(--text-muted); font-size: 0.7rem; }
 .rt-asc b { color: var(--text); font-weight: 700; }
 .rt-av { cursor: pointer; }
-.loc-latest { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding: 1px 1px 10px; }
-.loc-latest::-webkit-scrollbar { display: none; }
-.loc-latest .lt { flex: 0 0 auto; background: var(--card-bg); border-radius: 999px; padding: 6px 11px;
-    font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
-.loc-latest .lt b { color: var(--text); font-weight: 700; }
 .rt-grade { color: var(--text); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 .rt-style { display: block; color: var(--text-muted); font-size: 0.7rem; font-weight: 400; margin-top: 2px; }
 /* history */
@@ -2014,8 +2025,8 @@ body.disco .disco-me {
     <h1 class="screen-title">Leaderboards</h1>
 
     <div class="seg-ctrl" id="board-mode-toggle">
-        <button class="seg-item active" data-mode="capacity">Form</button>
-        <button class="seg-item" data-mode="boards">Boards</button>
+        <button class="seg-item active" data-mode="boards">Boards</button>
+        <button class="seg-item" data-mode="capacity">Form</button>
     </div>
 
     <div id="capacity-mode">
@@ -2128,6 +2139,13 @@ body.disco .disco-me {
     <div style="margin:-12px 0 16px; font-size: 0.8rem; font-weight: 700; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Form · last 60 days</div>
     <div class="cap-tabs scroll" id="captop10-tabs"></div>
     <div id="captop10-list"></div>
+</div>
+
+<div class="view" id="view-hardtop10">
+    <button class="profile-back" id="hardtop10-back">← Back</button>
+    <div class="profile-name" id="hardtop10-name">—</div>
+    <div style="margin:-12px 0 16px; font-size: 0.8rem; font-weight: 700; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Hardest · all-time</div>
+    <div id="hardtop10-list"></div>
 </div>
 
 <div class="view" id="view-peak">
@@ -2435,7 +2453,7 @@ function renderFeedSkeleton() {
 }
 
 let activeBoardMode = localStorage.getItem('leaderboard.lastBoardMode') || 'capacity';
-if (!['capacity', 'boards'].includes(activeBoardMode)) activeBoardMode = 'capacity';
+if (!['capacity', 'boards'].includes(activeBoardMode)) activeBoardMode = 'boards';   // boards is the popular one
 
 function applyBoardMode() {
     const cap = document.getElementById('capacity-mode');
@@ -2458,32 +2476,8 @@ document.querySelectorAll('#board-mode-toggle .seg-item').forEach(el => {
     });
 });
 
-// Long-press the Capacity tab → open your own capacity page (same deep-dive as
-// long-pressing a climber's capacity row).
-(function () {
-    const tab = document.querySelector('#board-mode-toggle .seg-item[data-mode="capacity"]');
-    if (!tab) return;
-    let timer = null, suppressClick = false;
-    const start = () => {
-        timer = setTimeout(() => {
-            if (!State.activeUser) { showToast('Pick your name first'); return; }
-            suppressClick = true;
-            haptic('commit');
-            showCapTop10(State.activeUser);
-        }, LONG_PRESS_MS);
-    };
-    const cancel = () => clearTimeout(timer);
-    tab.addEventListener('touchstart', start, { passive: true });
-    tab.addEventListener('touchmove', cancel, { passive: true });
-    tab.addEventListener('touchend', cancel);
-    tab.addEventListener('touchcancel', cancel);
-    tab.addEventListener('mousedown', start);
-    tab.addEventListener('mouseup', cancel);
-    tab.addEventListener('mouseleave', cancel);
-    tab.addEventListener('click', (e) => {
-        if (suppressClick) { e.preventDefault(); e.stopImmediatePropagation(); suppressClick = false; }
-    }, true);
-})();
+// (The Form tab's long-press shortcut was removed — tapping a row opens the detail now.)
+
 
 function showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -2621,6 +2615,7 @@ function applyViewEntry(entry) {
             case 'secret':   showSecretStats(entry.param); break;
             case 'spots':    showSpotsDirectory(); break;
             case 'captop10': showCapTop10(entry.param); break;
+            case 'hardtop10': showHardestTop10(entry.param); break;
             case 'peak':     showPeak(); break;
         }
     } finally { navApplying = false; }
@@ -2642,8 +2637,18 @@ function navTab(view) {
     else { navStack = [navStack[0], entry]; history.go(-(depth - 1)); }  // reconcile renders entry
 }
 
+// Every overlay dismisses on a tap outside the sheet — one gesture, no exceptions,
+// so the behaviour is never a surprise.
+function attachTapOutside(id) {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.tapOutside) return;
+    el.dataset.tapOutside = '1';
+    el.addEventListener('click', (e) => { if (e.target === el) closeModal(id); });
+}
+document.querySelectorAll('.modal-overlay[id]').forEach(el => attachTapOutside(el.id));
 function openModal(id) {
     const el = document.getElementById(id);
+    attachTapOutside(id);
     if (el.classList.contains('active')) return;
     el.classList.add('active');
     modalStack.push(id);
@@ -6386,17 +6391,14 @@ function renderCapacityBoard() {
     document.querySelectorAll('#capacity-board .lb-row').forEach(el => {
         const climber = el.dataset.climber;
         if (!climber) return;
-        attachLongPressToCapacityRow(el, climber);
-        el.addEventListener('click', (e) => {
-            // Swallow the ghost click if it happened within 500ms of a long-press
-            if (capSuppressClick && (Date.now() - capSuppressClick < 500)) { 
-                e.preventDefault(); 
-                e.stopImmediatePropagation(); 
-                return; 
-            }
-            haptic('tap');
-            showProfile(climber);
-        }, true);
+        // Name → profile. Row → that climber's detail page. No hidden gestures.
+        const nameEl = el.querySelector('.lb-name');
+        if (nameEl) {
+            nameEl.style.cursor = 'pointer';
+            nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(climber); });
+        }
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => { haptic('tap'); showCapTop10(climber); });
     });
     }
 
@@ -6413,6 +6415,45 @@ document.getElementById('capacity-info').addEventListener('click', () => {
 });
 
 /* ===== CAPACITY TOP-10 PAGE (long-press a capacity row) ===== */
+// A climber's ten hardest sends, ever — one cross-discipline list, TR excluded (lead trophy).
+// Sends still inside the board's 30-day window carry a gold dot: that's what put them on the
+// board today, while the rest is the career behind it.
+let hardTopClimber = null;
+function showHardestTop10(climber) {
+    if (!climber) return;
+    hardTopClimber = climber;
+    document.getElementById('hardtop10-name').textContent = climber;
+    showView('hardtop10');
+    renderHardestTop10Page();
+    navRecordView('hardtop10', climber);
+}
+function renderHardestTop10Page() {
+    const climber = hardTopClimber;
+    const el = document.getElementById('hardtop10-list');
+    if (!el || !climber) return;
+    const rows = State.logs
+        .filter(l => l.ClimberName === climber && !isTopRope(l.Style))
+        .map(l => ({ log: l, score: getScoredValue(l.Grade, l.Style, l.Discipline) }))
+        .filter(r => r.score > 0)
+        .sort((a, b) => b.score - a.score || getCleanDate(b.log.Date).localeCompare(getCleanDate(a.log.Date)))
+        .slice(0, 10);
+    if (!rows.length) { el.innerHTML = '<div class="lb-empty">No scored sends yet.</div>'; return; }
+    const live = rows.some(r => isWithinWindow(r.log.Date, 30));
+    el.innerHTML = (live ? '<div class="ht-legend"><span class="ht-live"></span> counting on the board right now</div>' : '')
+        + rows.map((r, i) => {
+        const l = r.log;
+        const onBoard = isWithinWindow(l.Date, 30);
+        const parts = [String(l.Style || '').toLowerCase(), l.Where, l.Discipline].filter(Boolean).map(escapeHTML);
+        return `<div class="ht-row" data-disc="${escapeHTML(l.Discipline)}">
+            <span class="ht-rank">${i + 1}</span>
+            <div><div class="ht-name">${l.RouteName ? escapeHTML(l.RouteName) : escapeHTML(l.Discipline)}</div>
+                <div class="ht-sub">${parts.join(' · ')} · ${escapeHTML(formatShortDate(getCleanDate(l.Date)))}</div></div>
+            <div class="ht-grade">${escapeHTML(l.Grade)}${onBoard ? '<span class="ht-live"></span>' : ''}</div>
+        </div>`;
+    }).join('');
+}
+document.getElementById('hardtop10-back').addEventListener('click', () => { haptic('tap'); back(); });
+
 function showCapTop10(climber) {
     if (!climber) return;
     capPageClimber = climber;
@@ -8351,15 +8392,7 @@ function routeNote(r) {
 function renderCragRoutes(name) {
     const routes = crawlRoutes(name);
     if (!routes.length) return '<div class="lb-empty">No named routes logged here yet.</div>';
-    // who's been here lately — a different question from which routes are good
-    const recent = [...State.logs.filter(l => l.Where === name)]
-        .sort((a, b) => getCleanDate(b.Date).localeCompare(getCleanDate(a.Date))).slice(0, 6);
-    const seenDay = new Set();
-    const latest = recent.filter(l => { const k = l.ClimberName + getCleanDate(l.Date);
-        if (seenDay.has(k)) return false; seenDay.add(k); return true; })
-        .map(l => `<span class="lt"><b>${escapeHTML(l.ClimberName)}</b> · ${escapeHTML(formatShortDate(getCleanDate(l.Date)))}</span>`).join('');
-    let html = latest ? `<div class="loc-latest">${latest}</div>` : '';
-    html += '<div class="loc-listnote">Routes the crew has logged — not the whole crag.</div>';
+    let html = '<div class="loc-listnote">Routes the crew has logged — not the whole crag.</div>';
     let band = null;
     routes.forEach(r => {
         const b = bandOf(r.grade);
@@ -8724,10 +8757,14 @@ function renderHardestBoard() {
         </div>`;
     }).join('');
     container.querySelectorAll('.hardest-row').forEach(el => {
-        el.addEventListener('click', () => {
-            haptic('tap');
-            showProfile(el.dataset.climber);
-        });
+        const who = el.dataset.climber;
+        const nameEl = el.querySelector('.hardest-name');
+        if (nameEl) {
+            nameEl.style.cursor = 'pointer';
+            nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(who); });
+        }
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => { haptic('tap'); showHardestTop10(who); });
     });
 }
 
