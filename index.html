@@ -2195,6 +2195,7 @@ body.disco .disco-me {
             <input type="text" class="add-name-input" id="where-add-input" placeholder="Gym or crag name" maxlength="30">
             <button class="add-name-save" id="where-add-save">Save</button>
         </div>
+        <div class="pill-row route-suggest-row hidden" id="loc-suggest-logger" style="margin-top:8px;"></div>
 
         <div class="field-label hidden" id="route-name-label">Route name <span style="color: var(--text-muted); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px;">optional</span></div>
         <input type="text" class="add-name-input hidden" id="logger-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom: 0; width: 100%;" autocomplete="off">
@@ -2262,6 +2263,7 @@ body.disco .disco-me {
                 <input type="text" class="add-name-input" id="attempt-where-add-input" placeholder="Gym or crag name" maxlength="30">
                 <button class="add-name-save" id="attempt-where-add-save">Save</button>
             </div>
+            <div class="pill-row route-suggest-row hidden" id="loc-suggest-attempt" style="margin-top:8px;"></div>
 
             <div class="field-label hidden" id="attempt-route-label">Route name <span style="color:var(--text-muted);font-weight: 400;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
             <input type="text" class="add-name-input hidden" id="attempt-route-name" maxlength="50" placeholder="e.g. Sven Väth" style="margin-bottom:0;width:100%;" autocomplete="off">
@@ -3193,6 +3195,63 @@ function renderBelayerPills() {
 
 // Route-name suggestions: our own pill row (native <datalist> removed — device-lottery UI).
 // Source = logs ∪ attempts at this crag, most recent first. Quiet until you type.
+// Crag/gym suggestions while typing. Same rules as route names: matches ANYWHERE in the
+// name (so "berg" finds Trälleberget), prefix matches ranked first, quiet until you type.
+// Duplicate rows in Locations collapse to one suggestion.
+function locationNamesFor(disc) {
+    const wantType = isOutdoor(disc) ? 'crag' : 'gym';
+    const seen = new Set(), out = [];
+    (State.locations || []).forEach(l => {
+        if (l.Type !== wantType) return;
+        const n = String(l.Name || '').trim();
+        const k = n.normalize('NFC').toLowerCase();
+        if (!n || seen.has(k)) return;
+        seen.add(k); out.push(n);
+    });
+    return out.sort((a, b) => a.localeCompare(b));
+}
+function renderLocSuggest(rowId, inputId, disc, onPick) {
+    const row = document.getElementById(rowId), input = document.getElementById(inputId);
+    if (!row || !input) return;
+    if (document.activeElement !== input) { row.classList.add('hidden'); row.innerHTML = ''; return; }
+    const q = input.value.trim().toLowerCase();
+    if (!q) { row.classList.add('hidden'); row.innerHTML = ''; return; }
+    const all = locationNamesFor(disc);
+    const pre = all.filter(n => n.toLowerCase().startsWith(q));
+    const sub = all.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q));
+    const names = [...pre, ...sub].filter(n => n.toLowerCase() !== q).slice(0, 6);
+    if (!names.length) { row.classList.add('hidden'); row.innerHTML = ''; return; }
+    row.classList.remove('hidden');
+    row.innerHTML = names.map(n => `<button class="pill" data-lname="${escapeHTML(n)}">${escapeHTML(n)}</button>`).join('');
+    row.querySelectorAll('[data-lname]').forEach(el => el.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        haptic('tap');
+        row.classList.add('hidden');
+        onPick(el.dataset.lname);
+    }));
+}
+function attachLocSuggest(inputId, rowId, getDisc, onPick) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const go = () => renderLocSuggest(rowId, inputId, getDisc(), onPick);
+    input.addEventListener('focus', go);
+    input.addEventListener('input', go);
+    input.addEventListener('blur', () => setTimeout(() => document.getElementById(rowId)?.classList.add('hidden'), 150));
+}
+attachLocSuggest('where-add-input', 'loc-suggest-logger', () => LoggerState.discipline, (name) => {
+    LoggerState.where = name;
+    document.getElementById('where-add-input').value = '';
+    document.getElementById('where-add-row').classList.add('hidden');
+    renderWherePills();
+    refreshLogSaveState();
+});
+attachLocSuggest('attempt-where-add-input', 'loc-suggest-attempt', () => AttemptState.discipline, (name) => {
+    AttemptState.where = name;
+    document.getElementById('attempt-where-add-input').value = '';
+    document.getElementById('attempt-where-add-row').classList.add('hidden');
+    renderAttemptWhere();
+    refreshAttemptSaveState();
+});
 function routeNamesFor(where) {
     const seen = new Set(), out = [];
     [...State.logs, ...(State.attempts || [])]
