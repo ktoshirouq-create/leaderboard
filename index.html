@@ -386,9 +386,13 @@ h1.screen-title {
 }
 .merge-back:active { transform: scale(0.94); }
 
+.send-name-line { color: var(--text); font-size: 0.8rem; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+.send-detail-line { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; white-space: nowrap; }
+.attempt-row .send-name-line, .attempt-row .send-grade { color: var(--text-muted); }
 .send-row {
     display: grid;
-    grid-template-columns: 1fr auto auto;   /* meta · grade · quick-log + */
+    grid-template-columns: 1fr auto auto;   /* name+detail · grade · quick-log + */
     gap: 12px;
     align-items: center;
     padding: 10px 12px;
@@ -5758,13 +5762,12 @@ const DAY_PROJ_GRADE_COLOR = {
 
 // Lead vs TR split — a top-rope is a climb, but it isn't a send, and the app should say so.
 // The belayer field has been write-only until now — surface it on the day it belongs to.
-function dayBelayerLine(day) {
+function dayBelayerNames(day) {
     const names = [...new Set(day.sections.flatMap(s => s.sends)
         .map(s => String(s.Belayer || '').trim()).filter(Boolean))];
     if (!names.length) return '';
-    const txt = names.length === 1 ? names[0]
+    return names.length === 1 ? names[0]
         : names.slice(0, -1).join(', ') + ' & ' + names[names.length - 1];
-    return `<div class="card-belayer">belayed by <b>${escapeHTML(txt)}</b></div>`;
 }
 function daySendSplit(day) {
     let lead = 0, tr = 0;
@@ -5803,7 +5806,12 @@ function attemptRowHtml(a, disc) {
     const detail = [a.Outcome ? escapeHTML(a.Outcome) : '', attemptCountLabel(a.CountBucket)].filter(Boolean).join(' · ');
     const dot = disc === 'In Boulder' ? `<span class="sdot" style="background:${boulderColorForGrade(a.Grade, a.Where)}"></span> ` : '';
     const name = a.RouteName ? `<span class="send-name">${escapeHTML(a.RouteName)}</span>` : '';
-    return `<div class="send-row attempt-row" data-attempt-id="${escapeHTML(a.AttemptId || '')}" data-owner="${escapeHTML(a.ClimberName || '')}"><span class="send-meta">${name}<span class="send-style-tag worked">Worked${detail ? ` · ${detail}` : ''}</span></span><span class="send-grade muted">${dot}${escapeHTML(a.Grade)}</span></div>`;
+    // Name on its own line, detail beneath: row height stays constant however long the name is.
+    return `<div class="send-row attempt-row" data-attempt-id="${escapeHTML(a.AttemptId || '')}" data-owner="${escapeHTML(a.ClimberName || '')}">
+        <span class="send-meta" style="display:block">
+            ${a.RouteName ? `<div class="send-name-line">${escapeHTML(a.RouteName)}</div>` : ''}
+            <div class="send-detail-line">${dot}worked${detail ? ` · ${detail}` : ''}</div>
+        </span><span class="send-grade muted">${escapeHTML(a.Grade)}</span></div>`;
 }
 function attemptCountLabel(v) {
     let s = String(v == null ? '' : v).trim();
@@ -5892,7 +5900,11 @@ function renderDayCard(day, idx) {
     const relTime = formatRelativeTime(day.date + 'T12:00:00');
     const dateText = formatShortDate(day.date);
     const isRel = /ago|now|today|yesterday/i.test(relTime);
-    const timeText = isRel ? `${dateText} · ${relTime}` : dateText;
+    let timeText = isRel ? `${dateText} · ${relTime}` : dateText;
+    // Who you climbed with belongs with date and place — session context, read in one glance,
+    // rather than its own band under the summary.
+    const belayers = day.climber === State.activeUser ? dayBelayerNames(day) : '';
+    if (belayers) timeText += ` · with ${belayers}`;
 
     // One discipline and nothing worked? The headline already said it — don't repeat
     // the same numbers in a section row underneath.
@@ -5917,7 +5929,6 @@ function renderDayCard(day, idx) {
         </div>
         ${(dethroneChip || moreHl.length) ? `<div class="hl-chips">${dethroneChip}${moreHl.map(chipMarkup).join('')}</div>` : ''}
         <div class="s-summary">${summaryHtml}</div>
-        ${day.climber === State.activeUser ? dayBelayerLine(day) : ''}
         <div class="day-sections">${sectionsHtml}</div>
         ${totalClimbs > 0 ? `<button class="expand-btn"><span class="expand-arrow">▾</span> View ${totalClimbs} climb${totalClimbs > 1 ? 's' : ''}</button>
         ${qkCardExtras(day.climber, day.date)}
