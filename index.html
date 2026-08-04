@@ -5430,6 +5430,9 @@ function qkAlreadyLogged(s) {
 }
 function qkAddMarkup(s) {
     if (!State.activeUser || !s || s.ClimberName === State.activeUser) return '';
+    // Indoors there's no route identity — copying someone's anonymous 5 isn't logging
+    // the same climb, it's copying a grade. Quick-log is for named outdoor routes.
+    if (!isOutdoor(s.Discipline)) return '';
     if (qkAlreadyLogged(s)) return '<span class="qk-add done" title="already in your log">\u2713</span>';
     return `<button class="qk-add" data-qk-log="${escapeHTML(s.LogId || '')}" aria-label="Log this for me">+</button>`;
 }
@@ -5537,7 +5540,9 @@ function renderQuickLogMulti(climber) {
 function qkCardExtras(climber, date) {
     if (!State.activeUser || climber === State.activeUser || !date) return '';
     const d = getCleanDate(date);
-    const theirs = State.logs.filter(l => l.ClimberName === climber && getCleanDate(l.Date) === d);
+    // Same reason: never offer to batch-copy an indoor session.
+    const theirs = State.logs.filter(l => l.ClimberName === climber && getCleanDate(l.Date) === d
+        && isOutdoor(l.Discipline));
     const missing = theirs.filter(s => !qkAlreadyLogged(s)).length;
     if (!missing) return '';
     const belayed = theirs.filter(l => String(l.Belayer || '').trim() === State.activeUser).length;
