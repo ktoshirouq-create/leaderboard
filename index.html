@@ -1755,7 +1755,6 @@ body.modal-open { overflow: hidden; }
 .upd-bar button { background: none; border: 0; font-family: inherit; font-size: 0.7rem;
     font-weight: 700; color: var(--primary); }
 .upd-bar button.x { color: #565e66; font-size: 0.8rem; font-weight: 400; }
-.qk-belayed { color: var(--text-muted); font-size: 0.7rem; padding: 0 16px 8px; }
 .card-belayer { color: var(--text-muted); font-size: 0.7rem; padding: 2px 18px 0; }
 .card-belayer b { color: #b8bec6; font-weight: 700; }
 .qk-prompt { display: flex; align-items: center; gap: 8px; margin: 0 16px 10px; padding: 9px 11px;
@@ -5547,10 +5546,9 @@ function qkCardExtras(climber, date) {
         && isOutdoor(l.Discipline));
     const missing = theirs.filter(s => !qkAlreadyLogged(s)).length;
     if (!missing) return '';
-    const belayed = theirs.filter(l => String(l.Belayer || '').trim() === State.activeUser).length;
     const attrs = `data-qk-multi="${escapeHTML(climber)}" data-qk-date="${escapeHTML(d)}" data-qk-where="${escapeHTML(theirs[0].Where || '')}"`;
-    // State, not a task: say what you did and offer nothing. The per-row + is the only offer.
-    const prompt = belayed ? `<div class="qk-belayed">you belayed ${belayed} of these</div>` : '';
+    // No belayer note on someone else's card — your own card already says who you climbed with.
+    const prompt = '';
     // With one or two climbs the per-row + says it better; the multi-select only earns
     // its place when there's a real batch to log.
     const multiLink = missing >= 3 ? `<button class="qk-samelink" ${attrs}>I climbed these too \u2192</button>` : '';
