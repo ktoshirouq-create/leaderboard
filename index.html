@@ -3632,6 +3632,29 @@ async function addLocation(rawName) {
 })();
 
 /* ----- Grade pills ----- */
+// Grade rows start at 3 and run to 9a, so everyone lands miles from their own grades.
+// Scroll (never select) to where this climber actually lives: what they last logged in this
+// discipline, else their working level, else the middle of the scale.
+function scrollGradeRow(container, disc, selected) {
+    if (!container || !disc) return;
+    const scale = AppConfig.grades[disc];
+    if (!scale) return;
+    let target = selected;
+    if (!target) target = localStorage.getItem(`leaderboard.lastGrade.${disc}`) || '';
+    if (!target && State.activeUser) {
+        try {
+            const cap = computeCapacity(disc);
+            const me = cap.ranked.find(r => r.climber === State.activeUser);
+            if (me) target = gradeProgress(me.avgScore, disc).current;
+        } catch (e) {}
+    }
+    if (!target) target = scale.labels[Math.floor(scale.labels.length * 0.45)];
+    requestAnimationFrame(() => {
+        const el = container.querySelector(`[data-grade="${CSS.escape(target)}"], [data-agrade="${CSS.escape(target)}"]`);
+        if (!el) return;
+        container.scrollLeft = Math.max(0, el.offsetLeft - (container.clientWidth / 2) + (el.clientWidth / 2));
+    });
+}
 function renderGradePills() {
     const c = document.getElementById('logger-grade');
     // No discipline yet (blank open) — grade depends on discipline, so render nothing.
@@ -3685,6 +3708,7 @@ function renderGradePills() {
         const dot = p.color ? `<span class="grade-dot" style="background:${p.color}"></span>` : '';
         return `<button class="pill ${p.grade === LoggerState.grade ? 'active' : ''}" data-grade="${p.grade}">${dot}${p.grade}</button>`;
     }).join('');
+    scrollGradeRow(c, disc, LoggerState.grade);
     c.querySelectorAll('[data-grade]').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
@@ -7593,6 +7617,7 @@ function renderAttemptGrade() {
         const dot = p.color ? `<span class="grade-dot" style="background:${p.color}"></span>` : '';
         return `<button class="pill ${p.grade === AttemptState.grade ? 'active' : ''}" data-agrade="${p.grade}">${dot}${p.grade}</button>`;
     }).join('');
+    scrollGradeRow(c, AttemptState.discipline, AttemptState.grade);
     c.querySelectorAll('[data-agrade]').forEach(el => el.addEventListener('click', () => {
         haptic('tap');
         AttemptState.grade = el.dataset.agrade;
