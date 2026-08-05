@@ -350,10 +350,13 @@ h1.screen-title {
 }
 .jc-row:active { opacity: 0.85; }
 .jc-who { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
-/* Badge eyebrows escape the narrow who-column: span the full row width above name+summary,
-   one line, ellipsize instead of wrapping into a tower. */
-.jc-row { flex-wrap: wrap; }
-.jc-who .hl-eyebrow { width: 100%; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Badge sits above the name inside the who-column, so the summary keeps its place on the
+   right whether or not a member has one. (It used to span the full row and force a wrap,
+   which knocked badged members' summaries onto their own left-aligned line.) */
+.jc-row { flex-wrap: nowrap; }
+.jc-who { flex: 1 1 auto; }
+.jc-who .hl-eyebrow { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jc-summary { flex: 0 0 auto; }
 .jc-name { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -0.2px; }
 .jc-summary {
     display: flex;
