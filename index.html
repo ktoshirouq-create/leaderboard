@@ -350,12 +350,14 @@ h1.screen-title {
 }
 .jc-row:active { opacity: 0.85; }
 .jc-who { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
-/* Badge sits above the name inside the who-column, so the summary keeps its place on the
-   right whether or not a member has one. (It used to span the full row and force a wrap,
-   which knocked badged members' summaries onto their own left-aligned line.) */
+/* Three things wanted one line — badge, name, summary — and every CSS fix traded one
+   breakage for another. The badge now has its OWN line above the row, so it can't be
+   truncated by the summary and the summary can't be pushed off its baseline. */
+.jc-badge-line { padding: 2px 0 4px; }
+.jc-badge-line .hl-eyebrow { max-width: 100%; }
 .jc-row { flex-wrap: nowrap; }
-.jc-who { flex: 1 1 auto; }
-.jc-who .hl-eyebrow { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jc-who { flex: 1 1 auto; min-width: 0; }
+.jc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .jc-summary { flex: 0 0 auto; }
 .jc-name { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -0.2px; }
 .jc-summary {
@@ -5636,8 +5638,9 @@ function renderJointCard(group, idx) {
         const chipHtml = '';
         const sendsHtml = sortSendsByScore(m.sends, m.discipline).map(s => sendRowHtml(s, m.discipline)).join('');
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
+            ${badge ? `<div class="jc-badge-line">${badge}</div>` : ''}
             <div class="jc-row">
-                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
+                <div class="jc-who"><span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
             <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date)}</div>
@@ -6060,8 +6063,9 @@ function renderJointDayCard(group, idx) {
             summary = 'projecting';
         }
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
+            ${badge ? `<div class="jc-badge-line">${badge}</div>` : ''}
             <div class="jc-row">
-                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
+                <div class="jc-who"><span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
             <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date)}</div>
