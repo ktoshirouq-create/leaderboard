@@ -350,7 +350,6 @@ h1.screen-title {
 }
 .jc-row:active { opacity: 0.85; }
 .jc-who { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
-.jc-route { color: var(--text-muted); font-size: 0.7rem; }
 /* Badge eyebrows escape the narrow who-column: span the full row width above name+summary,
    one line, ellipsize instead of wrapping into a tower. */
 .jc-row { flex-wrap: wrap; }
@@ -5635,8 +5634,7 @@ function renderJointCard(group, idx) {
         const sendsHtml = sortSendsByScore(m.sends, m.discipline).map(s => sendRowHtml(s, m.discipline)).join('');
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
-                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}${
-                    single && single.RouteName ? `<div class="jc-route">${escapeHTML(single.RouteName)}</div>` : ''}</div>
+                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
             <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date)}</div>
@@ -6060,8 +6058,7 @@ function renderJointDayCard(group, idx) {
         }
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
-                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}${
-                    single && single.RouteName ? `<div class="jc-route">${escapeHTML(single.RouteName)}</div>` : ''}</div>
+                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
             <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date)}</div>
