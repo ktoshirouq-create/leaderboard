@@ -349,7 +349,8 @@ h1.screen-title {
     cursor: pointer;
 }
 .jc-row:active { opacity: 0.85; }
-.jc-who { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.jc-who { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+.jc-route { color: var(--text-muted); font-size: 0.7rem; }
 /* Badge eyebrows escape the narrow who-column: span the full row width above name+summary,
    one line, ellipsize instead of wrapping into a tower. */
 .jc-row { flex-wrap: wrap; }
@@ -5629,11 +5630,13 @@ function renderJointCard(group, idx) {
         const summary = parts.join(' · ');
         const memHl = detectAllHighlights(m.climber, m.discipline, m.date);
         const badge = memHl[0] ? inlineBadgeFor(memHl[0]) : '';
-        const chipHtml = memHl.length > 1 ? `<div class="hl-chips" style="padding:0">${memHl.slice(1, 2).map(chipMarkup).join('')}</div>` : '';
+        // One badge per member on a joint card — the loudest wins, the rest live in the expander.
+        const chipHtml = '';
         const sendsHtml = sortSendsByScore(m.sends, m.discipline).map(s => sendRowHtml(s, m.discipline)).join('');
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
-                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
+                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}${
+                    single && single.RouteName ? `<div class="jc-route">${escapeHTML(single.RouteName)}</div>` : ''}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
             <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date)}</div>
@@ -6022,7 +6025,8 @@ function renderJointDayCard(group, idx) {
         m.sections.forEach(sec => detectAllHighlights(m.climber, sec.discipline, m.date).forEach(h => memHl.push(h)));
         memHl.sort((a, b) => rankPriority(a) - rankPriority(b));
         const badge = memHl[0] ? inlineBadgeFor(memHl[0]) : '';
-        const chipHtml = memHl.length > 1 ? `<div class="hl-chips" style="padding:0">${memHl.slice(1, 2).map(chipMarkup).join('')}</div>` : '';
+        // One badge per member on a joint card — the loudest wins, the rest live in the expander.
+        const chipHtml = '';
         // Expand shows the member's actual named climbs (flat, each washed in its discipline
         // colour), in the same order across their sections — like the solo card's children.
         // Sends then worked rows, per section. Unlike solo cards, attempts from ALL sections
@@ -6036,14 +6040,28 @@ function renderJointDayCard(group, idx) {
         const hardest = dayHardestSendGrade(m);
         const msplit = daySendSplit(m);
         const mtr = msplit.tr ? ` · ${msplit.tr} TR` : '';
-        const summary = msplit.lead > 0
-            ? `${msplit.lead} send${msplit.lead === 1 ? '' : 's'}${mtr}${workedN ? ` · ${workedN} worked` : ''}${hardest ? ` · max <span class="jc-max">${escapeHTML(hardest)}</span>` : ''}`
-            : (msplit.tr > 0
-                ? `${msplit.tr} TR${(() => { const g = dayHardestTRGrade(m); return g ? ` · max TR <span class="jc-max">${escapeHTML(g)}</span>` : ''; })()}`
-                : 'projecting');
+        // "max" only when there's more than one send to take a maximum of. With exactly one
+        // climb we show the climb itself — counting to one says nothing.
+        const allSends = m.sections.flatMap(s => s.sends);
+        const single = (allSends.length === 1 && !workedN) ? allSends[0] : null;
+        const gradeOf = (g) => `<span class="jc-max">${escapeHTML(g)}</span>`;
+        let summary;
+        if (single) {
+            const st = isTopRope(single.Style) ? trLabelFor(single) : String(single.Style || '').toLowerCase();
+            summary = `${st} · ${gradeOf(single.Grade)}`;
+        } else if (msplit.lead > 0) {
+            summary = `${msplit.lead} send${msplit.lead === 1 ? '' : 's'}${mtr}${workedN ? ` · ${workedN} worked` : ''}`
+                + (hardest ? ` · max ${gradeOf(hardest)}` : '');
+        } else if (msplit.tr > 0) {
+            const g = dayHardestTRGrade(m);
+            summary = `${msplit.tr} TR` + (g ? ` · max TR ${gradeOf(g)}` : '');
+        } else {
+            summary = 'projecting';
+        }
         return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
             <div class="jc-row">
-                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
+                <div class="jc-who">${badge}<span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}${
+                    single && single.RouteName ? `<div class="jc-route">${escapeHTML(single.RouteName)}</div>` : ''}</div>
                 <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
             </div>
             <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date)}</div>
