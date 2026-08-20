@@ -355,10 +355,13 @@ h1.screen-title {
    truncated by the summary and the summary can't be pushed off its baseline. */
 .jc-badge-line { padding: 2px 0 4px; }
 .jc-badge-line .hl-eyebrow { max-width: 100%; }
-.jc-row { flex-wrap: nowrap; }
-.jc-who { flex: 1 1 auto; min-width: 0; }
-.jc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-.jc-summary { flex: 0 0 auto; }
+/* Name and summary share a line when they fit; when they don't, the summary drops to its own
+   line but stays right-aligned (margin-left:auto). Both can shrink, so neither can ever be
+   drawn over the other. */
+.jc-row { flex-wrap: wrap; }
+.jc-who { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.jc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; max-width: 100%; }
+.jc-summary { flex: 0 1 auto; min-width: 0; margin-left: auto; }
 .jc-name { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -0.2px; }
 .jc-summary {
     display: flex;
@@ -7325,8 +7328,18 @@ function openAttemptPane() {
     // Also exits attempt-edit mode (tab switches and FAB opens route through here).
     editingAttemptId = null;
     document.getElementById('attempt-submit').textContent = 'Log attempt';
-    AttemptState.discipline = disciplineFreqOrder()[0] || AppConfig.disciplines[0];
-    AttemptState.where = null;
+    // Same continuation rule as the send logger: if you've already logged something TODAY,
+    // inherit that session's discipline and crag instead of starting from scratch.
+    let contA = null, contT = -1;
+    const todayA = getCleanDate(new Date());
+    [...State.logs, ...(State.attempts || [])].forEach(x => {
+        if (x.ClimberName !== State.activeUser) return;
+        if (getCleanDate(x.Date) !== todayA) return;
+        const t = new Date(x.Timestamp || 0).getTime() || 0;
+        if (t > contT) { contT = t; contA = x; }
+    });
+    AttemptState.discipline = contA ? contA.Discipline : (disciplineFreqOrder()[0] || AppConfig.disciplines[0]);
+    AttemptState.where = contA ? contA.Where : null;
     AttemptState.grade = null;
     AttemptState.outcome = null;
     AttemptState.countBucket = null;
