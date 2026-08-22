@@ -1849,21 +1849,22 @@ body.modal-open { overflow: hidden; }
 .yhm::-webkit-scrollbar { display: none; }
 .yhm i { width: 11px; height: 11px; border-radius: 2px; background: rgba(255,255,255,0.045); }
 .yhm-months { display: grid; grid-auto-flow: column; color: var(--text-muted); font-size: 9px; margin-top: 5px; }
-.pyr-row { display: grid; grid-template-columns: 34px 1fr 26px; align-items: center; gap: 9px; margin-bottom: 7px; }
+.pyr-row { display: grid; grid-template-columns: 34px 1fr 26px; align-items: center; gap: 9px; margin-bottom: 5px; }
 .pyr-lab { color: var(--text-muted); font-size: 0.7rem; text-align: right; font-variant-numeric: tabular-nums; }
-.pyr-track { position: relative; height: 16px; border-radius: 4px; background: rgba(255,255,255,0.04); overflow: hidden; }
-.pyr-ghost { position: absolute; top: 0; bottom: 0; left: 0; background: rgba(255,255,255,0.07);
-    border-right: 1px dashed rgba(255,255,255,0.22); }
+.pyr-track { position: relative; height: 13px; border-radius: 3px; background: rgba(255,255,255,0.035); }
+.pyr-ghost { position: absolute; top: -2px; bottom: -2px; width: 0;
+    border-left: 1px dashed rgba(255,255,255,0.32); }
 .pyr-seg { position: absolute; top: 0; bottom: 0; left: 0; display: flex; }
 .pyr-seg i { display: block; height: 100%; }
-.pyr-on { background: var(--gold); }
-.pyr-fl { background: rgba(232,184,75,0.5); }
-.pyr-rp { background: var(--primary); }
-.pyr-tr { background: rgba(255,255,255,0.16); }
+/* one hue, three depths — the split reads without three competing colours */
+.pyr-on { background: rgba(232,184,75,0.85); }
+.pyr-fl { background: rgba(232,184,75,0.42); }
+.pyr-rp { background: rgba(120,128,137,0.55); }
+.pyr-tr { background: rgba(255,255,255,0.12); }
 .pyr-n { color: var(--text); font-size: 0.7rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .pyr-key { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 2px 0; color: var(--text-muted); font-size: 0.7rem; }
 .pyr-key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-.pyr-ghostkey { background: rgba(255,255,255,0.14); }
+.pyr-ghostkey { background: none; border-left: 1px dashed rgba(255,255,255,0.5); width: 1px !important; }
 .sd-head { font-size: 0.9rem; color: var(--text-muted); font-variant-numeric: tabular-nums; padding: 0 2px; }
 .sd-head b { color: var(--text); font-weight: 700; }
 .sd-g { color: var(--primary); font-weight: 700; }
@@ -1875,6 +1876,14 @@ body.modal-open { overflow: hidden; }
 .mo-n { color: var(--text); font-size: 0.8rem; font-weight: 700; }
 .mo-s { color: var(--text-muted); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
 .mo-s b { color: #b8bec6; font-weight: 700; }
+.mo-disc { display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 700;
+    letter-spacing: .04em; padding: 9px 2px 5px; }
+.mo-disc span { color: var(--text-muted); font-weight: 400; }
+.mo-gym { display: flex; justify-content: space-between; gap: 10px; padding: 7px 2px 7px 10px;
+    margin: 0 0 4px 4px; border-left: 2px solid rgba(255,255,255,0.10);
+    color: var(--text-muted); font-size: 0.7rem; }
+.mo-gym span:first-child { color: var(--text); font-size: 0.8rem; }
+.mo-gym b { color: var(--text); font-weight: 700; }
 .mo-climb { display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 10px;
     padding: 8px 2px 8px 10px; margin: 0 0 5px 4px; border-left: 2px solid rgba(var(--c, 16 185 129), .8); }
 .mo-d { color: var(--text-muted); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
@@ -2162,6 +2171,11 @@ body.disco .disco-me {
     <div class="profile-name" id="secret-name">—</div>
     <div style="margin:-12px 0 16px; font-size: 0.8rem; font-weight: 700; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase;">Secret stats</div>
 
+    <div class="seg-ctrl" id="secret-env">
+        <button class="seg-item active" data-env="all">All</button>
+        <button class="seg-item" data-env="in">Indoor</button>
+        <button class="seg-item" data-env="out">Outdoor</button>
+    </div>
     <div class="seg-ctrl" id="secret-window">
         <button class="seg-item" data-win="30">30d</button>
         <button class="seg-item" data-win="90">90d</button>
@@ -7998,6 +8012,10 @@ let secretClimber = null;
 let secretDisc = 'In Boulder';       // shared by Trends + Grade pyramid
 let secretMode = 'lead';             // 'lead' | 'tr' — rope only (shared)
 let secretWindow = 'all';      // '30' | '90' | '365' | 'all'
+// Indoor vs outdoor is how people actually talk about climbing, so it's the primary filter.
+// Discipline stays available inside the pyramid/trends, which need a single grade scale.
+let secretEnv = 'all';         // 'all' | 'in' | 'out'
+const envMatch = (d) => secretEnv === 'all' || (secretEnv === 'out' ? isOutdoor(d) : !isOutdoor(d));
 let secretHeatMonth = null;    // first-of-month Date shown in the calendar
 let secretTrendMetric = 'capacity';  // 'capacity' | 'hardest'
 
@@ -8024,18 +8042,20 @@ function renderSecretStats() {
     const win = secretWindow;
     const windowed = win === 'all' ? allLogs : allLogs.filter(l => isWithinWindow(l.Date, parseInt(win, 10)));
     document.querySelectorAll('#secret-window .seg-item').forEach(el => el.classList.toggle('active', el.dataset.win === win));
+    // everything countable follows the environment filter
+    const envLogs = allLogs.filter(l => envMatch(l.Discipline));
     renderSecretDeltas(allLogs, win);
     renderSecretLens();
     renderSecretTrend();
     renderSecretPyramid(windowed);
-    renderSecretVolume(windowed, win);
-    renderSecretSpots(windowed);
+    renderSecretVolume(windowed.filter(l => envMatch(l.Discipline)), win);
+    renderSecretSpots(windowed.filter(l => envMatch(l.Discipline)));
     renderSecretFlash(windowed);
     const allAtt = (State.attempts || []).filter(a => a.ClimberName === climber);
     const winAtt = win === 'all' ? allAtt : allAtt.filter(a => isWithinWindow(a.Date, parseInt(win, 10)));
-    renderSecretMonths(windowed, winAtt);
+    renderSecretMonths(windowed.filter(l => envMatch(l.Discipline)), winAtt.filter(a => envMatch(a.Discipline)));
     renderSecretProjects(climber);   // a project can span any window — always all-time
-    renderSecretHeatmap(allLogs);   // calendar browses by month, independent of the window
+    renderSecretHeatmap(envLogs);
 }
 
 const DISC_RGB_MAP = { 'In Boulder': '245,158,11', 'In Rope': '6,182,212', 'Out Rope': '15,122,90',
@@ -8055,27 +8075,51 @@ function renderSecretMonths(logs, attempts) {
     el.innerHTML = Object.keys(months).sort().reverse().map(key => {
         const rows = months[key].sort((a, b) => getCleanDate(b.Date).localeCompare(getCleanDate(a.Date)));
         const sends = rows.filter(r => r._kind === 'send');
-        const crags = new Set(rows.map(r => r.Where).filter(Boolean)).size;
+        const outdoor = sends.filter(s => isOutdoor(s.Discipline)).length;
+        const crags = new Set(rows.filter(r => isOutdoor(r.Discipline)).map(r => r.Where).filter(Boolean)).size;
         let hs = -1, hg = null;
         sends.forEach(s => { if (isTopRope(s.Style)) return;
             const v = getScoredValue(s.Grade, s.Style, s.Discipline); if (v > hs) { hs = v; hg = s.Grade; } });
         const [y, m] = key.split('-');
         const label = `${AppConfig.months[parseInt(m, 10) - 1]} ${y}`;
         const open = !!secretOpenMonths[key];
-        const body = open ? rows.map(r => {
-            const rgb = DISC_RGB_MAP[r.Discipline] || '16,185,129';
+        // Outdoor first and grouped by discipline — a gym month is a number, an outdoor month
+        // is a list of places and routes, and that's the part worth reading.
+        // Outdoor climbs have names and places worth reading; indoor ones are anonymous,
+        // so they collapse to a line per gym instead of a list of identical rows.
+        const outRows = rows.filter(r => isOutdoor(r.Discipline));
+        const inRows = rows.filter(r => !isOutdoor(r.Discipline));
+        let inSummary = '';
+        if (inRows.length) {
+            const gyms = {};
+            inRows.forEach(r => {
+                const g = gyms[r.Where || 'Gym'] || (gyms[r.Where || 'Gym'] = { n: 0, best: null, bestIdx: -1 });
+                if (r._kind === 'send') g.n++;
+                const sc = AppConfig.grades[r.Discipline];
+                if (sc) { const i2 = sc.labels.indexOf(getBaseGrade(r.Grade)); if (i2 > g.bestIdx) { g.bestIdx = i2; g.best = r.Grade; } }
+            });
+            inSummary = `<div class="mo-disc" style="color:var(--text-muted)">Indoor<span>${inRows.filter(r => r._kind === 'send').length}</span></div>`
+                + Object.keys(gyms).map(k => `<div class="mo-gym"><span>${escapeHTML(k)}</span>
+                    <span>${gyms[k].n} send${gyms[k].n === 1 ? '' : 's'}${gyms[k].best ? ` · max <b>${escapeHTML(gyms[k].best)}</b>` : ''}</span></div>`).join('');
+        }
+        const body = open ? (outRows.length ? `<div class="mo-disc" style="color:rgb(15,122,90)">Outdoor<span>${outRows.filter(r => r._kind === 'send').length}</span></div>` : '')
+            + [{ rows: outRows }].map(grp => {
+            const inDisc = grp.rows;
+            return inDisc.map(r => {
+                const rgb = DISC_RGB_MAP[r.Discipline] || '16,185,129';
             const detail = r._kind === 'work'
                 ? `${r.Where || ''} · worked${r.Outcome ? ' · ' + escapeHTML(String(r.Outcome).toLowerCase()) : ''}`
                 : `${r.Where || ''}${r.Style ? ' · ' + escapeHTML(isTopRope(r.Style) ? 'TR' : String(r.Style).toLowerCase()) : ''}`;
             return `<div class="mo-climb" style="--c:${rgb}">
                 <span class="mo-d">${escapeHTML(formatShortDate(getCleanDate(r.Date)))}</span>
-                <div><div class="mo-cn">${escapeHTML(r.RouteName || r.Discipline)}</div>
+                <div><div class="mo-cn">${escapeHTML(r.RouteName || (isOutdoor(r.Discipline) ? (r.Where || '') : (r.Where || r.Discipline)))}</div>
                     <div class="mo-cs">${detail}</div></div>
                 <span class="mo-cg">${escapeHTML(r.Grade)}</span></div>`;
-        }).join('') : '';
+            }).join('');
+        }).join('') + inSummary : '';
         return `<div class="mo"><div class="mo-h" data-month="${key}">
             <span class="mo-n">${label}</span>
-            <span class="mo-s"><b>${sends.length}</b> send${sends.length === 1 ? '' : 's'} · <b>${crags}</b> spot${crags === 1 ? '' : 's'}${hg ? ` · hardest <b>${escapeHTML(hg)}</b>` : ''}</span>
+            <span class="mo-s"><b>${sends.length}</b> send${sends.length === 1 ? '' : 's'}${outdoor ? ` · <b>${outdoor}</b> outdoor` : ''}${crags ? ` · <b>${crags}</b> crag${crags === 1 ? '' : 's'}` : ''}${hg ? ` · <b>${escapeHTML(hg)}</b>` : ''}</span>
         </div>${body}</div>`;
     }).join('');
     el.querySelectorAll('[data-month]').forEach(h => h.addEventListener('click', () => {
@@ -8272,7 +8316,7 @@ function renderSecretLens() {
     if (!el) return;
     const lensHasTR = ['In Rope', 'Out Rope'].includes(secretDisc);
     if (!lensHasTR) secretMode = 'lead';
-    const discTabs = `<div class="cap-tabs scroll">` + AppConfig.disciplines.map(d =>
+    const discTabs = `<div class="cap-tabs scroll">` + AppConfig.disciplines.filter(d => envMatch(d)).map(d =>
         `<button class="cap-tab ${d === secretDisc ? 'active' : ''}" data-disc="${d}">${d}</button>`).join('') + `</div>`;
     const modeToggle = lensHasTR ? `<div class="seg-ctrl" style="margin-top:8px;margin-bottom:0">
         <button class="seg-item ${secretMode === 'lead' ? 'active' : ''}" data-secret-mode="lead">Lead</button>
@@ -8346,9 +8390,11 @@ function renderSecretPyramid(logs) {
         crewPeople.add(l.ClimberName);
     });
     const nPeople = Math.max(1, crewPeople.size);
-    const present = scale.labels.filter(g => mine[g] || crew[g]);
+    // Only grades YOU have climbed — a wall of empty rows just because someone else has a
+    // send there is noise, not comparison.
+    const present = scale.labels.filter(g => mine[g] && mine[g].total);
     if (!present.length) { el.innerHTML = '<div class="lb-empty">No sends in this discipline.</div>'; return; }
-    const maxC = Math.max(...present.map(g => Math.max(mine[g] ? mine[g].total : 0, (crew[g] || 0) / nPeople)));
+    const maxC = Math.max(...present.map(g => mine[g].total));
     const rows = present.slice().reverse().map(g => {
         const r = mine[g] || { on: 0, fl: 0, rp: 0, tr: 0, total: 0 };
         const w = maxC ? (r.total / maxC * 100) : 0;
@@ -8357,7 +8403,7 @@ function renderSecretPyramid(logs) {
         return `<div class="pyr-row">
             <span class="pyr-lab">${escapeHTML(g)}</span>
             <span class="pyr-track">
-                ${ghost > 0 ? `<span class="pyr-ghost" style="width:${ghost}%"></span>` : ''}
+                ${ghost > 0 ? `<span class="pyr-ghost" style="left:${Math.min(99, ghost)}%"></span>` : ''}
                 <span class="pyr-seg" style="width:${w}%">${seg('on','on')}${seg('fl','fl')}${seg('rp','rp')}${seg('tr','tr')}</span>
             </span>
             <span class="pyr-n">${r.total || ''}</span>
@@ -8365,8 +8411,8 @@ function renderSecretPyramid(logs) {
     }).join('');
     el.innerHTML = rows + `<div class="pyr-key">
         <span><i class="pyr-on"></i>Onsight</span><span><i class="pyr-fl"></i>Flash</span>
-        <span><i class="pyr-rp"></i>Redpoint</span>${secretMode === 'lead' ? '<span><i class="pyr-tr"></i>TR</span>' : ''}
-        ${crewPeople.size ? '<span><i class="pyr-ghostkey"></i>Crew average</span>' : ''}</div>`;
+        <span><i class="pyr-rp"></i>Redpoint</span>
+        ${crewPeople.size ? '<span><i class="pyr-ghostkey"></i>Crew avg</span>' : ''}</div>`;
 }
 
 function renderSecretVolume(logs, win) {
@@ -8510,6 +8556,16 @@ function renderSecretHeatmap(logs) {
         </div>`;
 }
 
+document.querySelectorAll('#secret-env .seg-item').forEach(b => b.addEventListener('click', () => {
+    haptic('tap');
+    secretEnv = b.dataset.env;
+    document.querySelectorAll('#secret-env .seg-item').forEach(x => x.classList.toggle('active', x === b));
+    // keep the pyramid's discipline inside the chosen environment
+    if (!envMatch(secretDisc)) {
+        secretDisc = AppConfig.disciplines.find(d => envMatch(d)) || secretDisc;
+    }
+    renderSecretStats();
+}));
 document.getElementById('secret-back').addEventListener('click', () => {
     haptic('tap');
     navBack();
