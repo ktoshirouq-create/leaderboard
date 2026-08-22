@@ -1844,6 +1844,26 @@ body.modal-open { overflow: hidden; }
 .ht-live { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
     background: var(--gold); margin-left: 6px; vertical-align: middle; }
 .ht-legend { color: var(--text-muted); font-size: 0.7rem; margin: 2px 2px 12px; }
+.yhm { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 3px;
+    overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.yhm::-webkit-scrollbar { display: none; }
+.yhm i { width: 11px; height: 11px; border-radius: 2px; background: rgba(255,255,255,0.045); }
+.yhm-months { display: grid; grid-auto-flow: column; color: var(--text-muted); font-size: 9px; margin-top: 5px; }
+.pyr-row { display: grid; grid-template-columns: 34px 1fr 26px; align-items: center; gap: 9px; margin-bottom: 7px; }
+.pyr-lab { color: var(--text-muted); font-size: 0.7rem; text-align: right; font-variant-numeric: tabular-nums; }
+.pyr-track { position: relative; height: 16px; border-radius: 4px; background: rgba(255,255,255,0.04); overflow: hidden; }
+.pyr-ghost { position: absolute; top: 0; bottom: 0; left: 0; background: rgba(255,255,255,0.07);
+    border-right: 1px dashed rgba(255,255,255,0.22); }
+.pyr-seg { position: absolute; top: 0; bottom: 0; left: 0; display: flex; }
+.pyr-seg i { display: block; height: 100%; }
+.pyr-on { background: var(--gold); }
+.pyr-fl { background: rgba(232,184,75,0.5); }
+.pyr-rp { background: var(--primary); }
+.pyr-tr { background: rgba(255,255,255,0.16); }
+.pyr-n { color: var(--text); font-size: 0.7rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pyr-key { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 2px 0; color: var(--text-muted); font-size: 0.7rem; }
+.pyr-key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.pyr-ghostkey { background: rgba(255,255,255,0.14); }
 .sd-head { font-size: 0.9rem; color: var(--text-muted); font-variant-numeric: tabular-nums; padding: 0 2px; }
 .sd-head b { color: var(--text); font-weight: 700; }
 .sd-g { color: var(--primary); font-weight: 700; }
@@ -7148,10 +7168,33 @@ function renderCapacityChart(climber, discipline = profileHistoDiscipline, mode 
         <text x="${l.x.toFixed(1)}" y="${H - 8}" font-size="9" fill="#737373" text-anchor="middle" font-family="Inter, sans-serif" font-weight="600">${escapeHTML(l.label)}</text>
     `).join('');
     const lastDotSvg = lastPt ? `<circle cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" r="3" fill="${lineColor}"/>` : '';
+    // Fill under the line so it reads as a shape, and mark band changes on it — the chart
+    // remembers the moments instead of just wobbling.
+    const gid = 'cf' + Math.random().toString(36).slice(2, 7);
+    const firstPt = points.find(p => p.y !== null);
+    const areaD = (firstPt && lastPt) ? `${pathD} L ${lastPt.x.toFixed(1)} ${H - 20} L ${firstPt.x.toFixed(1)} ${H - 20} Z` : '';
+    let marks = '', prevBand = null;
+    points.forEach((p, i2) => {
+        if (p.y === null) return;
+        const sc = snapshots[i2] && snapshots[i2].score;
+        if (sc === null || sc === undefined) return;
+        const band = gradeProgress(sc, discipline).current;
+        if (prevBand && band !== prevBand && scale.labels.indexOf(band) > scale.labels.indexOf(prevBand)) {
+            marks += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#0b0d0f" stroke="#e8b84b" stroke-width="2"/>
+                <text x="${p.x.toFixed(1)}" y="${(p.y - 10).toFixed(1)}" font-size="8" fill="#e8b84b" text-anchor="middle" font-family="Inter, sans-serif" font-weight="700">${escapeHTML(band)}</text>`;
+        }
+        prevBand = band;
+    });
     container.innerHTML = `<div class="cap-chart">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; display:block">
+            <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="${lineColor}" stop-opacity="0.28"/>
+                <stop offset="100%" stop-color="${lineColor}" stop-opacity="0"/>
+            </linearGradient></defs>
             ${yTickSvg}
+            ${areaD ? `<path d="${areaD}" fill="url(#${gid})" stroke="none"/>` : ''}
             <path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            ${marks}
             ${lastDotSvg}
             ${xLabelSvg}
         </svg>
@@ -8189,10 +8232,33 @@ function drawGradeLineChart(snapshots, discipline, containerId) {
         <text x="${l.x.toFixed(1)}" y="${H - 8}" font-size="9" fill="#737373" text-anchor="middle" font-family="Inter, sans-serif" font-weight="600">${escapeHTML(l.label)}</text>
     `).join('');
     const lastDotSvg = lastPt ? `<circle cx="${lastPt.x.toFixed(1)}" cy="${lastPt.y.toFixed(1)}" r="3" fill="${lineColor}"/>` : '';
+    // Fill under the line so it reads as a shape, and mark band changes on it — the chart
+    // remembers the moments instead of just wobbling.
+    const gid = 'cf' + Math.random().toString(36).slice(2, 7);
+    const firstPt = points.find(p => p.y !== null);
+    const areaD = (firstPt && lastPt) ? `${pathD} L ${lastPt.x.toFixed(1)} ${H - 20} L ${firstPt.x.toFixed(1)} ${H - 20} Z` : '';
+    let marks = '', prevBand = null;
+    points.forEach((p, i2) => {
+        if (p.y === null) return;
+        const sc = snapshots[i2] && snapshots[i2].score;
+        if (sc === null || sc === undefined) return;
+        const band = gradeProgress(sc, discipline).current;
+        if (prevBand && band !== prevBand && scale.labels.indexOf(band) > scale.labels.indexOf(prevBand)) {
+            marks += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#0b0d0f" stroke="#e8b84b" stroke-width="2"/>
+                <text x="${p.x.toFixed(1)}" y="${(p.y - 10).toFixed(1)}" font-size="8" fill="#e8b84b" text-anchor="middle" font-family="Inter, sans-serif" font-weight="700">${escapeHTML(band)}</text>`;
+        }
+        prevBand = band;
+    });
     container.innerHTML = `<div class="cap-chart">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto; display:block">
+            <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="${lineColor}" stop-opacity="0.28"/>
+                <stop offset="100%" stop-color="${lineColor}" stop-opacity="0"/>
+            </linearGradient></defs>
             ${yTickSvg}
+            ${areaD ? `<path d="${areaD}" fill="url(#${gid})" stroke="none"/>` : ''}
             <path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            ${marks}
             ${lastDotSvg}
             ${xLabelSvg}
         </svg>
@@ -8251,24 +8317,56 @@ function renderSecretPyramid(logs) {
     const el = document.getElementById('secret-pyramid');
     if (!el) return;
     if (!scale) { el.innerHTML = ''; return; }
-    const counts = {};
-    logs.forEach(l => { if (l.Discipline !== secretDisc) return; if (secretMode === 'tr' ? !isTopRope(l.Style) : isTopRope(l.Style)) return; const g = getBaseGrade(l.Grade); if (scale.labels.includes(g)) counts[g] = (counts[g] || 0) + 1; });
-    const present = scale.labels.filter(g => counts[g]);
-    if (present.length === 0) { el.innerHTML = '<div class="lb-empty">No sends in this discipline.</div>'; return; }
-    const maxC = Math.max(...present.map(g => counts[g]));
-    const cols = present.map(g => {
-        const idx = scale.labels.indexOf(g);
-        const h = Math.max(10, Math.round(counts[g] / maxC * 80));
-        const color = gradeBarColor(g, secretDisc, idx);
-        return `<div class="dist-col">
-            <div class="dist-bar-track">
-                <div class="dist-bar" style="height:${h}%;background:${color}"></div>
-                <div class="dist-count" style="bottom:calc(${h}% + 5px)">${counts[g]}</div>
-            </div>
-            <div class="dist-label">${escapeHTML(g)}</div>
+    // Split each grade by HOW it was climbed — where flash gives way to redpoint is the most
+    // useful thing this chart can show. Faint bar behind each row = the crew's average.
+    const styleOf = (l) => {
+        if (isTopRope(l.Style)) return 'tr';
+        const s = String(l.Style || '').toLowerCase();
+        if (s === 'onsight') return 'on';
+        if (s === 'flash') return 'fl';
+        return 'rp';
+    };
+    const mine = {}, crew = {}, crewPeople = new Set();
+    logs.forEach(l => {
+        if (l.Discipline !== secretDisc) return;
+        if (secretMode === 'tr' ? !isTopRope(l.Style) : isTopRope(l.Style)) return;
+        const g = getBaseGrade(l.Grade);
+        if (!scale.labels.includes(g)) return;
+        const row = mine[g] || (mine[g] = { on: 0, fl: 0, rp: 0, tr: 0, total: 0 });
+        row[styleOf(l)]++; row.total++;
+    });
+    const winDays = secretWindow === 'all' ? null : parseInt(secretWindow, 10);
+    State.logs.forEach(l => {
+        if (l.ClimberName === secretClimber || l.Discipline !== secretDisc) return;
+        if (secretMode === 'tr' ? !isTopRope(l.Style) : isTopRope(l.Style)) return;
+        if (winDays && !isWithinWindow(l.Date, winDays)) return;
+        const g = getBaseGrade(l.Grade);
+        if (!scale.labels.includes(g)) return;
+        crew[g] = (crew[g] || 0) + 1;
+        crewPeople.add(l.ClimberName);
+    });
+    const nPeople = Math.max(1, crewPeople.size);
+    const present = scale.labels.filter(g => mine[g] || crew[g]);
+    if (!present.length) { el.innerHTML = '<div class="lb-empty">No sends in this discipline.</div>'; return; }
+    const maxC = Math.max(...present.map(g => Math.max(mine[g] ? mine[g].total : 0, (crew[g] || 0) / nPeople)));
+    const rows = present.slice().reverse().map(g => {
+        const r = mine[g] || { on: 0, fl: 0, rp: 0, tr: 0, total: 0 };
+        const w = maxC ? (r.total / maxC * 100) : 0;
+        const ghost = maxC ? ((crew[g] || 0) / nPeople / maxC * 100) : 0;
+        const seg = (k, cls) => r[k] ? `<i class="pyr-${cls}" style="width:${r[k] / r.total * 100}%"></i>` : '';
+        return `<div class="pyr-row">
+            <span class="pyr-lab">${escapeHTML(g)}</span>
+            <span class="pyr-track">
+                ${ghost > 0 ? `<span class="pyr-ghost" style="width:${ghost}%"></span>` : ''}
+                <span class="pyr-seg" style="width:${w}%">${seg('on','on')}${seg('fl','fl')}${seg('rp','rp')}${seg('tr','tr')}</span>
+            </span>
+            <span class="pyr-n">${r.total || ''}</span>
         </div>`;
     }).join('');
-    el.innerHTML = `<div class="dist-chart">${cols}</div>`;
+    el.innerHTML = rows + `<div class="pyr-key">
+        <span><i class="pyr-on"></i>Onsight</span><span><i class="pyr-fl"></i>Flash</span>
+        <span><i class="pyr-rp"></i>Redpoint</span>${secretMode === 'lead' ? '<span><i class="pyr-tr"></i>TR</span>' : ''}
+        ${crewPeople.size ? '<span><i class="pyr-ghostkey"></i>Crew average</span>' : ''}</div>`;
 }
 
 function renderSecretVolume(logs, win) {
@@ -8363,37 +8461,53 @@ function renderSecretFlash(logs) {
 
 function renderSecretHeatmap(logs) {
     const el = document.getElementById('secret-heatmap');
-    if (!secretHeatMonth) { const n = new Date(); secretHeatMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
+    if (!el) return;
+    // A year at a glance: one column per week, one row per weekday, tinted by that day's
+    // discipline and deepened by volume — so the seasons show up on their own.
     const perDay = {};
-    logs.forEach(l => { const d = getCleanDate(l.Date); perDay[d] = (perDay[d] || 0) + 1; });
-    let maxC = 1; Object.values(perDay).forEach(v => { if (v > maxC) maxC = v; });
-    const level = c => { if (!c) return 0; const r = c / maxC; if (r <= 0.25) return 1; if (r <= 0.5) return 2; if (r <= 0.75) return 3; return 4; };
-    const y = secretHeatMonth.getFullYear(), m = secretHeatMonth.getMonth();
-    const firstDow = (new Date(y, m, 1).getDay() + 6) % 7;
-    const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const todayStr = getCleanDate(new Date());
-    const now = new Date();
-    const atCurrent = (y > now.getFullYear()) || (y === now.getFullYear() && m >= now.getMonth());
+    logs.forEach(l => {
+        const d = getCleanDate(l.Date);
+        const e = perDay[d] || (perDay[d] = { n: 0, disc: {} });
+        e.n++;
+        e.disc[l.Discipline] = (e.disc[l.Discipline] || 0) + 1;
+    });
+    const RGB = { 'In Boulder': '245,158,11', 'In Rope': '6,182,212', 'Out Rope': '15,122,90',
+                  'Out Boulder': '168,85,247', 'Trad': '244,63,94' };
+    const today = new Date(getCleanDate(new Date()) + 'T00:00:00');
+    const start = new Date(today);
+    start.setDate(start.getDate() - 363);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));   // back to a Monday
     const pad = n => String(n).padStart(2, '0');
-    const wd = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(w => `<div class="cal-wd">${w}</div>`).join('');
-    let cells = '';
-    for (let i = 0; i < firstDow; i++) cells += `<div class="cal-cell cal-empty"></div>`;
-    for (let d = 1; d <= daysInMonth; d++) {
-        const iso = `${y}-${pad(m + 1)}-${pad(d)}`;
-        const c = perDay[iso] || 0;
-        cells += `<div class="cal-cell cal-l${level(c)} ${iso === todayStr ? 'cal-today' : ''}">${d}</div>`;
+    const key = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    let maxN = 1;
+    Object.values(perDay).forEach(v => { if (v.n > maxN) maxN = v.n; });
+    let cells = '', monthMarks = [], lastMonth = -1, col = 0;
+    for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+        const k = key(d);
+        const e = perDay[k];
+        const dow = (d.getDay() + 6) % 7;
+        if (dow === 0) {
+            col++;
+            if (d.getMonth() !== lastMonth) { lastMonth = d.getMonth(); monthMarks.push({ col, m: lastMonth }); }
+        }
+        let style = '';
+        if (e) {
+            const top = Object.keys(e.disc).sort((a, b) => e.disc[b] - e.disc[a])[0];
+            const alpha = 0.35 + 0.6 * Math.min(1, e.n / Math.max(2, maxN));
+            style = `background:rgba(${RGB[top] || '16,185,129'},${alpha.toFixed(2)})`;
+        }
+        cells += `<i style="grid-row:${dow + 1};${style}" title="${k}${e ? ' · ' + e.n : ''}"></i>`;
     }
-    el.innerHTML = `<div class="histogram">
-        <div class="cal-head">
-            <button class="cal-nav" data-cal="prev">‹</button>
-            <div class="cal-month">${AppConfig.months[m]} ${y}</div>
-            <button class="cal-nav ${atCurrent ? 'cal-disabled' : ''}" data-cal="next">›</button>
-        </div>
-        <div class="cal-grid cal-wd-row">${wd}</div>
-        <div class="cal-grid">${cells}</div>
-    </div>`;
-    el.querySelector('[data-cal="prev"]').addEventListener('click', () => { haptic('tap'); secretHeatMonth = new Date(y, m - 1, 1); renderSecretHeatmap(logs); });
-    if (!atCurrent) el.querySelector('[data-cal="next"]').addEventListener('click', () => { haptic('tap'); secretHeatMonth = new Date(y, m + 1, 1); renderSecretHeatmap(logs); });
+    const labels = monthMarks.map(mm =>
+        `<span style="grid-column:${mm.col}">${AppConfig.months[mm.m].slice(0, 1)}</span>`).join('');
+    el.innerHTML = `<div class="yhm">${cells}</div>
+        <div class="yhm-months">${labels}</div>
+        <div class="pyr-key">
+            <span><i style="background:rgba(6,182,212,.85)"></i>In rope</span>
+            <span><i style="background:rgba(15,122,90,.95)"></i>Out rope</span>
+            <span><i style="background:rgba(245,158,11,.85)"></i>Boulder</span>
+            <span><i style="background:rgba(244,63,94,.8)"></i>Trad</span>
+        </div>`;
 }
 
 document.getElementById('secret-back').addEventListener('click', () => {
