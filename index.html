@@ -1844,6 +1844,30 @@ body.modal-open { overflow: hidden; }
 .ht-live { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
     background: var(--gold); margin-left: 6px; vertical-align: middle; }
 .ht-legend { color: var(--text-muted); font-size: 0.7rem; margin: 2px 2px 12px; }
+.sd-head { font-size: 0.9rem; color: var(--text-muted); font-variant-numeric: tabular-nums; padding: 0 2px; }
+.sd-head b { color: var(--text); font-weight: 700; }
+.sd-g { color: var(--primary); font-weight: 700; }
+.sd-deltas { display: flex; flex-wrap: wrap; gap: 5px 12px; margin: 7px 2px 0; font-size: 0.7rem; color: var(--text-muted); }
+.sd-up { color: var(--primary); } .sd-down { color: #c0705a; } .sd-flat { color: var(--text-muted); }
+.sd-vs { color: #565e66; }
+.mo-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+    padding: 11px 2px; border-bottom: 1px solid rgba(255,255,255,0.07); cursor: pointer; }
+.mo-n { color: var(--text); font-size: 0.8rem; font-weight: 700; }
+.mo-s { color: var(--text-muted); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
+.mo-s b { color: #b8bec6; font-weight: 700; }
+.mo-climb { display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 10px;
+    padding: 8px 2px 8px 10px; margin: 0 0 5px 4px; border-left: 2px solid rgba(var(--c, 16 185 129), .8); }
+.mo-d { color: var(--text-muted); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
+.mo-cn { color: var(--text); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mo-cs { color: var(--text-muted); font-size: 0.7rem; margin-top: 1px; }
+.mo-cg { color: var(--text); font-weight: 700; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.pj { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 11px 2px;
+    border-bottom: 1px solid rgba(255,255,255,0.07); }
+.pj-n { color: var(--text); font-size: 0.8rem; }
+.pj-s { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
+.pj-g { color: var(--text); font-weight: 700; font-size: 0.8rem; text-align: right; font-variant-numeric: tabular-nums; }
+.pj-sent { color: var(--primary); font-size: 0.7rem; font-weight: 700; }
+.pj-open { color: #b4863a; font-size: 0.7rem; font-weight: 700; }
 .rt.open { background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent); }
 .rt-asc { grid-column: 1 / -1; margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,0.07); }
 .rt-asc div { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0;
@@ -2125,7 +2149,6 @@ body.disco .disco-me {
         <button class="seg-item active" data-win="all">All</button>
     </div>
 
-    <div class="profile-section-title" style="margin-top:0">This window vs previous</div>
     <div id="secret-deltas"></div>
 
     <div class="profile-section-title">By discipline</div>
@@ -2145,6 +2168,12 @@ body.disco .disco-me {
 
     <div class="profile-section-title">Flash rate · by discipline</div>
     <div id="secret-flash"></div>
+
+    <div class="profile-section-title">Month by month</div>
+    <div id="secret-months"></div>
+
+    <div class="profile-section-title">Projects</div>
+    <div id="secret-projects"></div>
 
     <div class="profile-section-title">Activity</div>
     <div id="secret-heatmap"></div>
@@ -7959,9 +7988,94 @@ function renderSecretStats() {
     renderSecretVolume(windowed, win);
     renderSecretSpots(windowed);
     renderSecretFlash(windowed);
+    const allAtt = (State.attempts || []).filter(a => a.ClimberName === climber);
+    const winAtt = win === 'all' ? allAtt : allAtt.filter(a => isWithinWindow(a.Date, parseInt(win, 10)));
+    renderSecretMonths(windowed, winAtt);
+    renderSecretProjects(climber);   // a project can span any window — always all-time
     renderSecretHeatmap(allLogs);   // calendar browses by month, independent of the window
 }
 
+const DISC_RGB_MAP = { 'In Boulder': '245,158,11', 'In Rope': '6,182,212', 'Out Rope': '15,122,90',
+                       'Out Boulder': '168,85,247', 'Trad': '244,63,94' };
+let secretOpenMonths = {};
+// The log as a list, not as aggregates: each month collapses to a line and opens to the climbs.
+function renderSecretMonths(logs, attempts) {
+    const el = document.getElementById('secret-months');
+    if (!el) return;
+    const items = [...logs.map(l => ({ ...l, _kind: 'send' })), ...attempts.map(a => ({ ...a, _kind: 'work' }))];
+    if (!items.length) { el.innerHTML = '<div class="lb-empty">Nothing in this window.</div>'; return; }
+    const months = {};
+    items.forEach(x => {
+        const key = getCleanDate(x.Date).slice(0, 7);
+        (months[key] = months[key] || []).push(x);
+    });
+    el.innerHTML = Object.keys(months).sort().reverse().map(key => {
+        const rows = months[key].sort((a, b) => getCleanDate(b.Date).localeCompare(getCleanDate(a.Date)));
+        const sends = rows.filter(r => r._kind === 'send');
+        const crags = new Set(rows.map(r => r.Where).filter(Boolean)).size;
+        let hs = -1, hg = null;
+        sends.forEach(s => { if (isTopRope(s.Style)) return;
+            const v = getScoredValue(s.Grade, s.Style, s.Discipline); if (v > hs) { hs = v; hg = s.Grade; } });
+        const [y, m] = key.split('-');
+        const label = `${AppConfig.months[parseInt(m, 10) - 1]} ${y}`;
+        const open = !!secretOpenMonths[key];
+        const body = open ? rows.map(r => {
+            const rgb = DISC_RGB_MAP[r.Discipline] || '16,185,129';
+            const detail = r._kind === 'work'
+                ? `${r.Where || ''} · worked${r.Outcome ? ' · ' + escapeHTML(String(r.Outcome).toLowerCase()) : ''}`
+                : `${r.Where || ''}${r.Style ? ' · ' + escapeHTML(isTopRope(r.Style) ? 'TR' : String(r.Style).toLowerCase()) : ''}`;
+            return `<div class="mo-climb" style="--c:${rgb}">
+                <span class="mo-d">${escapeHTML(formatShortDate(getCleanDate(r.Date)))}</span>
+                <div><div class="mo-cn">${escapeHTML(r.RouteName || r.Discipline)}</div>
+                    <div class="mo-cs">${detail}</div></div>
+                <span class="mo-cg">${escapeHTML(r.Grade)}</span></div>`;
+        }).join('') : '';
+        return `<div class="mo"><div class="mo-h" data-month="${key}">
+            <span class="mo-n">${label}</span>
+            <span class="mo-s"><b>${sends.length}</b> send${sends.length === 1 ? '' : 's'} · <b>${crags}</b> spot${crags === 1 ? '' : 's'}${hg ? ` · hardest <b>${escapeHTML(hg)}</b>` : ''}</span>
+        </div>${body}</div>`;
+    }).join('');
+    el.querySelectorAll('[data-month]').forEach(h => h.addEventListener('click', () => {
+        haptic('tap');
+        const k = h.dataset.month;
+        secretOpenMonths[k] = !secretOpenMonths[k];
+        renderSecretMonths(logs, attempts);
+    }));
+}
+
+// Attempts matched to sends by route name — how many sessions, over how long, and whether it went.
+function renderSecretProjects(climber) {
+    const el = document.getElementById('secret-projects');
+    if (!el) return;
+    const mine = (State.attempts || []).filter(a => a.ClimberName === climber && a.RouteName);
+    if (!mine.length) { el.innerHTML = '<div class="lb-empty">No worked routes logged yet.</div>'; return; }
+    const byRoute = {};
+    mine.forEach(a => {
+        const k = `${String(a.RouteName).trim().toLowerCase()}|${a.Where || ''}`;
+        (byRoute[k] = byRoute[k] || { name: String(a.RouteName).trim(), where: a.Where, grade: a.Grade, dates: [] })
+            .dates.push(getCleanDate(a.Date));
+    });
+    const rows = Object.values(byRoute).map(p => {
+        const dates = [...new Set(p.dates)].sort();
+        const sent = State.logs.find(l => l.ClimberName === climber && l.Where === p.where
+            && String(l.RouteName || '').trim().toLowerCase() === p.name.toLowerCase()
+            && getCleanDate(l.Date) >= dates[0]);
+        const span = dDiff(dates[dates.length - 1], dates[0]);
+        return { ...p, sessions: dates.length, first: dates[0], last: dates[dates.length - 1], span, sent };
+    }).sort((a, b) => (a.sent ? 1 : 0) - (b.sent ? 1 : 0) || b.last.localeCompare(a.last));
+    el.innerHTML = rows.map(p => {
+        const sessions = `${p.sessions} session${p.sessions === 1 ? '' : 's'}`;
+        const over = p.span > 0 ? ` over ${p.span} day${p.span === 1 ? '' : 's'}` : '';
+        const tail = p.sent
+            ? `sent ${escapeHTML(formatShortDate(getCleanDate(p.sent.Date)))}`
+            : `last tried ${escapeHTML(formatShortDate(p.last))}`;
+        return `<div class="pj">
+            <div><div class="pj-n">${escapeHTML(p.name)} <span class="${p.sent ? 'pj-sent' : 'pj-open'}">· ${p.sent ? 'sent' : 'open'}</span></div>
+                <div class="pj-s">${escapeHTML(p.where || '')} · ${sessions}${over} · ${tail}</div></div>
+            <div class="pj-g">${escapeHTML(p.grade)}</div>
+        </div>`;
+    }).join('');
+}
 function secretMetricsFor(logs) {
     const days = new Set(logs.map(l => getCleanDate(l.Date))).size;
     const lead = logs.filter(l => !isTopRope(l.Style));
@@ -8007,14 +8121,24 @@ function renderSecretDeltas(allLogs, win) {
         else if (c.hScore < p.hScore)           hardestChip = `<div class="sd-delta down">▼ down</div>`;
         else                                    hardestChip = `<div class="sd-delta flat">no change</div>`;
     }
+    // One sentence instead of four cards, with the period-on-period change stated underneath
+    // rather than promised by a heading that then doesn't deliver it.
+    const dl = (cur, prev, unit) => {
+        if (prev === null || prev === undefined) return '';
+        const d = cur - prev;
+        if (!d) return `<span class="sd-flat">${unit} level</span>`;
+        return `<span class="${d > 0 ? 'sd-up' : 'sd-down'}">${d > 0 ? '↑' : '↓'} ${Math.abs(d)} ${unit}</span>`;
+    };
+    const deltas = p ? [
+        dl(c.sends, p.sends, 'sends'),
+        dl(c.days, p.days, 'days'),
+        dl(c.flashRate, p.flashRate, '% flash'),
+        hardestChip ? `<span class="${/up/.test(hardestChip) ? 'sd-up' : /down/.test(hardestChip) ? 'sd-down' : 'sd-flat'}">hardest ${/up/.test(hardestChip) ? 'up' : /down/.test(hardestChip) ? 'down' : 'level'}</span>` : ''
+    ].filter(Boolean) : [];
     el.innerHTML = `
-        <div class="nerd-grid">
-            <div class="nerd-cell"><div class="nerd-val">${c.sends}</div><div class="nerd-label">Sends</div>${p ? deltaChip(c.sends, p.sends, 'count') : ''}</div>
-            <div class="nerd-cell"><div class="nerd-val">${c.days}</div><div class="nerd-label">Climbing days</div>${p ? deltaChip(c.days, p.days, 'count') : ''}</div>
-            <div class="nerd-cell"><div class="nerd-val accent">${escapeHTML(c.hGrade || '—')}</div><div class="nerd-label">Hardest (lead)</div>${hardestChip}</div>
-            <div class="nerd-cell"><div class="nerd-val">${c.flashRate}%</div><div class="nerd-label">Flash rate</div>${p ? deltaChip(c.flashRate, p.flashRate, 'pts') : ''}</div>
-        </div>
-        ${win === 'all' ? '<div class="board-subtitle" style="margin-top:4px">All-time totals — pick a window to see period-on-period change.</div>' : ''}`;
+        <div class="sd-head"><b>${c.sends} send${c.sends === 1 ? '' : 's'}</b> over <b>${c.days} day${c.days === 1 ? '' : 's'}</b>
+            · hardest <span class="sd-g">${escapeHTML(c.hGrade || '—')}</span> · <b>${c.flashRate}%</b> flash</div>
+        ${deltas.length ? `<div class="sd-deltas">${deltas.join('')}<span class="sd-vs">vs previous ${win === '365' ? 'year' : win + ' days'}</span></div>` : ''}`;
 }
 
 function drawGradeLineChart(snapshots, discipline, containerId) {
