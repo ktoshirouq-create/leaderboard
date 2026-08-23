@@ -1849,6 +1849,10 @@ body.modal-open { overflow: hidden; }
 .yhm::-webkit-scrollbar { display: none; }
 .yhm i { width: 11px; height: 11px; border-radius: 2px; background: rgba(255,255,255,0.045); }
 .yhm-months { display: grid; grid-auto-flow: column; color: var(--text-muted); font-size: 9px; margin-top: 5px; }
+.sd-trendbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.sd-trendbar .mini-seg { display: inline-flex; padding: 3px; margin: 0; width: auto; }
+.sd-trendbar .mini-seg .seg-item { padding: 5px 10px; font-size: 0.7rem; }
+.sd-note { color: var(--text-muted); font-size: 0.7rem; margin-left: auto; }
 .pyr-row { display: grid; grid-template-columns: 34px 1fr 26px; align-items: center; gap: 9px; margin-bottom: 5px; }
 .pyr-lab { color: var(--text-muted); font-size: 0.7rem; text-align: right; font-variant-numeric: tabular-nums; }
 .pyr-track { position: relative; height: 13px; border-radius: 3px; background: rgba(255,255,255,0.035); }
@@ -2185,14 +2189,12 @@ body.disco .disco-me {
 
     <div id="secret-deltas"></div>
 
-    <div class="profile-section-title">By discipline</div>
+    <div class="profile-section-title">Grade pyramid</div>
     <div id="secret-lens"></div>
+    <div id="secret-pyramid"></div>
 
     <div class="profile-section-title">Trends</div>
     <div id="secret-trend"></div>
-
-    <div class="profile-section-title">Grade pyramid</div>
-    <div id="secret-pyramid"></div>
 
     <div class="profile-section-title">Volume</div>
     <div id="secret-volume"></div>
@@ -8044,7 +8046,7 @@ function renderSecretStats() {
     document.querySelectorAll('#secret-window .seg-item').forEach(el => el.classList.toggle('active', el.dataset.win === win));
     // everything countable follows the environment filter
     const envLogs = allLogs.filter(l => envMatch(l.Discipline));
-    renderSecretDeltas(allLogs, win);
+    renderSecretDeltas(envLogs, win);   // header must follow Indoor/Outdoor too
     renderSecretLens();
     renderSecretTrend();
     renderSecretPyramid(windowed);
@@ -8318,13 +8320,10 @@ function renderSecretLens() {
     if (!lensHasTR) secretMode = 'lead';
     const discTabs = `<div class="cap-tabs scroll">` + AppConfig.disciplines.filter(d => envMatch(d)).map(d =>
         `<button class="cap-tab ${d === secretDisc ? 'active' : ''}" data-disc="${d}">${d}</button>`).join('') + `</div>`;
-    const modeToggle = lensHasTR ? `<div class="seg-ctrl" style="margin-top:8px;margin-bottom:0">
-        <button class="seg-item ${secretMode === 'lead' ? 'active' : ''}" data-secret-mode="lead">Lead</button>
-        <button class="seg-item ${secretMode === 'tr' ? 'active' : ''}" data-secret-mode="tr">Top-rope</button>
-    </div>` : '';
-    el.innerHTML = discTabs + modeToggle;
+    // Lead / Top-rope used to be a full-width segment here; it rides the trend line now, so
+    // this is one scrollable row of disciplines and nothing else.
+    el.innerHTML = discTabs;
     el.querySelectorAll('.cap-tab[data-disc]').forEach(b => b.addEventListener('click', () => { haptic('tap'); secretDisc = b.dataset.disc; applySecretLens(); }));
-    el.querySelectorAll('[data-secret-mode]').forEach(b => b.addEventListener('click', () => { haptic('tap'); secretMode = b.dataset.secretMode; applySecretLens(); }));
     setTimeout(() => { const at = el.querySelector('.cap-tab.active'); if (at) at.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'center' }); }, 0);
 }
 
@@ -8340,15 +8339,22 @@ function renderSecretTrend() {
     const climber = secretClimber;
     const container = document.getElementById('secret-trend');
     if (!climber || !container) return;
-    const metricToggle = `<div class="seg-ctrl" style="margin-bottom:8px">
+    // Two small inline switches on one line instead of two stacked full-width segments.
+    const trHere = ['In Rope', 'Out Rope'].includes(secretDisc);
+    const metricToggle = `<span class="seg-ctrl mini-seg">
         <button class="seg-item ${secretTrendMetric === 'capacity' ? 'active' : ''}" data-trend-metric="capacity">Form</button>
         <button class="seg-item ${secretTrendMetric === 'hardest' ? 'active' : ''}" data-trend-metric="hardest">Hardest</button>
-    </div>`;
-    const note = secretTrendMetric === 'capacity'
-        ? 'Top-10 rolling 60-day average · weekly'
-        : 'Hardest single send · rolling 30 days · weekly';
-    container.innerHTML = metricToggle +
-        `<div class="board-subtitle" style="margin:2px 0 8px">${note}</div><div id="secret-trend-chart"></div>`;
+    </span>`;
+    const modeToggle = trHere ? `<span class="seg-ctrl mini-seg">
+        <button class="seg-item ${secretMode === 'lead' ? 'active' : ''}" data-secret-mode="lead">Lead</button>
+        <button class="seg-item ${secretMode === 'tr' ? 'active' : ''}" data-secret-mode="tr">TR</button>
+    </span>` : '';
+    const note = secretTrendMetric === 'capacity' ? 'Rolling 60-day average' : 'Hardest send · 30 days';
+    container.innerHTML = `<div class="sd-trendbar">${metricToggle}${modeToggle}<span class="sd-note">${note}</span></div>
+        <div id="secret-trend-chart"></div>`;
+    container.querySelectorAll('[data-secret-mode]').forEach(el => el.addEventListener('click', () => {
+        haptic('tap'); secretMode = el.dataset.secretMode; applySecretLens();
+    }));
     container.querySelectorAll('[data-trend-metric]').forEach(el => el.addEventListener('click', () => { haptic('tap'); secretTrendMetric = el.dataset.trendMetric; renderSecretTrend(); }));
     const snaps = secretTrendMetric === 'capacity'
         ? computeCapacityHistory(climber, secretDisc, secretMode)
