@@ -6871,20 +6871,8 @@ function computeMilestones(climber) {
             title: `Hardest ever · <b>${escapeHTML(best.Grade)}</b>`,
             sub: `${escapeHTML(disc)}${best.Where ? ' · ' + escapeHTML(best.Where) : ''}` });
     });
-    AppConfig.disciplines.forEach(disc => {
-        const scale = AppConfig.grades[disc]; if (!scale) return;
-        const dates = [...new Set(mine.filter(l => l.Discipline === disc).map(l => getCleanDate(l.Date)))].sort();
-        let prevBand = null;
-        dates.forEach(d => {
-            const cap = capacityAsOf(climber, disc, d);
-            if (cap === null) return;
-            const band = gradeProgress(cap, disc).current;
-            if (prevBand && band !== prevBand && scale.labels.indexOf(band) > scale.labels.indexOf(prevBand)) {
-                out.push({ icon: '✦', date: d, title: `Leveled up · <b>${escapeHTML(prevBand)} → ${escapeHTML(band)}</b>`, sub: `${escapeHTML(disc)} form` });
-            }
-            if (band !== prevBand) prevBand = band;
-        });
-    });
+    // Level-ups are marked directly on the trend chart now — listing them here as well meant
+    // reading the same three events twice on one screen. Milestones keeps what nothing else says.
     const days = [...new Set(State.logs.filter(l => l.ClimberName === climber).map(l => getCleanDate(l.Date)))].sort();
     let bestRun = 0, run = 0, runEnd = null;
     days.forEach((d, i) => {
