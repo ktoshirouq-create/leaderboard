@@ -1744,6 +1744,25 @@ body.modal-open { overflow: hidden; }
 .form-bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.07); margin: 8px 2px 0; overflow: hidden; }
 .form-bar i { display: block; height: 100%; border-radius: 2px; }
 .form-foot { color: var(--text-muted); font-size: 0.7rem; margin: 6px 2px 12px; }
+.pj-card { border-left: 2px solid rgba(var(--c), .85); border-radius: 8px; padding: 11px 12px; margin-bottom: 8px;
+    background: linear-gradient(90deg, rgba(var(--c), .07), transparent 60%); }
+.pj-card.sent { opacity: .55; }
+.pj-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.pj-n { color: var(--text); font-size: 0.9rem; font-weight: 700; }
+.pj-g { color: rgb(var(--c)); font-weight: 700; font-variant-numeric: tabular-nums; }
+.pj-card.sent .pj-g { color: var(--primary); }
+.pj-w { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
+.pj-ticks { display: flex; gap: 3px; margin-top: 9px; }
+.pj-ticks i { height: 4px; flex: 1; border-radius: 2px; background: rgba(255,255,255,0.09); }
+.pj-ticks i.on { background: rgba(180,134,58,0.75); }
+.pj-ticks i.on2 { background: rgba(180,134,58,0.95); }
+.pj-note { color: #b8bec6; font-size: 0.8rem; margin-top: 9px; padding-left: 9px;
+    border-left: 2px solid rgba(255,255,255,0.10); }
+.pj-note span { color: var(--text-muted); font-size: 0.7rem; }
+.pj-acts { display: flex; gap: 8px; margin-top: 10px; }
+.pj-acts button { flex: 1; padding: 9px 0; border-radius: 999px; border: 0; font-family: inherit;
+    font-size: 0.8rem; font-weight: 700; background: rgba(16,185,129,0.12); color: var(--primary); }
+.pj-acts button.sec { background: rgba(255,255,255,0.05); color: var(--text-muted); font-weight: 400; }
 .mst { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 11px;
     padding: 11px 2px; border-bottom: 1px solid rgba(255,255,255,0.07); }
 .mst-ic { justify-self: center; color: var(--text-muted); font-size: 0.8rem; line-height: 1; }
@@ -2145,6 +2164,9 @@ body.disco .disco-me {
 <div id="profile-capacity-chart"></div>
 <div class="histogram hidden" id="histogram"></div>
 
+<div class="prof-shelf"><h2>Projects</h2><span id="proj-count">—</span></div>
+<div id="profile-projects"></div>
+
 <div class="prof-shelf"><h2>Milestones</h2><span>all-time</span></div>
 <div id="profile-milestones"></div>
 
@@ -2356,6 +2378,10 @@ body.disco .disco-me {
             <div class="field-label" id="attempt-outcome-label">Outcome</div>
             <div class="pill-row hidden" id="attempt-outcome-type"></div>
             <div class="pill-row" id="attempt-count"></div>
+
+            <div class="field-label">Note <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
+            <input type="text" class="add-name-input" id="attempt-note" maxlength="120"
+                   placeholder="e.g. linked the crux, fell at the third bolt" style="margin-bottom:0;width:100%;" autocomplete="off">
 
             <div class="field-label hidden" id="attempt-belayer-label">Belayer <span style="color:var(--text-muted);font-weight: 400;text-transform:none;letter-spacing:0;margin-left:4px;">optional</span></div>
             <div class="pill-row scroll hidden" id="attempt-belayer"></div>
@@ -3112,6 +3138,8 @@ function openSwitcher() {
             renderBestsStrip(profileClimber);
             renderStandings(profileClimber);
             renderMilestones(profileClimber);
+        renderProfileProjects(profileClimber);
+            renderProfileProjects(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
@@ -4033,6 +4061,8 @@ async function submitLog() {
             renderBestsStrip(profileClimber);
             renderStandings(profileClimber);
             renderMilestones(profileClimber);
+        renderProfileProjects(profileClimber);
+            renderProfileProjects(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
@@ -5365,6 +5395,7 @@ async function performDelete(log) {
         renderBestsStrip(profileClimber);
         renderStandings(profileClimber);
         renderMilestones(profileClimber);
+        renderProfileProjects(profileClimber);
         renderHistogram(profileClimber);
         renderProfileSessions(profileClimber);
     }
@@ -5391,6 +5422,8 @@ async function performDelete(log) {
             renderBestsStrip(profileClimber);
             renderStandings(profileClimber);
             renderMilestones(profileClimber);
+        renderProfileProjects(profileClimber);
+            renderProfileProjects(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
@@ -6888,6 +6921,103 @@ function computeMilestones(climber) {
     return out.sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 let milestonesExpanded = false;
+// Projects: attempts grouped by route + crag. Open ones first, with what you'd want before
+// driving out — sessions, last try, your last note — and Log attempt right in the row.
+function renderProfileProjects(climber) {
+    const el = document.getElementById('profile-projects');
+    const countEl = document.getElementById('proj-count');
+    if (!el) return;
+    const mine = (State.attempts || []).filter(a => a.ClimberName === climber && a.RouteName);
+    if (!mine.length) {
+        el.innerHTML = `<div class="form-foot" style="margin-top:0">Nothing on the go — log an attempt on a route and it shows up here.</div>`;
+        if (countEl) countEl.textContent = '';
+        return;
+    }
+    const byRoute = {};
+    mine.forEach(a => {
+        const k = `${String(a.RouteName).trim().toLowerCase()}|${a.Where || ''}`;
+        const p = byRoute[k] || (byRoute[k] = { name: String(a.RouteName).trim(), where: a.Where,
+            grade: a.Grade, disc: a.Discipline, tries: [] });
+        p.tries.push(a);
+    });
+    const rows = Object.values(byRoute).map(p => {
+        p.tries.sort((a, b) => getCleanDate(a.Date).localeCompare(getCleanDate(b.Date)));
+        const days = [...new Set(p.tries.map(t => getCleanDate(t.Date)))];
+        const last = p.tries[p.tries.length - 1];
+        const sent = State.logs.find(l => l.ClimberName === climber && l.Where === p.where
+            && String(l.RouteName || '').trim().toLowerCase() === p.name.toLowerCase()
+            && getCleanDate(l.Date) >= days[0]);
+        const note = [...p.tries].reverse().find(t => String(t.Notes || '').trim());
+        return { ...p, days, last, sent, note };
+    }).sort((a, b) => (a.sent ? 1 : 0) - (b.sent ? 1 : 0)
+        || getCleanDate(b.last.Date).localeCompare(getCleanDate(a.last.Date)));
+    const open = rows.filter(r => !r.sent);
+    if (countEl) countEl.textContent = open.length ? `${open.length} open` : 'all sent';
+    el.innerHTML = rows.map(p => {
+        const rgb = DISC_RGB[p.disc] || '16,185,129';
+        const ticks = Array.from({ length: Math.max(6, p.days.length) }, (_, i) =>
+            `<i class="${i < p.days.length ? (i === p.days.length - 1 ? 'on2' : 'on') : ''}"></i>`).join('');
+        const wh = [p.where, p.days.length + ' session' + (p.days.length === 1 ? '' : 's')].filter(Boolean).join(' · ');
+        if (p.sent) {
+            const span = dDiff(getCleanDate(p.sent.Date), p.days[0]);
+            return `<div class="pj-card sent" style="--c:${rgb}">
+                <div class="pj-top"><span class="pj-n">${escapeHTML(p.name)}</span>
+                    <span class="pj-g">${escapeHTML(p.grade)} ✓</span></div>
+                <div class="pj-w">${escapeHTML(wh)}${span > 0 ? ` over ${span} days` : ''} · sent ${escapeHTML(formatShortDate(getCleanDate(p.sent.Date)))}</div>
+            </div>`;
+        }
+        return `<div class="pj-card" style="--c:${rgb}">
+            <div class="pj-top"><span class="pj-n">${escapeHTML(p.name)}</span>
+                <span class="pj-g">${escapeHTML(p.grade)}</span></div>
+            <div class="pj-w">${escapeHTML(wh)} · last tried ${escapeHTML(formatShortDate(getCleanDate(p.last.Date)))}</div>
+            <div class="pj-ticks">${ticks}</div>
+            ${p.note ? `<div class="pj-note">${escapeHTML(String(p.note.Notes).trim())}
+                <span>· ${escapeHTML(formatShortDate(getCleanDate(p.note.Date)))}</span></div>` : ''}
+            ${climber === State.activeUser ? `<div class="pj-acts">
+                <button data-pj-log="${escapeHTML(p.name)}" data-pj-where="${escapeHTML(p.where || '')}"
+                        data-pj-grade="${escapeHTML(p.grade)}" data-pj-disc="${escapeHTML(p.disc)}">+ Log attempt</button>
+                <button class="sec" data-pj-sent="${escapeHTML(p.name)}" data-pj-where="${escapeHTML(p.where || '')}"
+                        data-pj-grade="${escapeHTML(p.grade)}" data-pj-disc="${escapeHTML(p.disc)}">Sent it</button>
+            </div>` : ''}
+        </div>`;
+    }).join('');
+    el.querySelectorAll('[data-pj-log]').forEach(b => b.addEventListener('click', () => {
+        haptic('tap');
+        openAttemptPaneForProject(b.dataset.pjDisc, b.dataset.pjWhere, b.dataset.pjGrade, b.dataset.pjLog);
+    }));
+    el.querySelectorAll('[data-pj-sent]').forEach(b => b.addEventListener('click', () => {
+        haptic('tap');
+        openLoggerForProject(b.dataset.pjDisc, b.dataset.pjWhere, b.dataset.pjGrade, b.dataset.pjSent);
+    }));
+}
+// Both openers inherit everything the project already knows — only the outcome is left to pick.
+function openAttemptPaneForProject(disc, where, grade, routeName) {
+    setLogMode('attempts');
+    AttemptState.discipline = disc;
+    AttemptState.where = where;
+    AttemptState.grade = grade;
+    AttemptState.outcome = null;
+    AttemptState.countBucket = null;
+    renderAttemptDiscipline(); renderAttemptWhere(); renderAttemptGrade();
+    renderAttemptOutcomeType(); renderAttemptCount();
+    updateAttemptRouteVisibility(); updateAttemptBelayerVisibility();
+    const rn = document.getElementById('attempt-route-name');
+    if (rn && isOutdoor(disc)) rn.value = routeName || '';
+    const nt = document.getElementById('attempt-note'); if (nt) nt.value = '';
+    refreshAttemptSaveState();
+    openModal('session-modal');
+}
+function openLoggerForProject(disc, where, grade, routeName) {
+    openLogger();
+    LoggerState.discipline = disc;
+    LoggerState.where = where;
+    LoggerState.grade = grade;
+    renderDisciplinePills(); renderWherePills(); renderGradePills();
+    updateRouteNameVisibility(); updateBelayerVisibility();
+    const rn = document.getElementById('logger-route-name');
+    if (rn && isOutdoor(disc)) rn.value = routeName || '';
+    refreshLogSaveState();
+}
 function renderMilestones(climber) {
     const el = document.getElementById('profile-milestones');
     if (!el) return;
@@ -7328,6 +7458,7 @@ function showProfile(climber) {
         document.getElementById('profile-bests').innerHTML = '';
         document.getElementById('profile-standings').innerHTML = '';
         document.getElementById('profile-milestones').innerHTML = '';
+        document.getElementById('profile-projects').innerHTML = '';
         document.getElementById('profile-form').innerHTML = '';
         document.getElementById('histogram-tabs').innerHTML = '';
         document.getElementById('histogram').innerHTML = '';
@@ -7352,6 +7483,7 @@ function showProfile(climber) {
     renderBestsStrip(climber);
     renderStandings(climber);
     renderMilestones(climber);
+    renderProfileProjects(climber);
     renderHistogram(climber);
     renderProfileSessions(climber);
     
@@ -7403,6 +7535,7 @@ function openAttemptPane() {
     // Fresh blank state every open — deliberate picks, like the send logger.
     // Also exits attempt-edit mode (tab switches and FAB opens route through here).
     editingAttemptId = null;
+    const noteEl0 = document.getElementById('attempt-note'); if (noteEl0) noteEl0.value = '';
     document.getElementById('attempt-submit').textContent = 'Log attempt';
     // Same continuation rule as the send logger: if you've already logged something TODAY,
     // inherit that session's discipline and crag instead of starting from scratch.
@@ -7474,6 +7607,7 @@ function openAttemptPaneInEditMode(a) {
     updateAttemptRouteVisibility();
     updateAttemptBelayerVisibility();
     if (isOutdoor(a.Discipline)) document.getElementById('attempt-route-name').value = a.RouteName || '';
+    const noteEl1 = document.getElementById('attempt-note'); if (noteEl1) noteEl1.value = a.Notes || '';
     editingAttemptId = a.AttemptId;
     document.getElementById('attempt-submit').textContent = 'Save changes';
     refreshAttemptSaveState();
@@ -7842,7 +7976,9 @@ async function submitAttempt() {
         outcome:     AttemptState.outcome || '',
         countBucket: AttemptState.countBucket,
         belayer:     isRopeDiscipline(AttemptState.discipline) ? (AttemptState.belayer || '') : '',
-        routeName:   routeName
+        routeName:   routeName,
+        notes:       (document.getElementById('attempt-note') || {}).value ?
+                     document.getElementById('attempt-note').value.trim() : ''
     };
     closeModal('session-modal');
     haptic('commit');
@@ -9653,6 +9789,8 @@ async function refreshData(silent = false) {
             renderBestsStrip(profileClimber);
             renderStandings(profileClimber);
             renderMilestones(profileClimber);
+        renderProfileProjects(profileClimber);
+            renderProfileProjects(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
         }
