@@ -133,6 +133,8 @@ h1.screen-title {
     gap: 12px;
 }
 .s-name-block {
+    min-width: 0;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -263,6 +265,13 @@ h1.screen-title {
 .sdot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex: none; }
 .sdot-more { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); margin-left: 2px; }
 .s-where {
+    /* one line always — a wrapped pill grows tall and collides with the time line beside it.
+       Long crag names ellipsize instead. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 52%;
+    flex: 0 1 auto;
     font-size: 0.8rem;
     color: #d4d4d4;
     font-weight: 700;
