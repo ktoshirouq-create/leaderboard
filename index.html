@@ -227,14 +227,17 @@ h1.screen-title {
 .day-section[data-disc="Out Rope"]    { background: linear-gradient(90deg, rgba(16,185,129,0.16) 0%, rgba(16,185,129,0.05) 45%, transparent 80%); }
 .day-section[data-disc="Out Boulder"] { background: linear-gradient(90deg, rgba(168,85,247,0.16) 0%, rgba(168,85,247,0.05) 45%, transparent 80%); }
 .day-section[data-disc="Trad"]        { background: linear-gradient(90deg, rgba(244,63,94,0.16) 0%, rgba(244,63,94,0.05) 45%, transparent 80%); }
-.day-sec-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.day-sec-label { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.5px; }
+.day-sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.day-sec-label { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.5px;
+    white-space: nowrap; flex: 0 0 auto; }   /* "Out Rope" must never break across lines */
 .day-sec-label[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
 .day-sec-label[data-disc="In Rope"]     { color: var(--disc-in-rope); }
 .day-sec-label[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
 .day-sec-label[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
 .day-sec-label[data-disc="Trad"]        { color: var(--disc-trad); }
-.day-sec-summary { font-size: 0.9rem; font-weight: 700; color: #a3a3a3; white-space: nowrap; }
+.day-sec-summary { font-size: 0.9rem; font-weight: 700; color: #a3a3a3;
+    /* the label is fixed, so the summary is the side that yields */
+    min-width: 0; text-align: right; }
 .day-sec-summary .max-grade-v { color: #fff; font-weight: 700; }
 .day-sec-proj { font-size: 0.8rem; color: #8a8a8a; font-weight: 400; margin-top: 6px; }
 .day-sec-proj .pg { font-weight: 700; }
@@ -6906,11 +6909,14 @@ function renderProfileForm(climber, disc) {
             if (typeof a === 'number' && typeof b === 'number') trend = b > a ? ' · rising' : b < a ? ' · easing' : ' · steady';
         }
     } catch (e) {}
-    el.innerHTML = `<div class="form-line"><span class="form-l">Working level</span>
+    el.innerHTML = `<div class="form-line" id="form-open-top10" style="cursor:pointer">
+            <span class="form-l">Working level <span style="color:var(--text-muted);font-size:0.6rem">›</span></span>
             <span class="form-v" style="color:rgb(${rgb})">${escapeHTML(prog.current)}</span></div>
         <div class="form-bar"><i style="width:${prog.pct}%;background:rgb(${rgb})"></i></div>
         <div class="form-foot">${prog.next ? `${prog.pct}% to ${escapeHTML(prog.next)}` : 'top of the scale'}${trend}
             ${boardPos}</div>`;
+    const topBtn = document.getElementById('form-open-top10');
+    if (topBtn) topBtn.addEventListener('click', () => { haptic('tap'); showCapTop10(climber); });
 }
 function computeMilestones(climber) {
     const mine = State.logs.filter(l => l.ClimberName === climber && !isTopRope(l.Style));
