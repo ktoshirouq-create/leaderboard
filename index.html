@@ -892,8 +892,9 @@ h1.screen-title {
     font-weight: 400;
     text-align: left;
 }
-.pt-style.flash   { color: #fbbf24; }
-.pt-style.onsight { color: #c084fc; }
+/* style is texture, not a trophy */
+.pt-style.flash   { color: var(--text-muted); }
+.pt-style.onsight { color: var(--text-muted); }
 .pt-style.tr      { color: #94a3b8; }
 
 .send-route-inline {
@@ -1772,6 +1773,9 @@ body.modal-open { overflow: hidden; }
 .pj-acts button { flex: 1; padding: 9px 0; border-radius: 999px; border: 0; font-family: inherit;
     font-size: 0.8rem; font-weight: 700; background: rgba(16,185,129,0.12); color: var(--primary); }
 .pj-acts button.sec { background: rgba(255,255,255,0.05); color: var(--text-muted); font-weight: 400; }
+.pj-acts button.pj-x { flex: 0 0 40px; }
+.pj-unhide { display: block; width: 100%; text-align: center; background: none; border: 0;
+    font-family: inherit; color: var(--text-muted); font-size: 0.7rem; padding: 8px 0 2px; }
 .mst { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 11px;
     padding: 11px 2px; border-bottom: 1px solid rgba(255,255,255,0.07); }
 .mst-ic { justify-self: center; color: var(--text-muted); font-size: 0.8rem; line-height: 1; }
@@ -2176,10 +2180,9 @@ body.disco .disco-me {
 <div class="prof-shelf"><h2>Projects</h2><span id="proj-count">—</span></div>
 <div id="profile-projects"></div>
 
-<div class="prof-shelf"><h2>Milestones</h2><span>all-time</span></div>
-<div id="profile-milestones"></div>
+<div id="profile-milestones" class="hidden"></div>
 
-<div class="prof-shelf"><h2>Recent</h2><span>last 30 days</span></div>
+<div class="prof-shelf"><h2>Logbook</h2><span id="logbook-count">—</span></div>
 <div id="profile-sessions"></div>
 </div>
 
@@ -2526,7 +2529,7 @@ const State = {
 const CACHE_KEY = 'leaderboard.cachedData';
 const CACHE_VERSION = 2;            // bump if data shape changes (v2: + attempts, sessions)
 const FEED_PAGE_SIZE = 15;
-const PROFILE_PAGE_SIZE = 25;
+const PROFILE_PAGE_SIZE = 15;
 let feedPage = 1;
 let profilePage = 1;
 
@@ -4148,6 +4151,8 @@ async function submitLog() {
         _optimistic:  true
     };
     State.logs.unshift(optimisticRow);
+    // You rarely climb the same route twice in a session — don't carry the name forward.
+    const rnAfter = document.getElementById('logger-route-name'); if (rnAfter) rnAfter.value = '';
     closeModal('logger-modal');
     renderFeed();
     haptic('commit');
@@ -5993,7 +5998,7 @@ function dayClimbSectionHtml(sec) {
     const projHtml = (sec.sends.length ? [] : sec.attempts).map(a => {
         const bucket = attemptCountLabel(a.CountBucket);
         const oc = [bucket, a.Outcome ? escapeHTML(a.Outcome) : ''].filter(Boolean).join(' ');
-        return `<div class="day-sec-proj">worked <span class="pg" style="color:${pc}">${escapeHTML(a.Grade)}</span>${oc ? ` · ${oc}` : ''}</div>`;
+        return `<div class="day-sec-proj">${a.RouteName ? `${escapeHTML(a.RouteName)} · ` : 'worked '}<span class="pg" style="color:${pc}">${escapeHTML(a.Grade)}</span>${oc ? ` · ${oc}` : ''}</div>`;
     }).join('');
     return `<div class="day-section" data-disc="${escapeHTML(sec.discipline)}">
         <div class="day-sec-head">
@@ -6059,7 +6064,9 @@ function renderDayCard(day, idx) {
 
     // Sends always count; attempts join the expander only for sections that have sends
     // (sendless sections keep their inline "worked" line instead).
-    const totalClimbs = day.sections.reduce((n, s) => n + s.sends.length + (s.sends.length ? s.attempts.length : 0), 0);
+    // Attempts always count and always render as rows — hiding them on a worked-only day left
+    // nothing to long-press, so those attempts couldn't be edited in the app at all.
+    const totalClimbs = day.sections.reduce((n, s) => n + s.sends.length + s.attempts.length, 0);
     const stateClass = day._failed ? 'failed' : (day._optimistic ? 'syncing' : '');
 
     return `
@@ -6080,7 +6087,7 @@ function renderDayCard(day, idx) {
         ${qkCardExtras(day.climber, day.date)}
         <div class="session-children">${day.sections.flatMap(s => [
             ...sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline)),
-            ...(s.sends.length ? sortSendsByScore(s.attempts, s.discipline).map(a => attemptRowHtml(a, s.discipline)) : [])
+            ...sortSendsByScore(s.attempts, s.discipline).map(a => attemptRowHtml(a, s.discipline))
         ]).join('')}</div>` : ''}
     </div>`;
 }
@@ -6932,6 +6939,12 @@ function computeMilestones(climber) {
 let milestonesExpanded = false;
 // Projects: attempts grouped by route + crag. Open ones first, with what you'd want before
 // driving out — sessions, last try, your last note — and Log attempt right in the row.
+// Tried once and not going back? Hide it. Stored on the device — it's a view preference, not
+// data — and it returns the moment you log a newer attempt on that route.
+const PROJ_HIDE_KEY = 'leaderboard.hiddenProjects';
+function hiddenProjects() {
+    try { return JSON.parse(localStorage.getItem(PROJ_HIDE_KEY) || '{}'); } catch (e) { return {}; }
+}
 function renderProfileProjects(climber) {
     const el = document.getElementById('profile-projects');
     const countEl = document.getElementById('proj-count');
@@ -6949,7 +6962,7 @@ function renderProfileProjects(climber) {
             grade: a.Grade, disc: a.Discipline, tries: [] });
         p.tries.push(a);
     });
-    const rows = Object.values(byRoute).map(p => {
+    let rows = Object.values(byRoute).map(p => {
         p.tries.sort((a, b) => getCleanDate(a.Date).localeCompare(getCleanDate(b.Date)));
         const days = [...new Set(p.tries.map(t => getCleanDate(t.Date)))];
         const last = p.tries[p.tries.length - 1];
@@ -6960,8 +6973,15 @@ function renderProfileProjects(climber) {
         return { ...p, days, last, sent, note };
     }).sort((a, b) => (a.sent ? 1 : 0) - (b.sent ? 1 : 0)
         || getCleanDate(b.last.Date).localeCompare(getCleanDate(a.last.Date)));
+    const hidden = hiddenProjects();
+    const visible = rows.filter(r => {
+        const since = hidden[`${r.name.toLowerCase()}|${r.where || ''}`];
+        return !since || getCleanDate(r.last.Date) > since;
+    });
+    const hiddenCount = rows.length - visible.length;
+    rows = visible;
     const open = rows.filter(r => !r.sent);
-    if (countEl) countEl.textContent = open.length ? `${open.length} open` : 'all sent';
+    if (countEl) countEl.textContent = open.length ? `${open.length} open` : (rows.length ? 'all sent' : '');
     el.innerHTML = rows.map(p => {
         const rgb = DISC_RGB[p.disc] || '16,185,129';
         const ticks = Array.from({ length: Math.max(6, p.days.length) }, (_, i) =>
@@ -6987,9 +7007,28 @@ function renderProfileProjects(climber) {
                         data-pj-grade="${escapeHTML(p.grade)}" data-pj-disc="${escapeHTML(p.disc)}">+ Log attempt</button>
                 <button class="sec" data-pj-sent="${escapeHTML(p.name)}" data-pj-where="${escapeHTML(p.where || '')}"
                         data-pj-grade="${escapeHTML(p.grade)}" data-pj-disc="${escapeHTML(p.disc)}">Sent it</button>
+                <button class="sec pj-x" aria-label="Remove from projects"
+                        data-pj-hide="${escapeHTML(p.name.toLowerCase())}|${escapeHTML(p.where || '')}"
+                        data-pj-last="${escapeHTML(getCleanDate(p.last.Date))}">✕</button>
             </div>` : ''}
         </div>`;
     }).join('');
+    if (hiddenCount) {
+        el.insertAdjacentHTML('beforeend', `<button class="pj-unhide" id="pj-unhide">Show ${hiddenCount} removed</button>`);
+        const u = document.getElementById('pj-unhide');
+        if (u) u.addEventListener('click', () => {
+            haptic('tap');
+            try { localStorage.removeItem(PROJ_HIDE_KEY); } catch (e) {}
+            renderProfileProjects(climber);
+        });
+    }
+    el.querySelectorAll('[data-pj-hide]').forEach(b => b.addEventListener('click', () => {
+        haptic('tap');
+        const h = hiddenProjects();
+        h[b.dataset.pjHide] = b.dataset.pjLast;
+        try { localStorage.setItem(PROJ_HIDE_KEY, JSON.stringify(h)); } catch (e) {}
+        renderProfileProjects(climber);
+    }));
     el.querySelectorAll('[data-pj-log]').forEach(b => b.addEventListener('click', () => {
         haptic('tap');
         openAttemptPaneForProject(b.dataset.pjDisc, b.dataset.pjWhere, b.dataset.pjGrade, b.dataset.pjLog);
@@ -7345,25 +7384,23 @@ function renderCapacityChart(climber, discipline = profileHistoDiscipline, mode 
 }
 
 function renderProfileSessions(climber) {
+    // A logbook, not a 30-day slice: everything, newest first, a page at a time.
     const climberLogs = State.logs
-        .filter(log => log.ClimberName === climber && isWithinWindow(log.Date, 30))
-        .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+        .filter(log => log.ClimberName === climber)
+        .sort((a, b) => getCleanDate(b.Date).localeCompare(getCleanDate(a.Date))
+            || new Date(b.Timestamp) - new Date(a.Timestamp));
     const container = document.getElementById('profile-sessions');
     if (climberLogs.length === 0) {
-        container.innerHTML = '<div class="empty-msg">No sessions in last 30 days.</div>';
+        container.innerHTML = '<div class="empty-msg">Nothing logged yet.</div>';
         return;
     }
     
+    const lbCount = document.getElementById('logbook-count');
+    if (lbCount) lbCount.textContent = `${climberLogs.length} climb${climberLogs.length === 1 ? '' : 's'}`;
     const visibleLogs = climberLogs.slice(0, profilePage * PROFILE_PAGE_SIZE);
     const remaining = climberLogs.length - visibleLogs.length;
     
-    const headersHtml = `
-        <div class="profile-table-headers">
-            <div>Date</div>
-            <div>Crag / Gym</div>
-            <div>Grade</div>
-            <div>Style</div>
-        </div>`;
+    const headersHtml = '';   // columns read fine without a caps header
     
     const rowsHtml = visibleLogs.map(log => {
         const dateStr = formatShortDate(getCleanDate(log.Date));
