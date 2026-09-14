@@ -840,6 +840,7 @@ h1.screen-title {
     align-items: center;
     padding: 12px 14px;
 }
+.profile-table-headers { text-transform: none !important; letter-spacing: 0 !important; }
 .profile-table-headers {
     font-size: 0.7rem;
     color: var(--text-muted);
@@ -2137,12 +2138,14 @@ body.disco .disco-me {
     <div class="view" id="view-boards">
     <h1 class="screen-title">Leaderboards</h1>
 
-    <div class="seg-ctrl" id="board-mode-toggle">
-        <button class="seg-item active" data-mode="boards">Boards</button>
-        <button class="seg-item" data-mode="capacity">Form</button>
+    <!-- Form moved to the profile as your working level; this segment now splits the boards
+         by rope style, which is the question you actually ask of a leaderboard. -->
+    <div class="seg-ctrl" id="board-rope-toggle">
+        <button class="seg-item active" data-rope="lead">Lead</button>
+        <button class="seg-item" data-rope="tr">Top-rope</button>
     </div>
 
-    <div id="capacity-mode">
+    <div id="capacity-mode" class="hidden">
         <div class="cap-tabs" id="cap-tabs"></div>
         <div class="board-subtitle" style="display:flex;align-items:center;justify-content:center;gap:7px">
             <button class="info-icon" id="capacity-info">i</button>Top 6 climbs, last 90 days
@@ -2588,25 +2591,24 @@ function renderFeedSkeleton() {
 }
 
 let activeBoardMode = localStorage.getItem('leaderboard.lastBoardMode') || 'capacity';
-if (!['capacity', 'boards'].includes(activeBoardMode)) activeBoardMode = 'boards';   // boards is the popular one
+activeBoardMode = 'boards';   // Form now lives on the profile   // boards is the popular one
 
 function applyBoardMode() {
     const cap = document.getElementById('capacity-mode');
     const brd = document.getElementById('boards-mode');
     cap.style.display = activeBoardMode === 'capacity' ? 'block' : 'none';
     brd.style.display = activeBoardMode === 'boards'   ? 'block' : 'none';
-    document.querySelectorAll('#board-mode-toggle .seg-item').forEach(el => {
-        el.classList.toggle('active', el.dataset.mode === activeBoardMode);
-    });
+
     if (activeBoardMode === 'capacity') renderCapacityBoard();
     if (activeBoardMode === 'boards') renderSpecialBoard();
 }
 
-document.querySelectorAll('#board-mode-toggle .seg-item').forEach(el => {
+document.querySelectorAll('#board-rope-toggle .seg-item').forEach(el => {
     el.addEventListener('click', () => {
         haptic('tap');
-        activeBoardMode = el.dataset.mode;
-        localStorage.setItem('leaderboard.lastBoardMode', activeBoardMode);
+        boardRopeMode = el.dataset.rope;
+        document.querySelectorAll('#board-rope-toggle .seg-item')
+            .forEach(x => x.classList.toggle('active', x === el));
         applyBoardMode();
     });
 });
@@ -7405,7 +7407,13 @@ function renderProfileSessions(climber) {
     const visibleLogs = climberLogs.slice(0, profilePage * PROFILE_PAGE_SIZE);
     const remaining = climberLogs.length - visibleLogs.length;
     
-    const headersHtml = '';   // columns read fine without a caps header
+    const headersHtml = `
+        <div class="profile-table-headers">
+            <div>Date</div>
+            <div>Crag / gym</div>
+            <div>Grade</div>
+            <div>Style</div>
+        </div>`;
     
     const rowsHtml = visibleLogs.map(log => {
         const dateStr = formatShortDate(getCleanDate(log.Date));
@@ -9275,11 +9283,13 @@ const BOARD_SUBTITLES = {
 };
 
 // Hardest: highest-scoring single send per climber, cross-discipline
+// 'lead' (the trophy) or 'tr' — the boards segment switches between them.
+let boardRopeMode = 'lead';
 function computeHardest() {
     const byClimber = new Map();
     State.logs.forEach(log => {
         if (!isWithinWindow(log.Date, HARDEST_WINDOW_DAYS)) return;
-        if (isTopRope(log.Style)) return;  // Hardest is the lead trophy — TR never counts here
+        if (boardRopeMode === 'tr' ? !isTopRope(log.Style) : isTopRope(log.Style)) return;
         const disc = log.Discipline;
         if (!AppConfig.disciplines.includes(disc)) return;
         const score = getScoredValue(log.Grade, log.Style, disc);
