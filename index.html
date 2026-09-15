@@ -227,7 +227,7 @@ h1.screen-title {
 .day-section[data-disc="Out Rope"]    { background: linear-gradient(90deg, rgba(16,185,129,0.16) 0%, rgba(16,185,129,0.05) 45%, transparent 80%); }
 .day-section[data-disc="Out Boulder"] { background: linear-gradient(90deg, rgba(168,85,247,0.16) 0%, rgba(168,85,247,0.05) 45%, transparent 80%); }
 .day-section[data-disc="Trad"]        { background: linear-gradient(90deg, rgba(244,63,94,0.16) 0%, rgba(244,63,94,0.05) 45%, transparent 80%); }
-.day-sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.day-sec-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .day-sec-label { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.5px;
     white-space: nowrap; flex: 0 0 auto; }   /* "Out Rope" must never break across lines */
 .day-sec-label[data-disc="In Boulder"]  { color: var(--disc-in-boulder); }
@@ -235,9 +235,7 @@ h1.screen-title {
 .day-sec-label[data-disc="Out Rope"]    { color: var(--disc-out-rope); }
 .day-sec-label[data-disc="Out Boulder"] { color: var(--disc-out-boulder); }
 .day-sec-label[data-disc="Trad"]        { color: var(--disc-trad); }
-.day-sec-summary { font-size: 0.9rem; font-weight: 700; color: #a3a3a3;
-    /* the label is fixed, so the summary is the side that yields */
-    min-width: 0; text-align: right; }
+.day-sec-summary { font-size: 0.9rem; font-weight: 700; color: #a3a3a3; min-width: 0; text-align: right; }
 .day-sec-summary .max-grade-v { color: #fff; font-weight: 700; }
 .day-sec-proj { font-size: 0.8rem; color: #8a8a8a; font-weight: 400; margin-top: 6px; }
 .day-sec-proj .pg { font-weight: 700; }
@@ -339,6 +337,7 @@ h1.screen-title {
 }
 .expand-btn:active { color: #fff; background: rgba(0,0,0,0.4); }
 
+.sec-children { margin-top: 8px; padding: 4px 0 2px; background: none; }
 .session-children {
     display: none;
     background: rgba(0,0,0,0.4);
@@ -2141,9 +2140,9 @@ body.disco .disco-me {
     <div class="view" id="view-boards">
     <h1 class="screen-title">Leaderboards</h1>
 
-    <!-- Form moved to the profile as your working level; this segment now splits the boards
-         by rope style, which is the question you actually ask of a leaderboard. -->
-    <div class="seg-ctrl" id="board-rope-toggle">
+    <!-- Form moved to the profile; this splits the boards by rope style, and only appears
+         for boards where lead vs top-rope means anything. -->
+    <div class="seg-ctrl hidden" id="board-rope-toggle">
         <button class="seg-item active" data-rope="lead">Lead</button>
         <button class="seg-item" data-rope="tr">Top-rope</button>
     </div>
@@ -2593,8 +2592,8 @@ function renderFeedSkeleton() {
     list.innerHTML = Array(4).fill(card).join('');
 }
 
-let activeBoardMode = localStorage.getItem('leaderboard.lastBoardMode') || 'capacity';
-activeBoardMode = 'boards';   // Form now lives on the profile   // boards is the popular one
+let activeBoardMode = 'boards';   // Form lives on the profile now
+if (!['capacity', 'boards'].includes(activeBoardMode)) activeBoardMode = 'boards';   // boards is the popular one
 
 function applyBoardMode() {
     const cap = document.getElementById('capacity-mode');
@@ -2604,15 +2603,22 @@ function applyBoardMode() {
 
     if (activeBoardMode === 'capacity') renderCapacityBoard();
     if (activeBoardMode === 'boards') renderSpecialBoard();
+    syncRopeToggleVisibility();
 }
 
+// Days-climbed and hot-spots count bouldering, where lead and top-rope don't exist — so the
+// switch hides on those boards rather than producing a misleading number.
+function syncRopeToggleVisibility() {
+    const t = document.getElementById('board-rope-toggle');
+    if (t) t.classList.toggle('hidden', activeSpecialBoard !== 'hardest');
+}
 document.querySelectorAll('#board-rope-toggle .seg-item').forEach(el => {
     el.addEventListener('click', () => {
         haptic('tap');
         boardRopeMode = el.dataset.rope;
         document.querySelectorAll('#board-rope-toggle .seg-item')
             .forEach(x => x.classList.toggle('active', x === el));
-        applyBoardMode();
+        renderSpecialBoard();
     });
 });
 
@@ -5919,15 +5925,13 @@ const DAY_PROJ_GRADE_COLOR = {
 // Lead vs TR split — a top-rope is a climb, but it isn't a send, and the app should say so.
 // The belayer field has been write-only until now — surface it on the day it belongs to.
 function dayBelayerNames(day) {
-    // Attempts count too — someone who belayed the route you worked was just as much there,
-    // and leaving them out made them vanish as soon as anyone belayed a send.
+    // Attempts count too — someone who belayed the route you worked was just as much there.
     const names = [...new Set(day.sections
         .flatMap(s => [...s.sends, ...(s.attempts || [])])
         .map(s => String(s.Belayer || '').trim()).filter(Boolean))];
     if (!names.length) return '';
     if (names.length === 1) return names[0];
     if (names.length === 2) return `${names[0]} & ${names[1]}`;
-    // three or more would truncate mid-word on the time line
     return `${names[0]}, ${names[1]} +${names.length - 2}`;
 }
 function daySendSplit(day) {
@@ -5986,7 +5990,9 @@ function attemptCountLabel(v) {
     if (s === '2-3' || s === '2–3') return '2–3';
     return escapeHTML(s);
 }
-function dayClimbSectionHtml(sec) {
+// Each section renders its own climbs, so a mixed day shows the Trad sends under Trad and the
+// worked Out Rope route under Out Rope — not one flat list belonging to nobody.
+function dayClimbSectionHtml(sec, withChildren) {
     const lead = sec.sends.filter(s => !isTopRope(s.Style));
     const tr = sec.sends.length - lead.length;
     let maxGrade = null;
@@ -6010,13 +6016,18 @@ function dayClimbSectionHtml(sec) {
         const oc = [bucket, a.Outcome ? escapeHTML(a.Outcome) : ''].filter(Boolean).join(' ');
         return `<div class="day-sec-proj">${a.RouteName ? `${escapeHTML(a.RouteName)} · ` : 'worked '}<span class="pg" style="color:${pc}">${escapeHTML(a.Grade)}</span>${oc ? ` · ${oc}` : ''}</div>`;
     }).join('');
+    const kids = withChildren ? [
+        ...sortSendsByScore(sec.sends, sec.discipline).map(x => sendRowHtml(x, sec.discipline)),
+        ...sortSendsByScore(sec.attempts, sec.discipline).map(a => attemptRowHtml(a, sec.discipline))
+    ].join('') : '';
     return `<div class="day-section" data-disc="${escapeHTML(sec.discipline)}">
         <div class="day-sec-head">
             <span class="day-sec-label" data-disc="${escapeHTML(sec.discipline)}">${escapeHTML(sec.discipline)}</span>
             ${summary ? `<span class="day-sec-summary">${summary}</span>` : '<span class="day-sec-summary" style="color:#8a8a8a">projecting</span>'}
         </div>
         ${dots}
-        ${projHtml}
+        ${kids ? '' : projHtml}
+        ${kids ? `<div class="session-children sec-children">${kids}</div>` : ''}
     </div>`;
 }
 
@@ -6070,12 +6081,12 @@ function renderDayCard(day, idx) {
     // One discipline and nothing worked? The headline already said it — don't repeat
     // the same numbers in a section row underneath.
     const soloSection = day.sections.length === 1 && !day.sections[0].attempts.length;
-    const sectionsHtml = soloSection ? '' : day.sections.map(dayClimbSectionHtml).join('');
+    const sectionsHtml = soloSection ? '' : day.sections.map(s => dayClimbSectionHtml(s, true)).join('');
 
     // Sends always count; attempts join the expander only for sections that have sends
     // (sendless sections keep their inline "worked" line instead).
-    // Attempts always count and always render as rows — hiding them on a worked-only day left
-    // nothing to long-press, so those attempts couldn't be edited in the app at all.
+    // Attempts always count — hiding them on a worked-only day left no row to long-press,
+    // so those attempts couldn't be edited in the app at all.
     const totalClimbs = day.sections.reduce((n, s) => n + s.sends.length + s.attempts.length, 0);
     const stateClass = day._failed ? 'failed' : (day._optimistic ? 'syncing' : '');
 
@@ -6095,10 +6106,10 @@ function renderDayCard(day, idx) {
         <div class="day-sections">${sectionsHtml}</div>
         ${totalClimbs > 0 ? `<button class="expand-btn"><span class="expand-arrow">▾</span> View ${totalClimbs} climb${totalClimbs > 1 ? 's' : ''}</button>
         ${qkCardExtras(day.climber, day.date)}
-        <div class="session-children">${day.sections.flatMap(s => [
+        ${soloSection ? `<div class="session-children">${day.sections.flatMap(s => [
             ...sortSendsByScore(s.sends, s.discipline).map(x => sendRowHtml(x, s.discipline)),
             ...sortSendsByScore(s.attempts, s.discipline).map(a => attemptRowHtml(a, s.discipline))
-        ]).join('')}</div>` : ''}
+        ]).join('')}</div>` : ''}` : ''}
     </div>`;
 }
 
@@ -6952,8 +6963,8 @@ function computeMilestones(climber) {
 let milestonesExpanded = false;
 // Projects: attempts grouped by route + crag. Open ones first, with what you'd want before
 // driving out — sessions, last try, your last note — and Log attempt right in the row.
-// Tried once and not going back? Hide it. Stored on the device — it's a view preference, not
-// data — and it returns the moment you log a newer attempt on that route.
+// Tried once and not going back? Hide it — a view preference, kept on the device, and it
+// returns the moment you log a newer attempt on that route.
 const PROJ_HIDE_KEY = 'leaderboard.hiddenProjects';
 function hiddenProjects() {
     try { return JSON.parse(localStorage.getItem(PROJ_HIDE_KEY) || '{}'); } catch (e) { return {}; }
@@ -7416,7 +7427,7 @@ function renderProfileSessions(climber) {
     const headersHtml = `
         <div class="profile-table-headers">
             <div>Date</div>
-            <div>Crag / gym</div>
+            <div>Crag / Gym</div>
             <div>Grade</div>
             <div>Style</div>
         </div>`;
@@ -9289,8 +9300,7 @@ const BOARD_SUBTITLES = {
 };
 
 // Hardest: highest-scoring single send per climber, cross-discipline
-// 'lead' (the trophy) or 'tr' — the boards segment switches between them.
-let boardRopeMode = 'lead';
+let boardRopeMode = 'lead';   // 'lead' (the trophy) or 'tr'
 function computeHardest() {
     const byClimber = new Map();
     State.logs.forEach(log => {
