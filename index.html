@@ -344,6 +344,11 @@ h1.screen-title {
     padding: 4px 18px 14px 18px;
 }
 .session-card.expanded .session-children { display: block; animation: fadeIn 0.2s ease; }
+/* a section's climbs follow that section's own header, not the card-wide expander */
+.session-card .day-section .sec-children { display: none; }
+.session-card .day-section.open .sec-children { display: block; animation: fadeIn 0.2s ease; }
+.day-section[data-has-kids] { cursor: pointer; }
+.day-sec-caret { color: var(--text-muted); font-size: 0.6rem; margin-left: 6px; }
 .session-card.expanded .expand-arrow { transform: rotate(180deg); }
 .expand-arrow { display: inline-block; transition: transform 0.2s; }
 
@@ -6020,10 +6025,11 @@ function dayClimbSectionHtml(sec, withChildren) {
         ...sortSendsByScore(sec.sends, sec.discipline).map(x => sendRowHtml(x, sec.discipline)),
         ...sortSendsByScore(sec.attempts, sec.discipline).map(a => attemptRowHtml(a, sec.discipline))
     ].join('') : '';
-    return `<div class="day-section" data-disc="${escapeHTML(sec.discipline)}">
+    return `<div class="day-section" data-disc="${escapeHTML(sec.discipline)}"${kids ? ' data-has-kids="1"' : ''}>
         <div class="day-sec-head">
             <span class="day-sec-label" data-disc="${escapeHTML(sec.discipline)}">${escapeHTML(sec.discipline)}</span>
-            ${summary ? `<span class="day-sec-summary">${summary}</span>` : '<span class="day-sec-summary" style="color:#8a8a8a">projecting</span>'}
+            ${summary ? `<span class="day-sec-summary">${summary}${kids ? '<span class="day-sec-caret">▾</span>' : ''}</span>`
+                : `<span class="day-sec-summary" style="color:#8a8a8a">projecting${kids ? '<span class="day-sec-caret">▾</span>' : ''}</span>`}
         </div>
         ${dots}
         ${kids ? '' : projHtml}
@@ -6357,7 +6363,25 @@ function renderFeed() {
             const nameEl = card.querySelector('.s-name[data-profile-link]');
             if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(m.day.climber); });
             const expandBtn = card.querySelector('.expand-btn');
-            if (expandBtn) card.addEventListener('click', () => { haptic('tap'); card.classList.toggle('expanded'); });
+            if (expandBtn) expandBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                haptic('tap');
+                const opening = !card.classList.contains('expanded');
+                card.classList.toggle('expanded', opening);
+                card.querySelectorAll('.day-section[data-has-kids]')
+                    .forEach(s => s.classList.toggle('open', opening));
+            });
+            // Tapping a section header opens only that discipline's climbs.
+            card.querySelectorAll('.day-section[data-has-kids]').forEach(sec => {
+                sec.addEventListener('click', (e) => {
+                    if (e.target.closest('.send-row')) return;   // rows keep their own gestures
+                    e.stopPropagation();
+                    haptic('tap');
+                    sec.classList.toggle('open');
+                    card.classList.toggle('expanded',
+                        !!card.querySelector('.day-section.open'));
+                });
+            });
             // send-row long-press to edit (flatten in the same order the children were rendered)
             const flatSends = m.day.sections.flatMap(s => sortSendsByScore(s.sends, s.discipline));
             card.querySelectorAll('.session-children .send-row:not(.attempt-row)').forEach((rowEl, si) => {
