@@ -2199,11 +2199,6 @@ body.disco .disco-me {
         <button class="pill" data-board="addicted">Most Addicted</button>
         <button class="pill" data-board="outdoor">Outdoor Days</button>
     </div>
-    <!-- board first, then the rope split — and only where lead vs top-rope means anything -->
-    <div class="seg-ctrl mini-seg hidden" id="board-rope-toggle" style="max-width:220px;margin:0 auto 10px">
-        <button class="seg-item active" data-rope="lead">Lead</button>
-        <button class="seg-item" data-rope="tr">Top-rope</button>
-    </div>
     <div class="board-subtitle" id="board-subtitle">Highest single send, last 30 days</div>
     <div id="special-board"></div>
 </div>
@@ -2430,6 +2425,7 @@ body.disco .disco-me {
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
 
          <div id="session-pane-attempts">
+        <div class="switcher-link" id="attempt-switcher-trigger">Logging as <strong id="attempt-active-user-label">—</strong> ▾</div>
         <div class="seg-ctrl log-mode-seg" id="log-mode-seg-attempt">
             <button class="seg-item" data-logmode="send">Send</button>
             <button class="seg-item active" data-logmode="attempt">Attempt</button>
@@ -2668,24 +2664,8 @@ function applyBoardMode() {
 
     if (activeBoardMode === 'capacity') renderCapacityBoard();
     if (activeBoardMode === 'boards') renderSpecialBoard();
-    syncRopeToggleVisibility();
 }
 
-// Days-climbed and hot-spots count bouldering, where lead and top-rope don't exist — so the
-// switch hides on those boards rather than producing a misleading number.
-function syncRopeToggleVisibility() {
-    const t = document.getElementById('board-rope-toggle');
-    if (t) t.classList.toggle('hidden', activeSpecialBoard !== 'hardest');
-}
-document.querySelectorAll('#board-rope-toggle .seg-item').forEach(el => {
-    el.addEventListener('click', () => {
-        haptic('tap');
-        boardRopeMode = el.dataset.rope;
-        document.querySelectorAll('#board-rope-toggle .seg-item')
-            .forEach(x => x.classList.toggle('active', x === el));
-        renderSpecialBoard();
-    });
-});
 
 // (The Form tab's long-press shortcut was removed — tapping a row opens the detail now.)
 
@@ -3053,6 +3033,8 @@ function setActiveUser(name) {
     localStorage.setItem('leaderboard.user', name);
     const label = document.getElementById('active-user-label');
     if (label) label.textContent = name;
+    const aLabel = document.getElementById('attempt-active-user-label');
+    if (aLabel) aLabel.textContent = name;
     updateNavLabel();
 }
 
@@ -3222,6 +3204,18 @@ function openSwitcher() {
             updateBelayerVisibility();
             refreshLogSaveState();
         }
+        // Attempt logger open: same re-rank for the new climber, from their logs AND attempts.
+        if (document.getElementById('session-modal').classList.contains('active')) {
+            const mineA = [...State.logs, ...(State.attempts || [])].filter(x => x.ClimberName === name);
+            if (!mineA.some(x => x.Discipline === AttemptState.discipline)) {
+                AttemptState.discipline = disciplineFreqOrder()[0] || AppConfig.disciplines[0];
+            }
+            const theirWheresA = new Set(mineA.filter(x => x.Discipline === AttemptState.discipline && x.Where).map(x => x.Where));
+            if (!theirWheresA.has(AttemptState.where)) AttemptState.where = null;
+            renderAttemptDiscipline(); renderAttemptWhere(); renderAttemptGrade();
+            updateAttemptRouteVisibility(); updateAttemptBelayerVisibility();
+            refreshAttemptSaveState();
+        }
         if (State.activeView === 'boards') applyBoardMode();
         if (State.activeView === 'profile' && profileClimber) {
             renderBestsStrip(profileClimber);
@@ -3247,6 +3241,7 @@ function openIdentityPrompt() {
 }
 
 document.getElementById('switcher-trigger').addEventListener('click', openSwitcher);
+document.getElementById('attempt-switcher-trigger').addEventListener('click', openSwitcher);
 
 /* ============== LOGGER STATE ============== */
 const LoggerState = {
@@ -4043,7 +4038,7 @@ function gradeConversionRows(disc) {
     labels.forEach(r => {
         if (hasNoRungs && GRADE_CONV_NO_RUNGS[r]) {
             const c = byFr[GRADE_CONV_NO_RUNGS[r]];
-            if (c) rungs.push({ rung: r, fr: (r === c.french ? '' : '≈') + c.french, no: r, us: c.usa });
+            if (c) rungs.push({ rung: r, fr: c.french, no: r, us: c.usa });
         } else if (byFr[r]) {
             rungs.push({ rung: r, fr: r, no: byFr[r].norway, us: byFr[r].usa });
         }
@@ -6023,11 +6018,14 @@ const DAY_PROJ_GRADE_COLOR = {
 
 // Lead vs TR split — a top-rope is a climb, but it isn't a send, and the app should say so.
 // The belayer field has been write-only until now — surface it on the day it belongs to.
-function dayBelayerNames(day) {
+function dayBelayerNames(day, exclude) {
     // Attempts count too — someone who belayed the route you worked was just as much there.
+    // `exclude`: names already on the card (joint members) — they don't need a "with".
+    const skip = new Set((exclude || []).map(n => String(n).toLowerCase().trim()));
     const names = [...new Set(day.sections
         .flatMap(s => [...s.sends, ...(s.attempts || [])])
-        .map(s => String(s.Belayer || '').trim()).filter(Boolean))];
+        .map(s => String(s.Belayer || '').trim()).filter(Boolean))]
+        .filter(n => !skip.has(n.toLowerCase()));
     if (!names.length) return '';
     if (names.length === 1) return names[0];
     if (names.length === 2) return `${names[0]} & ${names[1]}`;
@@ -6281,6 +6279,12 @@ function renderJointDayCard(group, idx) {
     group.members.forEach(m => m.sections.forEach(s => jointDiscs.add(s.discipline)));
     const jointDisc = jointDiscs.size === 1 ? [...jointDiscs][0] : null;
     const relTime = formatRelativeTime(group.date + 'T12:00:00');
+    // Same "with …" as the solo card (your own day only), minus whoever is already on this card.
+    // Without it, a belayer outside the group vanished the moment someone else joined the card.
+    let jointTimeText = /ago|now|today|yesterday/i.test(relTime) ? formatShortDate(group.date) + ' · ' + relTime : formatShortDate(group.date);
+    const meDay = group.members.find(m => m.climber === State.activeUser);
+    const jointWith = meDay ? dayBelayerNames(meDay, group.members.map(m => m.climber)) : '';
+    if (jointWith) jointTimeText += ` · with ${jointWith}`;
     const allWheres = [...new Set(group.members.flatMap(m => m.sections.flatMap(s => s.sends.concat(s.attempts)).map(x => x.Where)).filter(Boolean))];
     const whereHtml = allWheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
 
@@ -6339,7 +6343,7 @@ function renderJointDayCard(group, idx) {
         <div class="session-header">
             <div class="s-name-block">
                 <div class="s-name">${title}</div>
-                <div class="s-time">${escapeHTML(/ago|now|today|yesterday/i.test(relTime) ? formatShortDate(group.date) + ' · ' + relTime : formatShortDate(group.date))}</div>
+                <div class="s-time">${escapeHTML(jointTimeText)}</div>
             </div>
             <div class="s-where">${whereHtml}</div>
         </div>
@@ -7883,6 +7887,8 @@ function openAttemptPane() {
     // Fresh blank state every open — deliberate picks, like the send logger.
     // Also exits attempt-edit mode (tab switches and FAB opens route through here).
     editingAttemptId = null;
+    const aLabel = document.getElementById('attempt-active-user-label');
+    if (aLabel) aLabel.textContent = State.activeUser || '—';
     const noteEl0 = document.getElementById('attempt-note'); if (noteEl0) noteEl0.value = '';
     document.getElementById('attempt-submit').textContent = 'Log attempt';
     // Same continuation rule as the send logger: if you've already logged something TODAY,
@@ -9578,7 +9584,7 @@ const BOARD_SUBTITLES = {
 };
 
 // Hardest: highest-scoring single send per climber, cross-discipline
-let boardRopeMode = 'lead';   // 'lead' (the trophy) or 'tr'
+const boardRopeMode = 'lead';   // Lead/Top-rope switch removed — Hardest is the lead trophy, TR never counts
 function computeHardest() {
     const byClimber = new Map();
     State.logs.forEach(log => {
