@@ -1451,6 +1451,17 @@ h1.screen-title {
     border-bottom: 1px solid rgba(255,255,255,0.03);
 }
 .grade-conv-row:last-child { border-bottom: none; }
+.grade-conv-divider {
+    padding: 10px 16px 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+.grade-conv-ref { padding: 8px 16px; }
 .grade-conv-norway {
     font-size: 1.15rem;
     font-weight: 700;
@@ -1539,6 +1550,14 @@ h1.screen-title {
 }
 .btn-main:active { transform: scale(0.98); }
 .btn-main:disabled, .btn-main.not-ready { background: #262626; color: #555; cursor: not-allowed; }
+@keyframes field-nudge {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(3px); }
+}
+.field-nudge { animation: field-nudge 0.45s ease; }
 .pill {
     padding: 11px 18px;
     background: var(--input-bg);
@@ -1569,12 +1588,13 @@ h1.screen-title {
     background: transparent;
     border: 1px dashed rgba(16,185,129,0.3);
 }
-/* Where pills: + Add and "+N more" sit inline; the whole row clips to 2 rows */
-.pill-wrap { position: relative; overflow: hidden; }
+/* Where: one scrolling line — Find / add first, then your top spots by usage */
+.where-find { display: inline-flex; align-items: center; gap: 6px; }
+.where-find svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.where-find.open { background: var(--primary-fade); border-style: solid; }
 /* Discipline "Other ›" pill + its expanded overflow row */
 .disc-other { color: var(--text-muted); background: transparent; border: 1px dashed rgba(255,255,255,0.18); }
 .disc-overflow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; animation: fadeIn 0.18s ease; }
-.where-more { color: var(--text-muted); background: transparent; border: 1px dashed rgba(255,255,255,0.12); }
 
 /* ===== ACTION SHEET ===== */
 .action-sheet-list {
@@ -2460,7 +2480,7 @@ body.disco .disco-me {
             </div>
             <input type="date" class="date-input hidden" id="attempt-date-custom" max="2099-12-31">
 
-            <button class="btn-main" id="attempt-submit" disabled>Log attempt</button>
+            <button class="btn-main not-ready" id="attempt-submit">Log attempt</button>
         </div>
 
     </div>
@@ -3248,6 +3268,16 @@ function refreshLogSaveState() {
     const btn = document.getElementById('submit-log');
     if (btn && !editingLogId) btn.classList.toggle('not-ready', !canLogSend());
 }
+// Scroll a logger field into view and give it a short shake — pairs with the "Still needed" toast.
+function nudgeField(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.remove('field-nudge');
+    void el.offsetWidth;                       // restart the animation on repeat taps
+    el.classList.add('field-nudge');
+    setTimeout(() => el.classList.remove('field-nudge'), 700);
+}
 function missingLogFields() {
     const out = [];
     if (!LoggerState.discipline) out.push('discipline');
@@ -3384,6 +3414,36 @@ function locationNamesFor(disc) {
         seen.add(k); out.push(n);
     });
     return out.sort((a, b) => a.localeCompare(b));
+}
+// Where row shape, shared by both loggers: selected spot first, then usage order, capped.
+// Everything else is one "Find / add" away (match-anywhere type-ahead below).
+const WHERE_ROW_CAP = 8;
+const WHERE_FIND_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
+function whereRowNames(ranked, selected) {
+    const names = ranked.slice();
+    if (selected) {
+        const i = names.indexOf(selected);
+        if (i > 0) { names.splice(i, 1); names.unshift(selected); }
+    }
+    return names.slice(0, WHERE_ROW_CAP);
+}
+// A spot found via search may not be tagged for this discipline yet — keep it instead of
+// silently clearing the pick (it's still a real crag/gym of the right type).
+function keepFoundWhere(locations, selected, disc) {
+    if (selected && !locations.includes(selected) && locationNamesFor(disc).includes(selected)) locations.unshift(selected);
+    return locations;
+}
+function whereFindHtml(isOpen) {
+    return `<button class="pill add-btn where-find ${isOpen ? 'open' : ''}" data-where-find="1">${WHERE_FIND_SVG}Find / add</button>`;
+}
+function toggleWhereFind(rowId, inputId, btn) {
+    const row = document.getElementById(rowId), inp = document.getElementById(inputId);
+    if (!row || !inp) return;
+    const opening = row.classList.contains('hidden');
+    row.classList.toggle('hidden', !opening);
+    if (btn) btn.classList.toggle('open', opening);
+    if (opening) setTimeout(() => { inp.focus(); inp.click(); }, 100);
+    else inp.blur();
 }
 function renderLocSuggest(rowId, inputId, disc, onPick) {
     const row = document.getElementById(rowId), input = document.getElementById(inputId);
@@ -3565,9 +3625,7 @@ function renderDisciplinePills() {
 }
 
 /* ----- Where pills ----- */
-let whereExpanded = false;
 function renderWherePills() {
-    whereExpanded = false;  // fresh render starts collapsed
     const c = document.getElementById('logger-where');
     // No discipline picked yet (blank open) — render nothing; where depends on discipline.
     if (!LoggerState.discipline) { c.innerHTML = ''; return; }
@@ -3576,7 +3634,7 @@ function renderWherePills() {
     const labelEl = document.getElementById('where-label');
     if (labelEl) labelEl.textContent = isOut ? 'Crag' : 'Gym';
     const addInputEl = document.getElementById('where-add-input');
-    if (addInputEl) addInputEl.placeholder = isOut ? 'Crag name' : 'Gym name';
+    if (addInputEl) addInputEl.placeholder = isOut ? 'Search crags, or type a new one' : 'Search gyms, or type a new one';
     const stickyKey = `leaderboard.lastWhere.${LoggerState.discipline}`;
     const sticky = localStorage.getItem(stickyKey);
     let locations = getLocationsForDiscipline(LoggerState.discipline);
@@ -3587,6 +3645,7 @@ function renderWherePills() {
     }
     // In edit mode keep the logged spot; otherwise leave blank unless it's a continuation
     // (a same-day session pre-set LoggerState.where in openLogger). No forced first-pill default.
+    keepFoundWhere(locations, LoggerState.where, LoggerState.discipline);
     if (LoggerState.where && !locations.includes(LoggerState.where)) {
         LoggerState.where = null;
     }
@@ -3601,20 +3660,15 @@ function renderWherePills() {
         if (d > s.last) s.last = d;
     });
     locations = rankByUsage(locations, stats);
-    // Pin the selected spot to the front so the 2-row cap never hides your current choice.
-    if (LoggerState.where) {
-        const i = locations.indexOf(LoggerState.where);
-        if (i > 0) { locations.splice(i, 1); locations.unshift(LoggerState.where); }
-    }
-    const pillsHtml = locations.map(loc =>
-        `<button class="pill ${loc === LoggerState.where ? 'active' : ''}" data-where="${escapeHTML(loc)}">${escapeHTML(loc)}</button>`
-    ).join('');
-    // + Add and "+N more" live INSIDE the wrap now, so they count toward the 2-row cap.
+    // One scrolling line: Find / add, then the selected spot, then your top spots by usage.
+    const shown = whereRowNames(locations, LoggerState.where);
+    const findOpen = !document.getElementById('where-add-row').classList.contains('hidden');
     c.innerHTML =
-        `<div class="pill-row pill-wrap" id="where-pill-wrap">` +
-            pillsHtml +
-            `<button class="pill add-btn" data-add-where="1">+ Add</button>` +
-            `<button class="pill where-more hidden" id="where-more"></button>` +
+        `<div class="pill-row scroll" id="where-pill-row">` +
+            whereFindHtml(findOpen) +
+            shown.map(loc =>
+                `<button class="pill ${loc === LoggerState.where ? 'active' : ''}" data-where="${escapeHTML(loc)}">${escapeHTML(loc)}</button>`
+            ).join('') +
         `</div>`;
     c.querySelectorAll('[data-where]').forEach(el => {
         el.addEventListener('click', () => {
@@ -3630,66 +3684,13 @@ function renderWherePills() {
         });
         attachLongPressToWherePill(el, el.dataset.where);
     });
-    c.querySelector('[data-add-where]').addEventListener('click', () => {
+    const findBtn = c.querySelector('[data-where-find]');
+    findBtn.addEventListener('click', () => {
         haptic('tap');
-        const row = document.getElementById('where-add-row');
-        const inp = document.getElementById('where-add-input');
-        row.classList.remove('hidden');
-        setTimeout(() => {
-            inp.focus();
-            inp.click();
-        }, 100);
+        toggleWhereFind('where-add-row', 'where-add-input', findBtn);
     });
-    const moreBtn = document.getElementById('where-more');
-    if (moreBtn) moreBtn.addEventListener('click', () => {
-        haptic('tap');
-        whereExpanded = !whereExpanded;
-        capWherePills();
-    });
-    capWherePills();
-}
-
-// Clip the where pills to 2 rows (measured, because crag/gym names vary in width). + Add and
-// "+N more" now live INSIDE the wrap, so we hide trailing location pills until those controls
-// fit within row 2 — that keeps the expander reachable instead of pushing it to a 3rd row.
-// The selected pill is pinned to the front (in renderWherePills), so collapsing never hides it.
-function capWherePills() {
-    const wrap = document.getElementById('where-pill-wrap');
-    const moreBtn = document.getElementById('where-more');
-    if (!wrap || !moreBtn) return;
-    const locPills = [...wrap.querySelectorAll('[data-where]')];
-    locPills.forEach(p => p.style.display = '');         // reset to full set
-    wrap.style.maxHeight = 'none';                       // measure unclipped
-
-    const visTops = () => [...new Set(
-        [...wrap.children].filter(el => el.style.display !== 'none').map(el => el.offsetTop)
-    )].sort((a, b) => a - b);
-
-    // Expanded: show everything; "Less" only if there's actually an overflow to collapse.
-    if (whereExpanded) {
-        moreBtn.classList.add('hidden');                 // measure the full set without the toggle
-        if (visTops().length > 2) { moreBtn.classList.remove('hidden'); moreBtn.textContent = 'Less'; }
-        return;
-    }
-
-    // Collapsed: does it already fit in 2 rows (with + Add inline)? Then no "+more" needed.
-    moreBtn.classList.add('hidden');
-    if (visTops().length <= 2) return;
-
-    // Overflow: reserve the widest possible label, then hide trailing location pills until
-    // + Add and + more sit within row 2.
-    moreBtn.classList.remove('hidden');
-    moreBtn.textContent = `+${locPills.length} more`;
-    let hidden = 0;
-    for (let i = locPills.length - 1; i >= 0; i--) {
-        if (visTops().length <= 2) break;
-        locPills[i].style.display = 'none';
-        hidden++;
-    }
-    const tops = visTops();
-    const pillH = wrap.children[0].offsetHeight;
-    wrap.style.maxHeight = (tops[Math.min(1, tops.length - 1)] + pillH) + 'px';
-    moreBtn.textContent = `+${hidden} more`;
+    const row = c.querySelector('#where-pill-row');
+    if (row) row.scrollLeft = 0;
 }
 
 /* ----- Add Where flow (mirrors addClimber) ----- */
@@ -3988,56 +3989,94 @@ document.getElementById('style-info').addEventListener('click', (e) => {
 });
 
 /* ----- Grade conversion (French ↔ Norway, rope only) ----- */
-// Based on Rockfax conversion chart.
-// Norway grades are stiffer than French at the upper end (6b+ ≈ 7-, not 6+).
+// Based on Rockfax conversion chart; 8c+ and up extended from the same trend. Approximate.
+// Keyed by FRENCH grade only. The old table also had '3', '4', '4+' as "French" rows — those
+// are the Norwegian rungs at the bottom of the Out Rope/Trad ladder, which is why the table
+// and the logger disagreed. They live in GRADE_CONV_NO_RUNGS now.
 const GRADE_CONVERSIONS = [
-    { french: '3',   norway: '3',  usa: '5.4'     },
-    { french: '4',   norway: '4',  usa: '5.5'     },
-    { french: '4+',  norway: '4+', usa: '5.6'     },
-    { french: '4b',  norway: '4',  usa: '5.6'     },
-    { french: '4c',  norway: '4+', usa: '5.7'     },
-    { french: '5a',  norway: '5-', usa: '5.7'     },
-    { french: '5a+', norway: '5',  usa: '5.8'     },
-    { french: '5b',  norway: '5',  usa: '5.8'     },
-    { french: '5b+', norway: '5+', usa: '5.9'     },
-    { french: '5c',  norway: '5+', usa: '5.9'     },
-    { french: '5c+', norway: '6-', usa: '5.10a'   },
-    { french: '6a',  norway: '6-', usa: '5.10a'   },
-    { french: '6a+', norway: '6',  usa: '5.10b'   },
-    { french: '6b',  norway: '6+', usa: '5.10c/d' },
-    { french: '6b+', norway: '7-', usa: '5.11a'   },
-    { french: '6c',  norway: '7',  usa: '5.11b'   },
-    { french: '6c+', norway: '7',  usa: '5.11c'   },
-    { french: '7a',  norway: '7+', usa: '5.11d'   },
-    { french: '7a+', norway: '8-', usa: '5.12a'   },
-    { french: '7b',  norway: '8-', usa: '5.12b'   },
-    { french: '7b+', norway: '8',  usa: '5.12c'   },
-    { french: '7c',  norway: '8+', usa: '5.12d'   },
-    { french: '7c+', norway: '8+', usa: '5.13a'   },
-    { french: '8a',  norway: '9-', usa: '5.13b'   },
-    { french: '8a+', norway: '9',  usa: '5.13c'   },
-    { french: '8b',  norway: '9',  usa: '5.13d'   },
-    { french: '8b+', norway: '9+', usa: '5.14a'   },
-    { french: '8c',  norway: '9+', usa: '5.14b'   }
+    { french: '3',   norway: '3',   usa: '5.4'     },
+    { french: '4a',  norway: '4-',  usa: '5.5'     },
+    { french: '4b',  norway: '4',   usa: '5.6'     },
+    { french: '4c',  norway: '4+',  usa: '5.7'     },
+    { french: '5a',  norway: '5-',  usa: '5.7'     },
+    { french: '5a+', norway: '5',   usa: '5.8'     },
+    { french: '5b',  norway: '5',   usa: '5.8'     },
+    { french: '5b+', norway: '5+',  usa: '5.9'     },
+    { french: '5c',  norway: '5+',  usa: '5.9'     },
+    { french: '5c+', norway: '6-',  usa: '5.10a'   },
+    { french: '6a',  norway: '6-',  usa: '5.10a'   },
+    { french: '6a+', norway: '6',   usa: '5.10b'   },
+    { french: '6b',  norway: '6+',  usa: '5.10c/d' },
+    { french: '6b+', norway: '7-',  usa: '5.11a'   },
+    { french: '6c',  norway: '7',   usa: '5.11b'   },
+    { french: '6c+', norway: '7',   usa: '5.11c'   },
+    { french: '7a',  norway: '7+',  usa: '5.11d'   },
+    { french: '7a+', norway: '8-',  usa: '5.12a'   },
+    { french: '7b',  norway: '8-',  usa: '5.12b'   },
+    { french: '7b+', norway: '8',   usa: '5.12c'   },
+    { french: '7c',  norway: '8+',  usa: '5.12d'   },
+    { french: '7c+', norway: '8+',  usa: '5.13a'   },
+    { french: '8a',  norway: '9-',  usa: '5.13b'   },
+    { french: '8a+', norway: '9',   usa: '5.13c'   },
+    { french: '8b',  norway: '9',   usa: '5.13d'   },
+    { french: '8b+', norway: '9+',  usa: '5.14a'   },
+    { french: '8c',  norway: '9+',  usa: '5.14b'   },
+    { french: '8c+', norway: '10-', usa: '5.14c'   },
+    { french: '9a',  norway: '10',  usa: '5.14d'   },
+    { french: '9a+', norway: '10+', usa: '5.15a'   },
+    { french: '9b',  norway: '11-', usa: '5.15b'   },
+    { french: '9b+', norway: '11',  usa: '5.15c'   },
+    { french: '9c',  norway: '11+', usa: '5.15d'   }
 ];
-    
+// Norwegian rungs at the bottom of the Out Rope/Trad ladder → their French equivalent.
+const GRADE_CONV_NO_RUNGS = { '3': '3', '4-': '4a', '4': '4b', '4+': '4c', '5-': '5a' };
+
+// One row per pill in the discipline's ladder, in ladder order — every pill has exactly one row.
+// Then the French scale past the ladder's top, up to 9c, as plain reference rows (not tappable).
+function gradeConversionRows(disc) {
+    const scale = AppConfig.grades[disc];
+    const labels = scale ? scale.labels : [];
+    const byFr = {};
+    GRADE_CONVERSIONS.forEach(c => { byFr[c.french] = c; });
+    const hasNoRungs = labels.includes('5-');        // Out Rope / Trad: low end is Norwegian
+    const rungs = [];
+    labels.forEach(r => {
+        if (hasNoRungs && GRADE_CONV_NO_RUNGS[r]) {
+            const c = byFr[GRADE_CONV_NO_RUNGS[r]];
+            if (c) rungs.push({ rung: r, fr: (r === c.french ? '' : '≈') + c.french, no: r, us: c.usa });
+        } else if (byFr[r]) {
+            rungs.push({ rung: r, fr: r, no: byFr[r].norway, us: byFr[r].usa });
+        }
+    });
+    const top = labels[labels.length - 1];
+    const topIdx = GRADE_CONVERSIONS.findIndex(c => c.french === top);
+    const ref = topIdx >= 0 ? GRADE_CONVERSIONS.slice(topIdx + 1).map(c => ({ fr: c.french, no: c.norway, us: c.usa })) : [];
+    return { rungs, ref };
+}
+
 function openGradeConversionModal(target, rerender) {
     target = target || LoggerState;                         // send logger passes nothing → unchanged
     rerender = rerender || renderGradePills;
     const currentGrade = target.grade;
-    const currentScale = AppConfig.grades[target.discipline];
-    
-    // Filter to grades valid in current discipline (so In Rope doesn't show 4-/4/4+ etc)
-    const validFrench = new Set(currentScale ? currentScale.labels : []);
-    const filtered = GRADE_CONVERSIONS.filter(c => validFrench.has(c.french));
-    
-    const rowsHtml = filtered.map(c => `
+    const { rungs, ref } = gradeConversionRows(target.discipline);
+
+    const rowsHtml = rungs.map(c => {
+        const on = c.rung === currentGrade ? 'active' : '';
+        return `
         <div class="grade-conv-row">
-            <button class="grade-conv-pill ${c.french === currentGrade ? 'active' : ''}" data-french="${escapeHTML(c.french)}">${escapeHTML(c.french)}</button>
-            <button class="grade-conv-cell grade-conv-pick ${c.french === currentGrade ? 'active' : ''}" data-french="${escapeHTML(c.french)}">${escapeHTML(c.norway)}</button>
-            <div class="grade-conv-cell">${escapeHTML(c.usa)}</div>
-        </div>`).join('');
-    
+            <button class="grade-conv-pill ${on}" data-rung="${escapeHTML(c.rung)}">${escapeHTML(c.fr)}</button>
+            <button class="grade-conv-cell grade-conv-pick ${on}" data-rung="${escapeHTML(c.rung)}">${escapeHTML(c.no)}</button>
+            <div class="grade-conv-cell">${escapeHTML(c.us)}</div>
+        </div>`;
+    }).join('');
+    const refHtml = ref.length ? `<div class="grade-conv-divider">Reference · above the logger ladder</div>` +
+        ref.map(c => `
+        <div class="grade-conv-row grade-conv-ref">
+            <div class="grade-conv-cell">${escapeHTML(c.fr)}</div>
+            <div class="grade-conv-cell">${escapeHTML(c.no)}</div>
+            <div class="grade-conv-cell">${escapeHTML(c.us)}</div>
+        </div>`).join('') : '';
+
     const tableHtml = `
         <div class="grade-conv-note">Tap either grade to select that row<span class="disclaimer">Approximate — charts vary</span></div>
         <div class="grade-conv-table">
@@ -4047,24 +4086,25 @@ function openGradeConversionModal(target, rerender) {
                 <div>USA</div>
             </div>
             ${rowsHtml}
+            ${refHtml}
         </div>
     `;
     document.getElementById('info-title').textContent = 'Grade conversion';
     document.getElementById('info-body').innerHTML = tableHtml;
     openModal('info-modal');
-    
-    // Wire pill clicks: select that French grade and close modal
+
+    // Either cell selects that row's ladder rung (the pill you'd tap in the logger)
     document.querySelectorAll('.grade-conv-pill, .grade-conv-pick').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
-            const newGrade = el.dataset.french;
+            const newGrade = el.dataset.rung;
             target.grade = newGrade;
             localStorage.setItem(`leaderboard.lastGrade.${target.discipline}`, newGrade);
             closeModal('info-modal');
             rerender();
         });
     });
-    
+
     // Scroll the row with the currently-active grade into view
     setTimeout(() => {
         const active = document.querySelector('.grade-conv-pill.active');
@@ -4297,7 +4337,10 @@ async function retrySend(row) {
 document.getElementById('submit-log').addEventListener('click', () => {
     if (!editingLogId && !canLogSend()) {
         haptic('error');
-        showToast(`Still needed: ${missingLogFields().join(', ')}`);
+        const miss = missingLogFields();
+        showToast(`Still needed: ${miss.join(', ')}`);
+        const firstId = { discipline: 'logger-discipline', crag: 'logger-where', gym: 'logger-where', grade: 'logger-grade' }[miss[0]];
+        if (firstId) nudgeField(firstId);
         return;
     }
     submitLog();
@@ -7860,7 +7903,6 @@ function openAttemptPane() {
     AttemptState.belayer = '';
     AttemptState.date = 'today';
     attemptOtherOpen = false;
-    attemptWhereExpanded = false;
     renderAttemptDiscipline();
     renderAttemptWhere();
     renderAttemptGrade();
@@ -7938,8 +7980,21 @@ function canLogAttempt() {
     return true;
 }
 function refreshAttemptSaveState() {
+    // Not `disabled` — a disabled button swallows the tap, so an unfinished form looked dead.
+    // Grey via .not-ready (same as the send logger); tapping it names the gap and nudges it.
     const btn = document.getElementById('attempt-submit');
-    if (btn) btn.disabled = !canLogAttempt();
+    if (!btn) return;
+    btn.disabled = false;
+    btn.classList.toggle('not-ready', !canLogAttempt());
+}
+function missingAttemptFields() {
+    const out = [];
+    if (!AttemptState.discipline) out.push({ label: 'discipline', id: 'attempt-discipline' });
+    if (!AttemptState.where) out.push({ label: isOutdoor(AttemptState.discipline) ? 'crag' : 'gym', id: 'attempt-where' });
+    if (!AttemptState.grade) out.push({ label: 'grade', id: 'attempt-grade' });
+    if (attemptNeedsOutcome() && !AttemptState.outcome) out.push({ label: 'what happened', id: 'attempt-count' });
+    if (!AttemptState.countBucket) out.push({ label: attemptNeedsOutcome() ? 'how many' : 'goes', id: 'attempt-count' });
+    return out;
 }
 
 // Outcome (rests|falls) — roped/Trad only; hidden for boulder.
@@ -8031,8 +8086,6 @@ function getAttemptDateISO() {
 
 /* ----- Attempt render functions (thin — lean on the same shared helpers as the send logger) ----- */
 let attemptOtherOpen = false;
-let attemptWhereExpanded = false;
-const ATTEMPT_WHERE_CAP = 6;   // ~2 rows on a phone; rest behind "+N more" (flat cap, not measured)
 
 function renderAttemptDiscipline() {
     const c = document.getElementById('attempt-discipline');
@@ -8078,8 +8131,9 @@ function renderAttemptWhere() {
     const label = document.getElementById('attempt-where-label');
     if (label) label.textContent = isOut ? 'Crag' : 'Gym';
     const addInput = document.getElementById('attempt-where-add-input');
-    if (addInput) addInput.placeholder = isOut ? 'Crag name' : 'Gym name';
+    if (addInput) addInput.placeholder = isOut ? 'Search crags, or type a new one' : 'Search gyms, or type a new one';
     let locations = getLocationsForDiscipline(AttemptState.discipline);   // same source as send logger
+    keepFoundWhere(locations, AttemptState.where, AttemptState.discipline);
     if (AttemptState.where && !locations.includes(AttemptState.where)) AttemptState.where = null;
     // rank by this climber's recency+frequency in this discipline (rankByUsage, shared)
     const stats = {};
@@ -8090,19 +8144,10 @@ function renderAttemptWhere() {
         const d = getCleanDate(l.Date);
         if (d > s.last) s.last = d;
     });
-    let names = rankByUsage(locations, stats);
-    if (AttemptState.where) {
-        const i = names.indexOf(AttemptState.where);
-        if (i > 0) { names.splice(i, 1); names.unshift(AttemptState.where); }
-    }
-    const collapsed = !attemptWhereExpanded && names.length > ATTEMPT_WHERE_CAP;
-    const shown = collapsed ? names.slice(0, ATTEMPT_WHERE_CAP) : names;
-    const hidden = names.length - shown.length;
-    c.innerHTML = `<div class="pill-row pill-wrap">` +
+    const shown = whereRowNames(rankByUsage(locations, stats), AttemptState.where);
+    const findOpen = !document.getElementById('attempt-where-add-row').classList.contains('hidden');
+    c.innerHTML = `<div class="pill-row scroll">` + whereFindHtml(findOpen) +
         shown.map(n => `<button class="pill ${n === AttemptState.where ? 'active' : ''}" data-awhere="${escapeHTML(n)}">${escapeHTML(n)}</button>`).join('') +
-        `<button class="pill add-btn" data-awhere-add="1">+ Add</button>` +
-        (collapsed ? `<button class="pill where-more" data-awhere-more="1">+${hidden} more</button>`
-                   : (attemptWhereExpanded && names.length > ATTEMPT_WHERE_CAP ? `<button class="pill where-more" data-awhere-more="1">Less</button>` : '')) +
         `</div>`;
     c.querySelectorAll('[data-awhere]').forEach(el => el.addEventListener('click', () => {
         haptic('tap');
@@ -8112,15 +8157,10 @@ function renderAttemptWhere() {
         if (AttemptState.discipline === 'In Boulder') renderAttemptGrade();   // per-gym colour ladder
         refreshAttemptSaveState();
     }));
-    const moreBtn = c.querySelector('[data-awhere-more]');
-    if (moreBtn) moreBtn.addEventListener('click', () => { haptic('tap'); attemptWhereExpanded = !attemptWhereExpanded; renderAttemptWhere(); });
-    const addBtn = c.querySelector('[data-awhere-add]');
-    if (addBtn) addBtn.addEventListener('click', () => {
+    const findBtn = c.querySelector('[data-where-find]');
+    if (findBtn) findBtn.addEventListener('click', () => {
         haptic('tap');
-        const row = document.getElementById('attempt-where-add-row');
-        const inp = document.getElementById('attempt-where-add-input');
-        row.classList.remove('hidden');
-        setTimeout(() => { inp.focus(); inp.click(); }, 100);
+        toggleWhereFind('attempt-where-add-row', 'attempt-where-add-input', findBtn);
     });
 }
 
@@ -8305,7 +8345,16 @@ async function submitAttempt() {
         showToast(`Could not save: ${String(err.message || err).slice(0, 60)}`);
     }
 }
-document.getElementById('attempt-submit').addEventListener('click', submitAttempt);
+document.getElementById('attempt-submit').addEventListener('click', () => {
+    if (!canLogAttempt()) {
+        const miss = missingAttemptFields();
+        haptic('error');
+        showToast(`Still needed: ${miss.map(m => m.label).join(', ')}`);
+        if (miss[0]) nudgeField(miss[0].id);
+        return;
+    }
+    submitAttempt();
+});
 document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-qk-log]');
     if (!b) return;
