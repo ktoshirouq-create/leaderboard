@@ -1036,6 +1036,7 @@ h1.screen-title {
 .cap-tabs::-webkit-scrollbar { display: none; }
 .cap-tabs .cap-tab { flex: 0 0 auto; }
 .mini-seg .seg-item { padding: 6px 10px; font-size: 0.7rem; }
+.log-mode-seg { margin: 4px 0 14px; }
 .cap-tab {
     flex: 1 1 calc(50% - 4px);
     padding: 10px 12px;
@@ -1751,6 +1752,8 @@ body.modal-open { overflow: hidden; }
     color: var(--text-muted); font-size: 0.7rem; margin: 2px 2px 4px; }
 .prof-standings svg { width: 9px; height: 9px; fill: var(--gold); flex: 0 0 auto; }
 .prof-standings .lead { color: var(--gold); }
+.prof-standings .stand-silver { color: var(--silver); }
+.prof-standings .stand-bronze { color: var(--bronze); }
 .prof-standings .sep { color: #565e66; }
 .prof-shelf { display: flex; align-items: baseline; justify-content: space-between; margin: 24px 2px 10px; }
 .prof-shelf h2 { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
@@ -1787,6 +1790,15 @@ body.modal-open { overflow: hidden; }
     font-size: 0.8rem; font-weight: 700; background: rgba(16,185,129,0.12); color: var(--primary); }
 .pj-acts button.sec { background: rgba(255,255,255,0.05); color: var(--text-muted); font-weight: 400; }
 .pj-acts button.pj-x { flex: 0 0 40px; }
+.pjp-crag { display: flex; justify-content: space-between; align-items: baseline;
+    color: var(--text-muted); font-size: 0.7rem; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; margin: 18px 2px 8px; }
+.pjp-crag span { font-weight: 400; letter-spacing: 0; text-transform: none; }
+.pjp-tries { margin-top: 9px; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 7px; }
+.pjp-try { display: grid; grid-template-columns: 52px auto 1fr; gap: 8px; align-items: baseline; padding: 3px 0; }
+.pjp-try-d { color: var(--text-muted); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
+.pjp-try-o { color: #b8bec6; font-size: 0.7rem; }
+.pjp-try-n { color: var(--text-muted); font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pj-unhide { display: block; width: 100%; text-align: center; background: none; border: 0;
     font-family: inherit; color: var(--text-muted); font-size: 0.7rem; padding: 8px 0 2px; }
 .mst { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 11px;
@@ -2192,7 +2204,7 @@ body.disco .disco-me {
 <div id="profile-capacity-chart"></div>
 <div class="histogram hidden" id="histogram"></div>
 
-<div class="prof-shelf"><h2>Projects</h2><span id="proj-count">—</span></div>
+<div class="prof-shelf" id="proj-shelf" style="cursor:pointer"><h2>Projects ›</h2><span id="proj-count">—</span></div>
 <div id="profile-projects"></div>
 
 <div id="profile-milestones" class="hidden"></div>
@@ -2279,6 +2291,22 @@ body.disco .disco-me {
     <div id="captop10-list"></div>
 </div>
 
+<div class="view" id="view-projects">
+    <button class="profile-back" id="projects-back">← Back</button>
+    <div class="profile-name" id="projects-name">Projects</div>
+    <div class="seg-ctrl mini-seg" id="proj-filter" style="max-width:280px;margin:0 0 10px">
+        <button class="seg-item active" data-pfilter="open">Open</button>
+        <button class="seg-item" data-pfilter="sent">Sent</button>
+        <button class="seg-item" data-pfilter="all">All</button>
+    </div>
+    <div class="seg-ctrl mini-seg" id="proj-sort" style="max-width:280px;margin:0 0 14px">
+        <button class="seg-item active" data-psort="recent">Recent</button>
+        <button class="seg-item" data-psort="sessions">Sessions</button>
+        <button class="seg-item" data-psort="grade">Hardest</button>
+    </div>
+    <div id="projects-list"></div>
+</div>
+
 <div class="view" id="view-hardtop10">
     <button class="profile-back" id="hardtop10-back">← Back</button>
     <div class="profile-name" id="hardtop10-name">—</div>
@@ -2310,7 +2338,11 @@ body.disco .disco-me {
         <button class="modal-close" id="logger-close">×</button>
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
         <div class="switcher-link" id="switcher-trigger">Logging as <strong id="active-user-label">—</strong> ▾</div>
-        <div class="modal-title" id="logger-title">Log a send</div>
+        <div class="seg-ctrl log-mode-seg" id="log-mode-seg-send">
+            <button class="seg-item active" data-logmode="send">Send</button>
+            <button class="seg-item" data-logmode="attempt">Attempt</button>
+        </div>
+        <div class="modal-title hidden" id="logger-title">Log a send</div>
 <div class="edit-mode-banner hidden" id="edit-mode-banner">Editing existing climb</div>
 
         <div class="field-label">Discipline</div>
@@ -2378,7 +2410,10 @@ body.disco .disco-me {
         <div class="modal-handle-zone"><div class="modal-handle"></div></div>
 
          <div id="session-pane-attempts">
-            <div class="modal-title">Log an attempt</div>
+        <div class="seg-ctrl log-mode-seg" id="log-mode-seg-attempt">
+            <button class="seg-item" data-logmode="send">Send</button>
+            <button class="seg-item active" data-logmode="attempt">Attempt</button>
+        </div>
             <div class="modal-subtitle">A climb you worked but didn't send cleanly. Shows on the feed, never scored.</div>
 
             <div class="field-label">Discipline</div>
@@ -2772,6 +2807,7 @@ function applyViewEntry(entry) {
             case 'spots':    showSpotsDirectory(); break;
             case 'captop10': showCapTop10(entry.param); break;
             case 'hardtop10': showHardestTop10(entry.param); break;
+            case 'projects': showProjects(entry.param); break;
             case 'peak':     showPeak(); break;
         }
     } finally { navApplying = false; }
@@ -4356,6 +4392,9 @@ document.getElementById('fab').addEventListener('click', () => {
     haptic('tap');
     if (!State.activeUser) {
         openIdentityPrompt();
+    } else if (lastLogMode === 'attempt') {
+        setLogMode('attempts');
+        openModal('session-modal');
     } else {
         openLogger();
     }
@@ -6928,7 +6967,9 @@ function renderStandings(climber) {
         const sep = i ? '<span class="sep">·</span>' : '';
         if (it.rank === 1 && !it.shared) return `${sep}${crownSvg}<span class="lead">${escapeHTML(it.top)}</span>`;
         if (it.rank === 1) return `${sep}${crownSvg}<span class="lead">Joint #1 ${escapeHTML(it.placing)}</span>`;
-        return `${sep}<span>#${it.rank} ${escapeHTML(it.placing)}${it.shared ? ' (tied)' : ''}</span>`;
+        // #2 and #3 get their medal colours, the way board rows already do
+        const medal = it.rank === 2 ? 'stand-silver' : it.rank === 3 ? 'stand-bronze' : '';
+        return `${sep}<span class="${medal}">#${it.rank} ${escapeHTML(it.placing)}${it.shared ? ' (tied)' : ''}</span>`;
     }).join(' ');
 }
 function renderProfileForm(climber, disc) {
@@ -7004,6 +7045,104 @@ let milestonesExpanded = false;
 const PROJ_HIDE_KEY = 'leaderboard.hiddenProjects';
 function hiddenProjects() {
     try { return JSON.parse(localStorage.getItem(PROJ_HIDE_KEY) || '{}'); } catch (e) { return {}; }
+}
+let projFilter = 'open', projSort = 'recent', projClimber = null;
+function showProjects(climber) {
+    projClimber = climber || State.activeUser;
+    document.getElementById('projects-name').textContent = 'Projects';
+    showView('projects');
+    renderProjectsPage();
+    navRecordView('projects', projClimber);
+}
+// The overview the profile section can't be: every project, grouped by crag, with each
+// attempt listed and editable rather than just the latest note.
+function renderProjectsPage() {
+    const el = document.getElementById('projects-list');
+    const climber = projClimber;
+    if (!el || !climber) return;
+    const rows = projectRowsFor(climber);
+    const filtered = rows.filter(p => projFilter === 'all' ? true : projFilter === 'sent' ? p.sent : !p.sent);
+    if (!filtered.length) {
+        el.innerHTML = `<div class="lb-empty">${projFilter === 'sent' ? 'Nothing sent off a project yet.' : 'Nothing on the go — log an attempt on a route and it shows up here.'}</div>`;
+        return;
+    }
+    const scoreOf = p => getScoredValue(p.grade, 'Send', p.disc) || 0;
+    filtered.sort((a, b) => projSort === 'sessions' ? b.days.length - a.days.length
+        : projSort === 'grade' ? scoreOf(b) - scoreOf(a)
+        : getCleanDate(b.last.Date).localeCompare(getCleanDate(a.last.Date)));
+    const byCrag = {};
+    filtered.forEach(p => (byCrag[p.where || 'Unknown'] = byCrag[p.where || 'Unknown'] || []).push(p));
+    el.innerHTML = Object.keys(byCrag).sort().map(crag => {
+        const list = byCrag[crag].map(p => {
+            const rgb = DISC_RGB[p.disc] || '16,185,129';
+            const tries = [...p.tries].reverse().map(t => `<div class="pjp-try">
+                <span class="pjp-try-d">${escapeHTML(formatShortDate(getCleanDate(t.Date)))}</span>
+                <span class="pjp-try-o">${escapeHTML(String(t.Outcome || 'worked').toLowerCase())}${t.CountBucket ? ' · ' + escapeHTML(String(t.CountBucket)) : ''}</span>
+                ${t.Notes ? `<span class="pjp-try-n">${escapeHTML(String(t.Notes).trim())}</span>` : ''}
+            </div>`).join('');
+            return `<div class="pj-card${p.sent ? ' sent' : ''}" style="--c:${rgb}">
+                <div class="pj-top"><span class="pj-n">${escapeHTML(p.name)}</span>
+                    <span class="pj-g">${escapeHTML(p.grade)}${p.sent ? ' ✓' : ''}</span></div>
+                <div class="pj-w">${p.days.length} session${p.days.length === 1 ? '' : 's'}
+                    · ${p.sent ? 'sent ' + escapeHTML(formatShortDate(getCleanDate(p.sent.Date)))
+                              : 'last tried ' + escapeHTML(formatShortDate(getCleanDate(p.last.Date)))}</div>
+                <div class="pjp-tries">${tries}</div>
+                ${climber === State.activeUser && !p.sent ? `<div class="pj-acts">
+                    <button data-pj-log="${escapeHTML(p.name)}" data-pj-where="${escapeHTML(p.where || '')}"
+                            data-pj-grade="${escapeHTML(p.grade)}" data-pj-disc="${escapeHTML(p.disc)}">+ Log attempt</button>
+                    <button class="sec" data-pj-sent="${escapeHTML(p.name)}" data-pj-where="${escapeHTML(p.where || '')}"
+                            data-pj-grade="${escapeHTML(p.grade)}" data-pj-disc="${escapeHTML(p.disc)}">Sent it</button>
+                </div>` : ''}
+            </div>`;
+        }).join('');
+        return `<div class="pjp-crag">${escapeHTML(crag)}<span>${byCrag[crag].length}</span></div>${list}`;
+    }).join('');
+    el.querySelectorAll('[data-pj-log]').forEach(b => b.addEventListener('click', () => {
+        haptic('tap');
+        openAttemptPaneForProject(b.dataset.pjDisc, b.dataset.pjWhere, b.dataset.pjGrade, b.dataset.pjLog);
+    }));
+    el.querySelectorAll('[data-pj-sent]').forEach(b => b.addEventListener('click', () => {
+        haptic('tap');
+        openLoggerForProject(b.dataset.pjDisc, b.dataset.pjWhere, b.dataset.pjGrade, b.dataset.pjSent);
+    }));
+}
+document.getElementById('proj-shelf').addEventListener('click', () => {
+    haptic('tap');
+    showProjects(profileClimber || State.activeUser);
+});
+document.getElementById('projects-back').addEventListener('click', () => { haptic('tap'); back(); });
+document.querySelectorAll('#proj-filter .seg-item').forEach(b => b.addEventListener('click', () => {
+    haptic('tap'); projFilter = b.dataset.pfilter;
+    document.querySelectorAll('#proj-filter .seg-item').forEach(x => x.classList.toggle('active', x === b));
+    renderProjectsPage();
+}));
+document.querySelectorAll('#proj-sort .seg-item').forEach(b => b.addEventListener('click', () => {
+    haptic('tap'); projSort = b.dataset.psort;
+    document.querySelectorAll('#proj-sort .seg-item').forEach(x => x.classList.toggle('active', x === b));
+    renderProjectsPage();
+}));
+
+// Shared by the profile section and the page, so both tell the same story.
+function projectRowsFor(climber) {
+    const mine = (State.attempts || []).filter(a => a.ClimberName === climber && a.RouteName);
+    const byRoute = {};
+    mine.forEach(a => {
+        const k = `${String(a.RouteName).trim().toLowerCase()}|${a.Where || ''}`;
+        const p = byRoute[k] || (byRoute[k] = { name: String(a.RouteName).trim(), where: a.Where,
+            grade: a.Grade, disc: a.Discipline, tries: [] });
+        p.tries.push(a);
+    });
+    return Object.values(byRoute).map(p => {
+        p.tries.sort((a, b) => getCleanDate(a.Date).localeCompare(getCleanDate(b.Date)));
+        const days = [...new Set(p.tries.map(t => getCleanDate(t.Date)))];
+        const last = p.tries[p.tries.length - 1];
+        const sent = State.logs.find(l => l.ClimberName === climber && l.Where === p.where
+            && String(l.RouteName || '').trim().toLowerCase() === p.name.toLowerCase()
+            && getCleanDate(l.Date) >= days[0]);
+        const note = [...p.tries].reverse().find(t => String(t.Notes || '').trim());
+        return { ...p, days, last, sent, note };
+    }).sort((a, b) => (a.sent ? 1 : 0) - (b.sent ? 1 : 0)
+        || getCleanDate(b.last.Date).localeCompare(getCleanDate(a.last.Date)));
 }
 function renderProfileProjects(climber) {
     const el = document.getElementById('profile-projects');
@@ -7634,6 +7773,57 @@ function setLogMode(mode) {   // training removed — the modal IS the attempt p
     logMode = 'attempts';
     openAttemptPane();
 }
+
+// Attempt logging is a first-class mode now rather than a hidden long-press. The sheets share
+// everything but the middle, so switching carries your picks across instead of restarting.
+let lastLogMode = 'send';   // sticky for the session, resets on a cold open
+function switchLogMode(mode) {
+    if (mode === 'attempt') {
+        const rn = document.getElementById('logger-route-name');
+        const carry = { disc: LoggerState.discipline, where: LoggerState.where, grade: LoggerState.grade,
+                        date: LoggerState.date, belayer: LoggerState.belayer, route: rn ? rn.value : '' };
+        closeModal('logger-modal');
+        lastLogMode = 'attempt';
+        setLogMode('attempts');
+        if (carry.disc) AttemptState.discipline = carry.disc;
+        if (carry.where) AttemptState.where = carry.where;
+        if (carry.grade) AttemptState.grade = carry.grade;
+        if (carry.date) AttemptState.date = carry.date;
+        if (carry.belayer) AttemptState.belayer = carry.belayer;
+        renderAttemptDiscipline(); renderAttemptWhere(); renderAttemptGrade();
+        updateAttemptRouteVisibility(); updateAttemptBelayerVisibility();
+        const arn = document.getElementById('attempt-route-name');
+        if (arn && carry.route && isOutdoor(AttemptState.discipline)) arn.value = carry.route;
+        refreshAttemptSaveState();
+        openModal('session-modal');
+    } else {
+        const arn = document.getElementById('attempt-route-name');
+        const carry = { disc: AttemptState.discipline, where: AttemptState.where, grade: AttemptState.grade,
+                        date: AttemptState.date, belayer: AttemptState.belayer, route: arn ? arn.value : '' };
+        closeModal('session-modal');
+        lastLogMode = 'send';
+        openLogger();
+        if (carry.disc) LoggerState.discipline = carry.disc;
+        if (carry.where) LoggerState.where = carry.where;
+        if (carry.grade) LoggerState.grade = carry.grade;
+        if (carry.date) LoggerState.date = carry.date;
+        if (carry.belayer) LoggerState.belayer = carry.belayer;
+        renderDisciplinePills(); renderWherePills(); renderGradePills();
+        updateRouteNameVisibility(); updateBelayerVisibility();
+        const rn = document.getElementById('logger-route-name');
+        if (rn && carry.route && isOutdoor(LoggerState.discipline)) rn.value = carry.route;
+        refreshLogSaveState();
+    }
+}
+document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-logmode]');
+    if (!b) return;
+    const want = b.dataset.logmode;
+    const onAttempt = !!b.closest('#session-modal');
+    if ((want === 'attempt') === onAttempt) return;   // already on that mode
+    haptic('tap');
+    switchLogMode(want);
+});
 
 // Long-press FAB entry point: open the modal on the Attempts tab.
 function openLongPressLogger() {
