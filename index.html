@@ -2147,11 +2147,6 @@ body.disco .disco-me {
 
     <!-- Form moved to the profile; this splits the boards by rope style, and only appears
          for boards where lead vs top-rope means anything. -->
-    <div class="seg-ctrl hidden" id="board-rope-toggle">
-        <button class="seg-item active" data-rope="lead">Lead</button>
-        <button class="seg-item" data-rope="tr">Top-rope</button>
-    </div>
-
     <div id="capacity-mode" class="hidden">
         <div class="cap-tabs" id="cap-tabs"></div>
         <div class="board-subtitle" style="display:flex;align-items:center;justify-content:center;gap:7px">
@@ -2166,6 +2161,11 @@ body.disco .disco-me {
         <button class="pill" data-board="hotspots">Hot Spots</button>
         <button class="pill" data-board="addicted">Most Addicted</button>
         <button class="pill" data-board="outdoor">Outdoor Days</button>
+    </div>
+    <!-- board first, then the rope split — and only where lead vs top-rope means anything -->
+    <div class="seg-ctrl mini-seg hidden" id="board-rope-toggle" style="max-width:220px;margin:0 auto 10px">
+        <button class="seg-item active" data-rope="lead">Lead</button>
+        <button class="seg-item" data-rope="tr">Top-rope</button>
     </div>
     <div class="board-subtitle" id="board-subtitle">Highest single send, last 30 days</div>
     <div id="special-board"></div>
@@ -5716,7 +5716,12 @@ function qkCardExtras(climber, date) {
 }
 // A top-rope with a named belayer was definitely roped by a human; without one it may
 // have been an autobelay. Say what we know, not more.
-function trLabelFor(s) { return String(s.Belayer || '').trim() ? 'TR' : 'TR / Auto'; }
+// Autobelays only exist indoors, so an outdoor top-rope is just TR. Indoors, a named belayer
+// means we know a human held the rope; without one it could have been the auto.
+function trLabelFor(s) {
+    if (isOutdoor(s.Discipline)) return 'TR';
+    return String(s.Belayer || '').trim() ? 'TR' : 'TR / Auto';
+}
 function sendRowHtml(s, discipline) {
     const styleNorm = String(s.Style || '').toLowerCase();
     const isSpecial = (styleNorm === 'flash' || styleNorm === 'onsight');
