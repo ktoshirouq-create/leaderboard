@@ -446,9 +446,12 @@ h1.screen-title {
 
     letter-spacing: 0.5px;
 }
-.send-style-tag.flash   { background: rgba(255,255,255,0.05); color: var(--text-muted); }
-.send-style-tag.onsight { background: rgba(255,255,255,0.05); color: var(--text-muted); }
-.send-style-tag.tr      { background: rgba(148,163,184,0.15); color: #cbd5e1; }
+/* A lead send is the thing that counts, so it shouldn't read quieter than a top-rope lap.
+   No boxes on any of them: style is a label beside the climb, not a badge. */
+.send-style-tag         { background: none; padding: 2px 0; color: #b8bec6; }
+.send-style-tag.flash   { background: none; color: #b8bec6; }
+.send-style-tag.onsight { background: none; color: #b8bec6; }
+.send-style-tag.tr      { background: none; color: var(--text-muted); font-weight: 400; }
 .send-grade {
     color: #fff;
     font-weight: 700;
