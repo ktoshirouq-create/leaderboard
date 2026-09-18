@@ -451,6 +451,7 @@ h1.screen-title {
 .send-row .send-style-tag         { background: none; padding: 2px 0; color: var(--text); font-weight: 700; }
 .send-row .send-style-tag.flash   { background: none; color: var(--text); font-weight: 700; }
 .send-row .send-style-tag.onsight { background: none; color: var(--text); font-weight: 700; }
+.send-row .send-style-tag.send    { background: none; color: var(--text); font-weight: 700; }
 .send-row .send-style-tag.tr      { background: none; color: var(--text-muted); font-weight: 400; }
 .send-row.attempt-row .send-style-tag { color: var(--text-muted); font-weight: 400; }
 .send-grade {
@@ -5733,7 +5734,9 @@ function sendRowHtml(s, discipline) {
         ? `<span class="send-style-tag tr">${trLabelFor(s)}</span>`
         : isSpecial
             ? `<span class="send-style-tag ${styleNorm}">${escapeHTML(s.Style)}</span>`
-            : `<span style="color:#666; font-weight: 400;">${escapeHTML(s.Style)}</span>`;
+            // A plain send was hardcoded to #666 inline, which no stylesheet rule could override —
+            // that's why it read dimmer than the TR laps that don't even score.
+            : `<span class="send-style-tag send">${escapeHTML(s.Style)}</span>`;
     // In Boulder: per-gym circuit colour keyed off this send's gym. Other disciplines
     // have no colour scale, so they render no dot — unchanged.
     let dot = '';
