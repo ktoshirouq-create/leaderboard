@@ -446,12 +446,13 @@ h1.screen-title {
 
     letter-spacing: 0.5px;
 }
-/* A lead send is the thing that counts, so it shouldn't read quieter than a top-rope lap.
-   No boxes on any of them: style is a label beside the climb, not a badge. */
-.send-style-tag         { background: none; padding: 2px 0; color: #b8bec6; }
-.send-style-tag.flash   { background: none; color: #b8bec6; }
-.send-style-tag.onsight { background: none; color: #b8bec6; }
-.send-style-tag.tr      { background: none; color: var(--text-muted); font-weight: 400; }
+/* The styles that score read at full strength; top-rope, which doesn't, steps back.
+   No boxes on any of them — style is a label beside the climb, not a badge. */
+.send-row .send-style-tag         { background: none; padding: 2px 0; color: var(--text); font-weight: 700; }
+.send-row .send-style-tag.flash   { background: none; color: var(--text); font-weight: 700; }
+.send-row .send-style-tag.onsight { background: none; color: var(--text); font-weight: 700; }
+.send-row .send-style-tag.tr      { background: none; color: var(--text-muted); font-weight: 400; }
+.send-row.attempt-row .send-style-tag { color: var(--text-muted); font-weight: 400; }
 .send-grade {
     color: #fff;
     font-weight: 700;
