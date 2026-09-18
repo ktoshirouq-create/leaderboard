@@ -7782,8 +7782,10 @@ function switchLogMode(mode) {
         const rn = document.getElementById('logger-route-name');
         const carry = { disc: LoggerState.discipline, where: LoggerState.where, grade: LoggerState.grade,
                         date: LoggerState.date, belayer: LoggerState.belayer, route: rn ? rn.value : '' };
-        closeModal('logger-modal');
+        // closeModal() goes through navBack(), whose popstate lands after this function returns —
+        // reconcile() then closes the sheet we just opened. replaceTopScreen swaps synchronously.
         lastLogMode = 'attempt';
+        replaceTopScreen('logger-modal', { kind: 'modal', id: 'session-modal' }, () => {
         setLogMode('attempts');
         if (carry.disc) AttemptState.discipline = carry.disc;
         if (carry.where) AttemptState.where = carry.where;
@@ -7795,14 +7797,14 @@ function switchLogMode(mode) {
         const arn = document.getElementById('attempt-route-name');
         if (arn && carry.route && isOutdoor(AttemptState.discipline)) arn.value = carry.route;
         refreshAttemptSaveState();
-        openModal('session-modal');
+        });
     } else {
         const arn = document.getElementById('attempt-route-name');
         const carry = { disc: AttemptState.discipline, where: AttemptState.where, grade: AttemptState.grade,
                         date: AttemptState.date, belayer: AttemptState.belayer, route: arn ? arn.value : '' };
-        closeModal('session-modal');
         lastLogMode = 'send';
-        openLogger();
+        replaceTopScreen('session-modal', { kind: 'modal', id: 'logger-modal' }, () => {
+        openLogger();   // its openModal() no-ops — replaceTopScreen already made it active
         if (carry.disc) LoggerState.discipline = carry.disc;
         if (carry.where) LoggerState.where = carry.where;
         if (carry.grade) LoggerState.grade = carry.grade;
@@ -7813,6 +7815,7 @@ function switchLogMode(mode) {
         const rn = document.getElementById('logger-route-name');
         if (rn && carry.route && isOutdoor(LoggerState.discipline)) rn.value = carry.route;
         refreshLogSaveState();
+        });
     }
 }
 document.addEventListener('click', (e) => {
