@@ -1,0 +1,6 @@
+{
+  "name": "leaderboard-tests",
+  "private": true,
+  "scripts": { "test": "node part1.test.js" },
+  "dependencies": { "jsdom": "^24.0.0" }
+}
