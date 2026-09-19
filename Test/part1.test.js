@@ -186,6 +186,20 @@ const fillAttempt = async (h) => {
       && h.ev('AttemptState.where') === 'Kolsås' && h.ev('AttemptState.countBucket') === '1' && h.$('#attempt-note').value === 'fell at crux' && !agrey(h),
       `open=${h.$('#session-modal').classList.contains('active')} where=${h.ev('AttemptState.where')}`); }
 
+  // T23 discipline row: one scrolling line, all disciplines, no Other; selected first on open, no jump on tap
+  { const h = await load(); await openSend(h);
+    const row = h.$('#logger-discipline');
+    const pills = () => [...row.querySelectorAll('[data-disc]')].map(b => b.dataset.disc);
+    check('T23 discipline row scrolls on one line with all 5', row.classList.contains('scroll') && pills().length === 5 && !row.querySelector('.disc-other'), JSON.stringify(pills()));
+    const before = pills(); const last = before[before.length - 1];
+    await pick(h, `#logger-discipline [data-disc="${last}"]`);
+    check('T23 tapping highlights in place (no reorder)', JSON.stringify(pills()) === JSON.stringify(before) && h.$(`#logger-discipline [data-disc="${last}"]`).classList.contains('active'));
+    h.ev('renderDisciplinePills()');
+    check('T23 re-render puts the selected discipline first', pills()[0] === last);
+    await openAttempt(h);
+    const arow = h.$('#attempt-discipline');
+    check('T23 attempt discipline row matches', arow.classList.contains('scroll') && arow.querySelectorAll('[data-adisc]').length === 5); }
+
   const pad = s => s.padEnd(62);
   results.forEach(r => console.log((r.ok ? 'PASS ' : 'FAIL ') + pad(r.name) + (r.ok ? '' : r.detail)));
   console.log(`\n${results.filter(r => r.ok).length}/${results.length} passed`);

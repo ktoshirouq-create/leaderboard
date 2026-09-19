@@ -66,18 +66,20 @@ function data3() {
       check(`B4 breakdown renders (all windows/envs): ${c}`, h.errors.length === 0, h.errors.join(' | '));
     } }
 
-  // B5 heatmap: lit cells for the climber's days, and no year of blank weeks before their first climb
+  // B5 Activity (days per week): bars per week, numbers said, attempt days count, tap names the week
   { const h = await load({ data: data3() });
-    h.ev("showSecretStats('Jack')"); await h.tick(20);
+    h.ev("showSecretStats('Winnie')"); await h.tick(20);
     h.ev("secretEnv='all'; renderSecretStats()");
-    const cells = h.$$('#secret-heatmap .yhm i');
-    const lit = cells.filter(c => /background/.test(c.getAttribute('style') || ''));
-    const days = new Set(h.ev("State.logs.filter(l=>l.ClimberName==='Jack').map(l=>getCleanDate(l.Date))"));
-    check('B5 heatmap lights every day Jack climbed', lit.length === days.size, `${lit.length} lit vs ${days.size} days`);
-    // history is ~6 weeks → map starts at most 16 weeks back, not a full year
-    check('B5 short history: map starts at his climbing (≤17 weeks), not a year back', cells.length <= 7 * 17, `${cells.length} cells`);
-    check('B5 map ends on today', cells[cells.length - 1].title.startsWith(iso(0)), cells[cells.length - 1].title);
-    check('B5 months scroll with the squares (one scroll box)', !!h.$('#secret-heatmap .yhm-scroll .yhm') && !!h.$('#secret-heatmap .yhm-scroll .yhm-months')); }
+    const cols = h.$$('#secret-heatmap .aw-col');
+    const blocks = h.$$('#secret-heatmap .aw-col i:not(.aw-none)').length;
+    const days = new Set(h.ev("[...State.logs, ...State.attempts].filter(l=>l.ClimberName==='Winnie').map(l=>getCleanDate(l.Date))")).size;
+    check('B5 one block per day out (projecting days included)', blocks === days, `${blocks} blocks vs ${days} days`);
+    check('B5 at least 16 weeks, at most a year', cols.length >= 16 && cols.length <= 53, `${cols.length} weeks`);
+    const sum = h.$('#secret-heatmap .aw-sum').textContent.replace(/\s+/g, ' ');
+    check('B5 summary line says the numbers', new RegExp(`${days} days out`).test(sum) && /a week/.test(sum) && /best week/.test(sum) && /longest gap/.test(sum), sum);
+    h.click(cols[cols.length - 1]); await h.tick(5);
+    check('B5 tapping a week names it', /^Week of/.test(h.$('#aw-week').textContent), h.$('#aw-week').textContent);
+    check('B5 no runtime errors', h.errors.length === 0, h.errors.join(' | ')); }
 
   // B8 breakdown header: TR said as TR, flash rates agree, window matches the charts
   { const h = await load({ data: data3() });
