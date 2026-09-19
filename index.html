@@ -3244,14 +3244,32 @@ document.getElementById('switcher-trigger').addEventListener('click', openSwitch
 document.getElementById('attempt-switcher-trigger').addEventListener('click', openSwitcher);
 
 /* ============== LOGGER STATE ============== */
-const LoggerState = {
+// The Log button follows the form by itself: any write to a logger's state re-checks its gate
+// on the next microtask (batched, so a burst of writes costs one check). Hand-placed refresh
+// calls kept missing paths — a grade picked from the conversion table, a newly added crag,
+// a crag rename/delete — which left a fully filled form with a grey button until you
+// deselected and reselected something.
+function watchedState(obj, onChange) {
+    let queued = false;
+    return new Proxy(obj, {
+        set(t, k, v) {
+            t[k] = v;
+            if (!queued) {
+                queued = true;
+                queueMicrotask(() => { queued = false; try { onChange(); } catch (e) {} });
+            }
+            return true;
+        }
+    });
+}
+const LoggerState = watchedState({
     discipline: null,   // blank on fresh open — climber must pick (continuation/edit pre-fills)
     where: null,
     grade: null,
     style: 'Send',
     date: 'today',      // 'today' | 'yesterday'
     belayer: ''         // optional, rope disciplines only
-};
+}, () => refreshLogSaveState());
 
 // Create-mode submit gate: discipline + where + grade all required. Style defaults to Send.
 function canLogSend() {
@@ -3261,7 +3279,9 @@ function refreshLogSaveState() {
     // Not `disabled` — disabled buttons swallow taps, and we want a tap on the grey button
     // to TELL you what's missing rather than dead-end silently.
     const btn = document.getElementById('submit-log');
-    if (btn && !editingLogId) btn.classList.toggle('not-ready', !canLogSend());
+    // Edit mode counts as ready (canLogSend) — skipping it here used to leave a stale grey
+    // "Save changes" from whatever the form looked like before.
+    if (btn) btn.classList.toggle('not-ready', !canLogSend());
 }
 // Scroll a logger field into view and give it a short shake — pairs with the "Still needed" toast.
 function nudgeField(id) {
@@ -3782,6 +3802,7 @@ async function addLocation(rawName) {
                 btn.textContent = 'Save';
                 btn.disabled = true;
                 renderWherePills();
+                refreshLogSaveState();
             }, 600);
         } else {
             btn.disabled = false;
@@ -4051,7 +4072,7 @@ function gradeConversionRows(disc) {
 
 function openGradeConversionModal(target, rerender) {
     target = target || LoggerState;                         // send logger passes nothing → unchanged
-    rerender = rerender || renderGradePills;
+    rerender = rerender || (() => { renderGradePills(); refreshLogSaveState(); });
     const currentGrade = target.grade;
     const { rungs, ref } = gradeConversionRows(target.discipline);
 
@@ -5590,6 +5611,7 @@ function openLoggerInEditMode(log) {
     LoggerState.belayer = log.Belayer || '';
     updateBelayerVisibility();
     document.getElementById('submit-log').disabled = false;  // edit mode: all fields pre-filled
+    refreshLogSaveState();
     openModal('logger-modal');
 }
 
@@ -7968,7 +7990,9 @@ function openAttemptPaneInEditMode(a) {
 
 
 /* ============== ATTEMPT LOGGER (worked-not-sent — feed-visible, never scored) ============== */
-const AttemptState = { discipline: null, where: null, grade: null, outcome: null, countBucket: null, belayer: '', date: 'today' };
+const AttemptState = watchedState(
+    { discipline: null, where: null, grade: null, outcome: null, countBucket: null, belayer: '', date: 'today' },
+    () => refreshAttemptSaveState());
 
 // Discipline-aware buckets. Roped/Trad: a rests|falls toggle + 1 / 2–3 / 4+.
 // Boulder: goes-only, no toggle — Few / Lots / Session.
