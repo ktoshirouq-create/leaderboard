@@ -3221,7 +3221,6 @@ function openSwitcher() {
             renderBestsStrip(profileClimber);
             renderStandings(profileClimber);
             renderMilestones(profileClimber);
-        renderProfileProjects(profileClimber);
             renderProfileProjects(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
@@ -3273,7 +3272,10 @@ const LoggerState = watchedState({
 
 // Create-mode submit gate: discipline + where + grade all required. Style defaults to Send.
 function canLogSend() {
-    return !!(editingLogId || (LoggerState.discipline && LoggerState.where && LoggerState.grade));
+    // Edit mode uses the same gate as create. It used to wave edits through, so switching an
+    // edited climb to a ladder without its grade saved a blank grade — and the app drops rows
+    // with no grade on load, so the climb vanished from every screen.
+    return !!(LoggerState.discipline && LoggerState.where && LoggerState.grade);
 }
 function refreshLogSaveState() {
     // Not `disabled` — disabled buttons swallow taps, and we want a tap on the grey button
@@ -3655,7 +3657,10 @@ function renderWherePills() {
     let locations = getLocationsForDiscipline(LoggerState.discipline);
     // EDIT MODE: if the climb's location isn't a registered Location, keep it
     // as a pill so editing doesn't silently swap it to a different crag/gym.
-    if (editingLogId && LoggerState.where && !locations.includes(LoggerState.where)) {
+    // Only while the discipline is unchanged — otherwise an edited Out Rope climb switched to
+    // In Rope kept its crag as the "gym".
+    if (editingLogId && LoggerState.discipline === editOrigDiscipline
+            && LoggerState.where && !locations.includes(LoggerState.where)) {
         locations.unshift(LoggerState.where);
     }
     // In edit mode keep the logged spot; otherwise leave blank unless it's a continuation
@@ -4149,7 +4154,7 @@ function getSelectedDateISO() {
 }
 
 async function submitLog() {
-    if (!editingLogId && !canLogSend()) {
+    if (!canLogSend()) {
         showToast('Pick discipline, where & grade');
         return;
     }
@@ -4167,6 +4172,7 @@ async function submitLog() {
         // Snapshot original values for restore on failure
         const original = { ...State.logs[idx] };
         const editRouteName = document.getElementById('logger-route-name').value.trim();
+        const editBelayer = isRopeDiscipline(LoggerState.discipline) ? (LoggerState.belayer || '') : '';
         // Optimistic update
         State.logs[idx] = {
             ...original,
@@ -4176,7 +4182,7 @@ async function submitLog() {
             Style:      LoggerState.style,
             Date:       newDate,
             RouteName:  editRouteName,
-            Belayer:    LoggerState.belayer || ''
+            Belayer:    editBelayer
         };
         closeModal('logger-modal');
         exitEditMode();
@@ -4186,7 +4192,6 @@ async function submitLog() {
             renderBestsStrip(profileClimber);
             renderStandings(profileClimber);
             renderMilestones(profileClimber);
-        renderProfileProjects(profileClimber);
             renderProfileProjects(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
@@ -4206,7 +4211,7 @@ async function submitLog() {
                     style:      LoggerState.style,
                     date:       newDate,
                     routeName:  editRouteName,
-                    belayer:    LoggerState.belayer || ''
+                    belayer:    editBelayer
                 })
             });
             const json = await res.json();
@@ -4247,7 +4252,9 @@ async function submitLog() {
         style:      LoggerState.style,
         date:       submittedDate,
         routeName:  routeName,
-        belayer:    LoggerState.belayer || ''
+        // Rope only — a belayer picked on Out Rope used to ride along onto a boulder send,
+        // putting a false "with …" on the card and linking people into joint cards.
+        belayer:    isRopeDiscipline(LoggerState.discipline) ? (LoggerState.belayer || '') : ''
     };
 
     const optimisticRow = {
@@ -4350,8 +4357,9 @@ async function retrySend(row) {
     }
 }
 
+let lastSendTapAt = 0;
 document.getElementById('submit-log').addEventListener('click', () => {
-    if (!editingLogId && !canLogSend()) {
+    if (!canLogSend()) {
         haptic('error');
         const miss = missingLogFields();
         showToast(`Still needed: ${miss.join(', ')}`);
@@ -4359,6 +4367,10 @@ document.getElementById('submit-log').addEventListener('click', () => {
         if (firstId) nudgeField(firstId);
         return;
     }
+    // The sheet closes via history.back(), so it stays tappable for a moment after the first
+    // tap — a quick double tap used to log the climb twice.
+    if (Date.now() - lastSendTapAt < 1200) return;
+    lastSendTapAt = Date.now();
     submitLog();
 });
 
@@ -4980,6 +4992,7 @@ let longPressTimer = null;
 let pressingEl = null;
 let locChipSuppressClick = 0;   // timestamp of last loc-chip long-press; swallows the trailing click
 let editingLogId = null;  // when set, the logger is in edit mode
+let editOrigDiscipline = null;   // the edited climb's discipline as logged
 function attachLongPressToWherePill(pillEl, locationName) {
     let timer = null;
     const start = (e) => {
@@ -5555,7 +5568,6 @@ async function performDelete(log) {
             renderBestsStrip(profileClimber);
             renderStandings(profileClimber);
             renderMilestones(profileClimber);
-        renderProfileProjects(profileClimber);
             renderProfileProjects(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
@@ -5570,6 +5582,7 @@ async function performDelete(log) {
 
 function openLoggerInEditMode(log) {
     editingLogId = log.LogId;
+    editOrigDiscipline = log.Discipline;
     // Pre-fill LoggerState from the log
     LoggerState.discipline = log.Discipline;
     LoggerState.where      = log.Where;
@@ -5610,7 +5623,6 @@ function openLoggerInEditMode(log) {
     updateRouteNameVisibility();
     LoggerState.belayer = log.Belayer || '';
     updateBelayerVisibility();
-    document.getElementById('submit-log').disabled = false;  // edit mode: all fields pre-filled
     refreshLogSaveState();
     openModal('logger-modal');
 }
@@ -5751,7 +5763,8 @@ async function qkWrite(rows) {
     optimistic.forEach(o => State.logs.unshift(o));
     renderFeed(); haptic('commit');
     let failed = 0;
-    for (const r of rows) {
+    for (let i = 0; i < rows.length; i++) {
+        const r = rows[i], opt = optimistic[i];
         try {
             const res = await fetch(AppConfig.api, {
                 method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -5761,12 +5774,19 @@ async function qkWrite(rows) {
             });
             const json = await res.json();
             if (!json.ok) throw new Error(json.error || 'Server error');
-        } catch (err) { failed++; }
+            if (json.logId) opt.LogId = json.logId;
+            delete opt._optimistic;
+        } catch (err) {
+            failed++;
+            // Only this row comes out — the ones that saved stay (they used to vanish too,
+            // and a retry then duplicated them).
+            const k = State.logs.indexOf(opt); if (k >= 0) State.logs.splice(k, 1);
+        }
     }
     if (failed) {
-        optimistic.forEach(o => { const i = State.logs.findIndex(l => l.LogId === o.LogId); if (i >= 0) State.logs.splice(i, 1); });
         renderFeed(); haptic('error');
         showToast(failed === rows.length ? 'Could not log' : failed + ' of ' + rows.length + ' failed');
+        if (failed < rows.length) fetchData();
     } else {
         showToast(rows.length === 1 ? '\u2713 Logged' : '\u2713 Logged ' + rows.length + ' climbs');
         fetchData();
@@ -7846,11 +7866,20 @@ function setLogMode(mode) {   // training removed — the modal IS the attempt p
 // Attempt logging is a first-class mode now rather than a hidden long-press. The sheets share
 // everything but the middle, so switching carries your picks across instead of restarting.
 let lastLogMode = 'send';   // sticky for the session, resets on a cold open
+// Show a carried date on a sheet's date pills (+ custom input), so what you see is what logs.
+function applyCarriedDate(pillSel, attr, customId, date, customVal) {
+    document.querySelectorAll(`${pillSel} .pill`).forEach(x => x.classList.toggle('active', x.dataset[attr] === date));
+    const ci = document.getElementById(customId);
+    if (!ci) return;
+    ci.classList.toggle('hidden', date !== 'custom');
+    if (date === 'custom' && customVal) ci.value = customVal;
+}
 function switchLogMode(mode) {
     if (mode === 'attempt') {
         const rn = document.getElementById('logger-route-name');
         const carry = { disc: LoggerState.discipline, where: LoggerState.where, grade: LoggerState.grade,
-                        date: LoggerState.date, belayer: LoggerState.belayer, route: rn ? rn.value : '' };
+                        date: LoggerState.date, belayer: LoggerState.belayer, route: rn ? rn.value : '',
+                        custom: (document.getElementById('logger-date-custom') || {}).value || '' };
         // closeModal() goes through navBack(), whose popstate lands after this function returns —
         // reconcile() then closes the sheet we just opened. replaceTopScreen swaps synchronously.
         lastLogMode = 'attempt';
@@ -7859,7 +7888,10 @@ function switchLogMode(mode) {
         if (carry.disc) AttemptState.discipline = carry.disc;
         if (carry.where) AttemptState.where = carry.where;
         if (carry.grade) AttemptState.grade = carry.grade;
-        if (carry.date) AttemptState.date = carry.date;
+        if (carry.date) {
+            AttemptState.date = carry.date;
+            applyCarriedDate('#attempt-date', 'adate', 'attempt-date-custom', carry.date, carry.custom);
+        }
         if (carry.belayer) AttemptState.belayer = carry.belayer;
         renderAttemptDiscipline(); renderAttemptWhere(); renderAttemptGrade();
         updateAttemptRouteVisibility(); updateAttemptBelayerVisibility();
@@ -7870,14 +7902,18 @@ function switchLogMode(mode) {
     } else {
         const arn = document.getElementById('attempt-route-name');
         const carry = { disc: AttemptState.discipline, where: AttemptState.where, grade: AttemptState.grade,
-                        date: AttemptState.date, belayer: AttemptState.belayer, route: arn ? arn.value : '' };
+                        date: AttemptState.date, belayer: AttemptState.belayer, route: arn ? arn.value : '',
+                        custom: (document.getElementById('attempt-date-custom') || {}).value || '' };
         lastLogMode = 'send';
         replaceTopScreen('session-modal', { kind: 'modal', id: 'logger-modal' }, () => {
         openLogger();   // its openModal() no-ops — replaceTopScreen already made it active
         if (carry.disc) LoggerState.discipline = carry.disc;
         if (carry.where) LoggerState.where = carry.where;
         if (carry.grade) LoggerState.grade = carry.grade;
-        if (carry.date) LoggerState.date = carry.date;
+        if (carry.date) {
+            LoggerState.date = carry.date;
+            applyCarriedDate('#logger-date', 'date', 'logger-date-custom', carry.date, carry.custom);
+        }
         if (carry.belayer) LoggerState.belayer = carry.belayer;
         renderDisciplinePills(); renderWherePills(); renderGradePills();
         updateRouteNameVisibility(); updateBelayerVisibility();
@@ -7955,6 +7991,7 @@ function openAttemptPaneInEditMode(a) {
     AttemptState.grade       = a.Grade;
     AttemptState.outcome     = a.Outcome || null;
     AttemptState.countBucket = attemptCountLabel(a.CountBucket) || null;   // recovers coerced 2-3
+    AttemptState.belayer     = a.Belayer || '';   // was never loaded — every attempt edit wiped it
     const aDate = getCleanDate(a.Date);
     const today = getCleanDate(new Date());
     const yest  = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return getCleanDate(d); })();
@@ -8355,6 +8392,13 @@ async function submitAttempt() {
         notes:       (document.getElementById('attempt-note') || {}).value ?
                      document.getElementById('attempt-note').value.trim() : ''
     };
+    // Snapshot everything on the sheet — if the save fails we put it all back instead of losing it.
+    const snap = {
+        state: { ...AttemptState }, editId: editingAttemptId,
+        route: (document.getElementById('attempt-route-name') || {}).value || '',
+        note: (document.getElementById('attempt-note') || {}).value || '',
+        custom: (document.getElementById('attempt-date-custom') || {}).value || ''
+    };
     closeModal('session-modal');
     haptic('commit');
     showToast('Saving attempt…');
@@ -8372,9 +8416,37 @@ async function submitAttempt() {
         fetchData();   // pull it back so it appears on the feed
     } catch (err) {
         haptic('error');
-        showToast(`Could not save: ${String(err.message || err).slice(0, 60)}`);
+        // Sends keep a retry card; attempts used to just vanish. Reopen the sheet as it was —
+        // once the close from submitting has actually landed (it goes through history.back()).
+        const reopen = (tries) => {
+            if (document.getElementById('session-modal').classList.contains('active') && tries < 20) {
+                return setTimeout(() => reopen(tries + 1), 50);
+            }
+            if (modalStack.length === 0) {
+                restoreAttemptSheet(snap);
+                showToast("Couldn't save — your attempt is still here, tap Log attempt to retry");
+            } else {
+                showToast(`Could not save: ${String(err.message || err).slice(0, 60)}`);
+            }
+        };
+        reopen(0);
     }
 }
+function restoreAttemptSheet(snap) {
+    setLogMode('attempts');            // fresh pane (resets), then put the snapshot back
+    Object.assign(AttemptState, snap.state);
+    applyCarriedDate('#attempt-date', 'adate', 'attempt-date-custom', snap.state.date, snap.custom);
+    renderAttemptDiscipline(); renderAttemptWhere(); renderAttemptGrade();
+    renderAttemptOutcomeType(); renderAttemptCount();
+    updateAttemptRouteVisibility(); updateAttemptBelayerVisibility();
+    const rn = document.getElementById('attempt-route-name'); if (rn) rn.value = snap.route;
+    const nt = document.getElementById('attempt-note'); if (nt) nt.value = snap.note;
+    editingAttemptId = snap.editId || null;
+    document.getElementById('attempt-submit').textContent = editingAttemptId ? 'Save changes' : 'Log attempt';
+    refreshAttemptSaveState();
+    openModal('session-modal');
+}
+let lastAttemptTapAt = 0;
 document.getElementById('attempt-submit').addEventListener('click', () => {
     if (!canLogAttempt()) {
         const miss = missingAttemptFields();
@@ -8383,6 +8455,8 @@ document.getElementById('attempt-submit').addEventListener('click', () => {
         if (miss[0]) nudgeField(miss[0].id);
         return;
     }
+    if (Date.now() - lastAttemptTapAt < 1200) return;   // double tap used to log it twice
+    lastAttemptTapAt = Date.now();
     submitAttempt();
 });
 document.addEventListener('click', (e) => {
@@ -10174,7 +10248,6 @@ async function refreshData(silent = false) {
             renderBestsStrip(profileClimber);
             renderStandings(profileClimber);
             renderMilestones(profileClimber);
-        renderProfileProjects(profileClimber);
             renderProfileProjects(profileClimber);
             renderHistogram(profileClimber);
             renderProfileSessions(profileClimber);
