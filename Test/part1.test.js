@@ -200,6 +200,21 @@ const fillAttempt = async (h) => {
     const arow = h.$('#attempt-discipline');
     check('T23 attempt discipline row matches', arow.classList.contains('scroll') && arow.querySelectorAll('[data-adisc]').length === 5); }
 
+  // T24 picking a grade animates in place: same pill elements, highlight moves, no rebuild
+  { const h = await load(); await openSend(h);
+    await pick(h, '#logger-discipline [data-disc="Out Rope"]');
+    const before = [...h.$$('#logger-grade [data-grade]')];
+    await pick(h, '#logger-grade [data-grade="6a"]'); await pick(h, '#logger-grade [data-grade="6b"]');
+    const after = [...h.$$('#logger-grade [data-grade]')];
+    check('T24 send grade: row not rebuilt on tap', before.length === after.length && before.every((e, i) => e === after[i]));
+    check('T24 send grade: only the tapped pill is active', h.$$('#logger-grade .pill.active').map(e => e.dataset.grade).join() === '6b' && h.ev('LoggerState.grade') === '6b');
+    check('T24 tapped pill gets the settle animation', h.$('#logger-grade [data-grade="6b"]').classList.contains('just-picked'));
+    await openAttempt(h); await pick(h, '[data-adisc="Out Rope"]');
+    const ab = [...h.$$('#attempt-grade [data-agrade]')];
+    await pick(h, '[data-agrade="6a"]');
+    const aa = [...h.$$('#attempt-grade [data-agrade]')];
+    check('T24 attempt grade: row not rebuilt on tap', ab.every((e, i) => e === aa[i]) && h.ev('AttemptState.grade') === '6a' && h.$$('#attempt-grade .pill.active').length === 1); }
+
   const pad = s => s.padEnd(62);
   results.forEach(r => console.log((r.ok ? 'PASS ' : 'FAIL ') + pad(r.name) + (r.ok ? '' : r.detail)));
   console.log(`\n${results.filter(r => r.ok).length}/${results.length} passed`);
