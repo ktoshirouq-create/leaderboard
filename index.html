@@ -1594,8 +1594,6 @@ h1.screen-title {
 .where-find svg { width: 14px; height: 14px; flex: 0 0 auto; }
 .where-find.open { background: var(--primary-fade); border-style: solid; }
 /* Discipline "Other ›" pill + its expanded overflow row */
-.disc-other { color: var(--text-muted); background: transparent; border: 1px dashed rgba(255,255,255,0.18); }
-.disc-overflow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; animation: fadeIn 0.18s ease; }
 
 /* ===== ACTION SHEET ===== */
 .action-sheet-list {
@@ -1922,14 +1920,18 @@ body.modal-open { overflow: hidden; }
 .ht-live { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
     background: var(--gold); margin-left: 6px; vertical-align: middle; }
 .ht-legend { color: var(--text-muted); font-size: 0.7rem; margin: 2px 2px 12px; }
-.yhm-scroll { overflow-x: auto; scrollbar-width: none; }
-.yhm-scroll::-webkit-scrollbar { display: none; }
-.yhm { display: grid; grid-template-rows: repeat(7, 11px); grid-auto-flow: column; grid-auto-columns: 11px;
-    gap: 3px; width: max-content; padding: 2px 0; }
-.yhm i { width: 11px; height: 11px; border-radius: 2px; background: rgba(255,255,255,0.045); }
-/* same column track as .yhm so each month letter sits over its week */
-.yhm-months { display: grid; grid-auto-flow: column; grid-auto-columns: 11px; column-gap: 3px; width: max-content;
-    color: var(--text-muted); font-size: 9px; margin-top: 5px; white-space: nowrap; }
+.aw-sum { font-size: 0.9rem; color: #fff; line-height: 1.5; margin: 0 2px 12px; }
+.aw-sum span { color: var(--text-muted); }
+.aw-bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.aw-col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column-reverse; gap: 1px;
+    padding: 0; border: 0; background: transparent; cursor: pointer; border-radius: 3px 3px 0 0; }
+.aw-col i { display: block; border-radius: 2px; }
+.aw-col .aw-none { height: 2px; background: rgba(255,255,255,0.12); }
+.aw-col.on { background: rgba(255,255,255,0.06); }
+/* same flex track as the bars, so each month name sits under its week */
+.aw-months { display: flex; gap: 3px; margin-top: 5px; color: var(--text-muted); font-size: 0.65rem; }
+.aw-months span { flex: 1; min-width: 0; white-space: nowrap; overflow: visible; }
+.aw-week { color: var(--text-muted); font-size: 0.75rem; margin: 8px 2px 0; min-height: 1.2em; }
 .sd-trendbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .sd-trendbar .mini-seg { display: inline-flex; padding: 3px; margin: 0; width: auto; }
 .sd-trendbar .mini-seg .seg-item { padding: 5px 10px; font-size: 0.7rem; }
@@ -2365,7 +2367,7 @@ body.disco .disco-me {
 <div class="edit-mode-banner hidden" id="edit-mode-banner">Editing existing climb</div>
 
         <div class="field-label">Discipline</div>
-        <div class="pill-row" id="logger-discipline"></div>
+        <div class="pill-row scroll" id="logger-discipline"></div>
 
         <div class="field-label" id="where-label">Where</div>
         <div id="logger-where"></div>
@@ -2437,7 +2439,7 @@ body.disco .disco-me {
             <div class="modal-subtitle">A climb you worked but didn't send cleanly. Shows on the feed, never scored.</div>
 
             <div class="field-label">Discipline</div>
-            <div class="pill-row" id="attempt-discipline"></div>
+            <div class="pill-row scroll" id="attempt-discipline"></div>
 
             <div class="field-label" id="attempt-where-label">Where</div>
             <div id="attempt-where"></div>
@@ -3581,8 +3583,6 @@ function getLocationsForDiscipline(disc) {
 }
 
 /* ----- Discipline pills (frequency-grouped: top 4 by your 30d use, rest behind "Other ›") ----- */
-const DISC_PRIMARY_SLOTS = 4;
-let discOtherOpen = false;   // is the Other› overflow row expanded this open?
 
 // Your disciplines ranked like the Where pills (rankByUsage): most-RECENT first, then by
 // 30-day frequency, then canonical AppConfig order. Never-logged ones keep canonical order
@@ -3608,31 +3608,24 @@ function disciplineFreqOrder() {
     return [...used, ...unused];
 }
 
+// Discipline row: one scrolling line, same shape as the crag row — the selected discipline first,
+// then yours by recency/frequency. Replaces the 4 + "Other ›" layout that wrapped to two lines.
+function disciplineRowOrder(sel) {
+    const ordered = disciplineFreqOrder();
+    return sel ? [sel, ...ordered.filter(d => d !== sel)] : ordered;
+}
 function renderDisciplinePills() {
     const c = document.getElementById('logger-discipline');
-    const ordered = disciplineFreqOrder();
-    let primary = ordered.slice(0, DISC_PRIMARY_SLOTS);
-    let overflow = ordered.slice(DISC_PRIMARY_SLOTS);
-    // Force the current selection onto the primary row even if its frequency would bury it.
     const sel = LoggerState.discipline;
-    if (sel && overflow.includes(sel)) {
-        overflow = [primary[primary.length - 1], ...overflow.filter(d => d !== sel)];
-        primary = [...primary.slice(0, DISC_PRIMARY_SLOTS - 1), sel];
-    }
-    const pill = d => `<button class="pill ${d === sel ? 'active' : ''}" data-disc="${d}">${d}</button>`;
-    const otherActive = overflow.length > 0;
-    const otherLabel = discOtherOpen ? 'Other ▾' : 'Other ›';
-    c.innerHTML =
-        primary.map(pill).join('') +
-        (otherActive ? `<button class="pill disc-other" data-disc-other="1">${otherLabel}</button>` : '') +
-        (otherActive && discOtherOpen ? `<div class="disc-overflow">${overflow.map(pill).join('')}</div>` : '');
-
-    const pick = (d) => {
+    c.innerHTML = disciplineRowOrder(sel)
+        .map(d => `<button class="pill ${d === sel ? 'active' : ''}" data-disc="${d}">${d}</button>`).join('');
+    c.scrollLeft = 0;
+    const pick = (el) => {
         haptic('tap');
-        LoggerState.discipline = d;
-        localStorage.setItem('leaderboard.lastDiscipline', d);
-        discOtherOpen = false;   // collapse Other› once something's chosen
-        renderDisciplinePills();
+        LoggerState.discipline = el.dataset.disc;
+        localStorage.setItem('leaderboard.lastDiscipline', el.dataset.disc);
+        // Highlight in place — re-rendering would move the pill to the front under your finger.
+        c.querySelectorAll('[data-disc]').forEach(p => p.classList.toggle('active', p === el));
         renderWherePills();
         renderGradePills();
         renderStylePills();
@@ -3640,9 +3633,7 @@ function renderDisciplinePills() {
         updateBelayerVisibility();
         refreshLogSaveState();
     };
-    c.querySelectorAll('[data-disc]').forEach(el => el.addEventListener('click', () => pick(el.dataset.disc)));
-    const otherBtn = c.querySelector('[data-disc-other]');
-    if (otherBtn) otherBtn.addEventListener('click', () => { haptic('tap'); discOtherOpen = !discOtherOpen; renderDisciplinePills(); });
+    c.querySelectorAll('[data-disc]').forEach(el => el.addEventListener('click', () => pick(el)));
 }
 
 /* ----- Where pills ----- */
@@ -4410,7 +4401,6 @@ function openLogger() {
     gradePreselectArmed = !!contLog;         // …but once you've logged today, the sticky may re-fill it
     if (LoggerState.discipline) localStorage.setItem('leaderboard.lastDiscipline', LoggerState.discipline);
 
-    discOtherOpen = false;                   // Other› starts collapsed every open
     renderDisciplinePills();
     renderWherePills();
     renderGradePills();
@@ -7599,7 +7589,6 @@ function openAttemptPane() {
     AttemptState.countBucket = null;
     AttemptState.belayer = '';
     AttemptState.date = 'today';
-    attemptOtherOpen = false;
     renderAttemptDiscipline();
     renderAttemptWhere();
     renderAttemptGrade();
@@ -7785,31 +7774,21 @@ function getAttemptDateISO() {
 }
 
 /* ----- Attempt render functions (thin — lean on the same shared helpers as the send logger) ----- */
-let attemptOtherOpen = false;
 
 function renderAttemptDiscipline() {
     const c = document.getElementById('attempt-discipline');
     if (!c) return;
-    const ordered = disciplineFreqOrder();   // same recency+frequency helper as the send logger
-    let primary = ordered.slice(0, DISC_PRIMARY_SLOTS);
-    let overflow = ordered.slice(DISC_PRIMARY_SLOTS);
     const sel = AttemptState.discipline;
-    if (sel && overflow.includes(sel)) {
-        overflow = [primary[primary.length - 1], ...overflow.filter(d => d !== sel)];
-        primary = [...primary.slice(0, DISC_PRIMARY_SLOTS - 1), sel];
-    }
-    const pill = d => `<button class="pill ${d === sel ? 'active' : ''}" data-adisc="${d}">${d}</button>`;
-    const hasOverflow = overflow.length > 0;
-    c.innerHTML = primary.map(pill).join('') +
-        (hasOverflow ? `<button class="pill disc-other" data-adisc-other="1">${attemptOtherOpen ? 'Other ▾' : 'Other ›'}</button>` : '') +
-        (hasOverflow && attemptOtherOpen ? `<div class="disc-overflow">${overflow.map(pill).join('')}</div>` : '');
-    const pick = (d) => {
+    c.innerHTML = disciplineRowOrder(sel)
+        .map(d => `<button class="pill ${d === sel ? 'active' : ''}" data-adisc="${d}">${d}</button>`).join('');
+    c.scrollLeft = 0;
+    const pick = (el) => {
         haptic('tap');
+        const d = el.dataset.adisc;
         AttemptState.discipline = d;
-        attemptOtherOpen = false;
         // Reconcile where/grade to the new discipline (same rule as the send logger)
         if (AttemptState.where && !getLocationsForDiscipline(d).includes(AttemptState.where)) AttemptState.where = null;
-        renderAttemptDiscipline();
+        c.querySelectorAll('[data-adisc]').forEach(p => p.classList.toggle('active', p === el));
         renderAttemptWhere();
         renderAttemptGrade();
         renderAttemptOutcomeType();
@@ -7818,9 +7797,7 @@ function renderAttemptDiscipline() {
         updateAttemptBelayerVisibility();
         refreshAttemptSaveState();
     };
-    c.querySelectorAll('[data-adisc]').forEach(el => el.addEventListener('click', () => pick(el.dataset.adisc)));
-    const ob = c.querySelector('[data-adisc-other]');
-    if (ob) ob.addEventListener('click', () => { haptic('tap'); attemptOtherOpen = !attemptOtherOpen; renderAttemptDiscipline(); });
+    c.querySelectorAll('[data-adisc]').forEach(el => el.addEventListener('click', () => pick(el)));
 }
 
 function renderAttemptWhere() {
@@ -8272,7 +8249,7 @@ function renderSecretStats() {
     const winAtt = win === 'all' ? allAtt : allAtt.filter(a => isWithinWindow(a.Date, parseInt(win, 10)));
     renderSecretMonths(windowed.filter(l => envMatch(l.Discipline)), winAtt.filter(a => envMatch(a.Discipline)));
     renderSecretProjects(climber);   // a project can span any window — always all-time
-    renderSecretHeatmap(envLogs);
+    renderSecretHeatmap(envLogs, allAtt.filter(a => envMatch(a.Discipline)));
 }
 
 const DISC_RGB_MAP = { 'In Boulder': '245,158,11', 'In Rope': '6,182,212', 'Out Rope': '15,122,90',
@@ -8731,69 +8708,100 @@ function renderSecretFlash(logs) {
         </div>`).join('') + `</div>`;
 }
 
-function renderSecretHeatmap(logs) {
+// Activity = days out per week. One bar per week, one block per day, coloured by that day's main
+// discipline, with the numbers said in a line on top. Replaces a year-long day grid that looked
+// good but couldn't be read (unlabelled weekdays, colour doing two jobs, no numbers).
+// A projecting day is a day out, same as the boards.
+function renderSecretHeatmap(logs, attempts) {
     const el = document.getElementById('secret-heatmap');
     if (!el) return;
-    // A year at a glance: one column per week, one row per weekday, tinted by that day's
-    // discipline and deepened by volume — so the seasons show up on their own.
-    const perDay = {};
-    logs.forEach(l => {
-        const d = getCleanDate(l.Date);
-        const e = perDay[d] || (perDay[d] = { n: 0, disc: {} });
-        e.n++;
-        e.disc[l.Discipline] = (e.disc[l.Discipline] || 0) + 1;
-    });
     const RGB = { 'In Boulder': '245,158,11', 'In Rope': '6,182,212', 'Out Rope': '15,122,90',
                   'Out Boulder': '168,85,247', 'Trad': '244,63,94' };
-    const today = new Date(getCleanDate(new Date()) + 'T00:00:00');
-    const start = new Date(today);
-    start.setDate(start.getDate() - 363);
-    // Less than a year of history → start at your first climb (at least 16 weeks shown), so the
-    // map opens on your climbing instead of months of blank weeks. It used to always draw a full
-    // year from the left; on a phone only ~24 of 53 weeks fit, so recent climbing sat off-screen
-    // and the map looked empty.
-    const firstDay = Object.keys(perDay).sort()[0];
-    if (firstDay) {
-        const first = new Date(firstDay + 'T00:00:00');
-        const minStart = new Date(today); minStart.setDate(minStart.getDate() - 7 * 16);
-        const want = first < minStart ? first : minStart;
-        if (want > start) start.setTime(want.getTime());
-    }
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));   // back to a Monday
+    const NAME = { 'In Boulder': 'in boulder', 'In Rope': 'in rope', 'Out Rope': 'out rope',
+                   'Out Boulder': 'out boulder', 'Trad': 'trad' };
+    const perDay = {};
+    [...logs, ...(attempts || [])].forEach(l => {
+        if (!AppConfig.disciplines.includes(l.Discipline)) return;
+        const d = getCleanDate(l.Date);
+        const e = perDay[d] || (perDay[d] = {});
+        e[l.Discipline] = (e[l.Discipline] || 0) + 1;
+    });
+    const dayKeys = Object.keys(perDay).sort();
+    if (!dayKeys.length) { el.innerHTML = '<div class="lb-empty">No days out yet.</div>'; return; }
+    const mainDisc = d => Object.keys(perDay[d]).sort((a, b) => perDay[d][b] - perDay[d][a]
+        || AppConfig.disciplines.indexOf(a) - AppConfig.disciplines.indexOf(b))[0];
+
     const pad = n => String(n).padStart(2, '0');
     const key = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
-    let maxN = 1;
-    Object.values(perDay).forEach(v => { if (v.n > maxN) maxN = v.n; });
-    let cells = '', monthMarks = [], lastMonth = -1, col = 0;
-    for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
-        const k = key(d);
-        const e = perDay[k];
-        const dow = (d.getDay() + 6) % 7;
-        if (dow === 0) {
-            col++;
-            if (d.getMonth() !== lastMonth) { lastMonth = d.getMonth(); monthMarks.push({ col, m: lastMonth }); }
+    const monday = dt => { const m = new Date(dt); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m; };
+    const today = new Date(getCleanDate(new Date()) + 'T00:00:00');
+    // From your first day out (at least 16 weeks, at most a year) up to this week.
+    let start = monday(new Date(dayKeys[0] + 'T00:00:00'));
+    const minStart = monday(new Date(today.getTime() - 7 * 15 * 864e5));
+    const maxStart = monday(new Date(today.getTime() - 7 * 51 * 864e5));
+    if (start > minStart) start = minStart;
+    if (start < maxStart) start = maxStart;
+
+    const weeks = [];
+    for (let w = new Date(start); w <= today; w.setDate(w.getDate() + 7)) {
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(w); d.setDate(d.getDate() + i);
+            const k = key(d);
+            if (perDay[k]) days.push(mainDisc(k));
         }
-        let style = '';
-        if (e) {
-            const top = Object.keys(e.disc).sort((a, b) => e.disc[b] - e.disc[a])[0];
-            const alpha = 0.35 + 0.6 * Math.min(1, e.n / Math.max(2, maxN));
-            style = `background:rgba(${RGB[top] || '16,185,129'},${alpha.toFixed(2)})`;
-        }
-        cells += `<i style="grid-row:${dow + 1};${style}" title="${k}${e ? ' · ' + e.n : ''}"></i>`;
+        days.sort((a, b) => AppConfig.disciplines.indexOf(a) - AppConfig.disciplines.indexOf(b));
+        weeks.push({ start: new Date(w), days });
     }
-    const labels = monthMarks.map(mm =>
-        `<span style="grid-column:${mm.col}">${AppConfig.months[mm.m].slice(0, 1)}</span>`).join('');
-    el.innerHTML = `<div class="yhm-scroll"><div class="yhm">${cells}</div>
-        <div class="yhm-months">${labels}</div></div>
-        <div class="pyr-key">
-            <span><i style="background:rgba(6,182,212,.85)"></i>In rope</span>
-            <span><i style="background:rgba(15,122,90,.95)"></i>Out rope</span>
-            <span><i style="background:rgba(245,158,11,.85)"></i>Boulder</span>
-            <span><i style="background:rgba(244,63,94,.8)"></i>Trad</span>
-        </div>`;
-    // Open on the newest week (right edge) — the squares and month letters scroll together.
-    const sc = el.querySelector('.yhm-scroll');
-    if (sc) requestAnimationFrame(() => { sc.scrollLeft = sc.scrollWidth; });
+
+    // The numbers, said once: total, per week, best week, longest gap between days out.
+    const shownDays = dayKeys.filter(k => k >= key(start));
+    const total = shownDays.length;
+    // per week counts from your first shown day, not from the padded start of the chart
+    const firstWeek = monday(new Date(shownDays[0] + 'T00:00:00'));
+    const activeWeeks = Math.max(1, weeks.filter(w => w.start >= firstWeek).length);
+    const perWeek = (total / activeWeeks).toFixed(1).replace(/\.0$/, '');
+    const best = Math.max(...weeks.map(w => w.days.length));
+    let gap = 0;
+    for (let i = 1; i < shownDays.length; i++) gap = Math.max(gap, dDiff(shownDays[i], shownDays[i - 1]) - 1);
+    const since = formatShortDate(shownDays[0]);
+
+    const maxDays = Math.max(best, 3);
+    const segH = Math.min(16, Math.floor(84 / maxDays));
+    let lastMonth = -1;
+    const cols = weeks.map((w, i) => {
+        const blocks = w.days.length
+            ? w.days.map(d => `<i style="height:${segH}px;background:rgb(${RGB[d]})"></i>`).join('')
+            : '<i class="aw-none"></i>';
+        return `<button class="aw-col" data-w="${i}" aria-label="Week of ${escapeHTML(formatShortDate(key(w.start)))}">${blocks}</button>`;
+    }).join('');
+    const months = weeks.map(w => {
+        // label the first week that holds the 1st of a month
+        const end = new Date(w.start); end.setDate(end.getDate() + 6);
+        const m = end.getDate() <= 7 ? end.getMonth() : (w === weeks[0] ? w.start.getMonth() : -1);
+        if (m < 0 || m === lastMonth) return '<span></span>';
+        lastMonth = m;
+        return `<span>${AppConfig.months[m]}</span>`;
+    }).join('');
+    const used = AppConfig.disciplines.filter(d => shownDays.some(k => perDay[k][d]));
+    el.innerHTML = `
+        <div class="aw-sum"><b>${total} day${total === 1 ? '' : 's'} out</b> since ${escapeHTML(since)}
+            <span>· ${perWeek} a week · best week ${best} · longest gap ${gap} day${gap === 1 ? '' : 's'}</span></div>
+        <div class="aw-bars">${cols}</div>
+        <div class="aw-months">${months}</div>
+        <div class="aw-week" id="aw-week">Tap a week</div>
+        <div class="pyr-key">${used.map(d => `<span><i style="background:rgb(${RGB[d]})"></i>${escapeHTML(d)}</span>`).join('')}</div>`;
+    const out = el.querySelector('#aw-week');
+    el.querySelectorAll('.aw-col').forEach(b => b.addEventListener('click', () => {
+        haptic('tap');
+        el.querySelectorAll('.aw-col').forEach(x => x.classList.toggle('on', x === b));
+        const w = weeks[+b.dataset.w];
+        const cnt = {};
+        w.days.forEach(d => { cnt[d] = (cnt[d] || 0) + 1; });
+        out.textContent = `Week of ${formatShortDate(key(w.start))} · ` + (w.days.length
+            ? `${w.days.length} day${w.days.length === 1 ? '' : 's'} · ` + Object.entries(cnt).map(([d, n]) => `${n} ${NAME[d]}`).join(', ')
+            : 'no climbing');
+    }));
 }
 
 document.querySelectorAll('#secret-env .seg-item').forEach(b => b.addEventListener('click', () => {
