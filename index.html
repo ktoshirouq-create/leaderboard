@@ -123,7 +123,8 @@ h1.screen-title {
 .session-card[data-disc="Trad"]        { --disc-color: var(--disc-trad);        --disc-rgb: 244,63,94; }
 
 .session-card.syncing { opacity: 0.7; }
-.session-card.failed  { opacity: 0.5; border-left-color: var(--danger); }
+.session-card.failed  { opacity: 0.75; border-left-color: var(--danger); }
+.sync-fail { color: var(--danger); font-size: 0.8rem; font-weight: 600; padding: 6px 18px 10px; }
 
 .session-header {
     padding: 16px 18px 10px 18px;
@@ -4519,47 +4520,6 @@ async function fetchData() {
 }
 
 /* ============== FEED RENDER ============== */
-// Group logs by climber + where + date
-function groupIntoSessions(logs) {
-    const map = new Map();
-    logs.forEach(log => {
-        const date = getCleanDate(log.Date);
-        // Group by climber + date + discipline. Locations within a session
-        // are tracked separately so a multi-crag day shows as one card.
-        const key = `${log.ClimberName}|${date}|${log.Discipline}`;
-        if (!map.has(key)) {
-            map.set(key, {
-                climber:    log.ClimberName,
-                wheres:     [],          // list of distinct locations in this session
-                belayers:   [],          // distinct belayers named across this session's sends
-                date:       date,
-                discipline: log.Discipline,
-                timestamp:  log.Timestamp,
-                sends:      [],
-                _optimistic: false,
-                _failed:     false
-            });
-        }
-        const session = map.get(key);
-        session.sends.push(log);
-        if (!session.wheres.includes(log.Where)) {
-            session.wheres.push(log.Where);
-        }
-        if (log.Belayer && log.Belayer !== log.ClimberName && !session.belayers.includes(log.Belayer)) {
-            session.belayers.push(log.Belayer);
-        }
-        // Track newest timestamp for "X ago" display
-        if (new Date(log.Timestamp) > new Date(session.timestamp)) {
-            session.timestamp = log.Timestamp;
-        }
-        if (log._optimistic) session._optimistic = true;
-        if (log._failed)     session._failed     = true;
-    });
-    // Set primary `where` for backwards compatibility (first location in the list)
-    map.forEach(session => { session.where = session.wheres[0]; });
-    return Array.from(map.values())
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-}
 
 // ===== joint-session clustering (inert until renderFeed wires it) =====
 // Rope: merge sessions linked by who-belayed-whom (precise — they were definitely together).
@@ -4573,63 +4533,6 @@ function loadJointSplits() {
 let jointSplits = loadJointSplits();
 function saveJointSplits() {
     try { localStorage.setItem(JOINT_SPLIT_KEY, JSON.stringify([...jointSplits])); } catch {}
-}
-function jointGroupKey(climbers, date, disc) {
-    return `${date}|${disc}|${[...climbers].sort((a, b) => a.localeCompare(b)).join(',')}`;
-}
-function clusterSessions(sessions) {
-    const pools = new Map();
-    sessions.forEach(s => {
-        const k = `${s.date}|${s.discipline}`;
-        if (!pools.has(k)) pools.set(k, []);
-        pools.get(k).push(s);
-    });
-    const lc = n => String(n || '').toLowerCase().trim();
-    const items = [];
-    pools.forEach(pool => {
-        // Un-synced (optimistic/failed) sessions never cluster — keep them standalone so the
-        // single-card tap-to-retry always applies and a pending send isn't buried in a group.
-        pool.filter(s => s._optimistic || s._failed).forEach(s => items.push(s));
-        const stable = pool.filter(s => !(s._optimistic || s._failed));
-        if (stable.length === 0) return;
-
-        const isBoulder = stable[0].discipline.includes('Boulder');
-        const parent = stable.map((_, i) => i);
-        const find = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
-        for (let i = 0; i < stable.length; i++) for (let j = i + 1; j < stable.length; j++) {
-            const a = stable[i], b = stable[j];
-            const linked = a.belayers.some(n => lc(n) === lc(b.climber)) || b.belayers.some(n => lc(n) === lc(a.climber));
-            const coLoc  = isBoulder && a.wheres.some(w => b.wheres.includes(w));
-            if (linked || coLoc) parent[find(i)] = find(j);
-        }
-        const comps = new Map();
-        stable.forEach((_, i) => { const r = find(i); if (!comps.has(r)) comps.set(r, []); comps.get(r).push(i); });
-        comps.forEach(idxs => {
-            if (idxs.length < 2) { items.push(stable[idxs[0]]); return; }
-            const members = idxs.map(i => stable[i]);
-            const climbers = members.map(m => m.climber);
-            const date = members[0].date, disc = members[0].discipline;
-            const key = jointGroupKey(climbers, date, disc);
-            // Per-member split flags (date|disc|climber). If ANY member is flagged split for
-            // this day+discipline, emit them all as singles. Stable under backfill: a newly
-            // added climber can't silently un-split the group the way the old group-key did.
-            const dk = `${date}|${disc}`;
-            if (members.some(m => jointSplits.has(`${dk}|${m.climber}`))) {
-                members.forEach(m => { m._splitFrom = dk; items.push(m); });
-                return;
-            }
-            items.push({
-                joint: true, key, climbers, members,
-                date, discipline: disc,
-                wheres: [...new Set(members.flatMap(m => m.wheres))],
-                belayers: [...new Set(members.flatMap(m => m.belayers))],
-                timestamp: members.reduce((mx, m) => new Date(m.timestamp) > new Date(mx) ? m.timestamp : mx, members[0].timestamp),
-                _optimistic: false,
-                _failed: false
-            });
-        });
-    });
-    return items.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
 
 // ===== highlight detection (Bundle 1: inert helpers, no UI yet) =====
@@ -4955,22 +4858,7 @@ function chipMarkup(hl) {
     }
     return '';
 }
-function secondaryChips(list) {
-    if (!list || list.length === 0) return '';
-    return `<div class="hl-chips">${list.map(chipMarkup).join('')}</div>`;
-}
 
-// Boulder only: one circuit-coloured dot per send, hardest first, capped with +N.
-function sessionDotRow(session) {
-    if (session.discipline !== 'In Boulder') return '';
-    const sorted = sortSendsByScore(session.sends, session.discipline);
-    const CAP = 12;
-    const shown = sorted.slice(0, CAP);
-    const extra = sorted.length - shown.length;
-    const dots = shown.map(s => `<span class="sdot" style="background:${boulderColorForGrade(s.Grade, s.Where)}"></span>`).join('');
-    const more = extra > 0 ? `<span class="sdot-more">+${extra}</span>` : '';
-    return `<div class="dot-row">${dots}${more}</div>`;
-}
 
 // Sort sends within a session: highest score first
 function sortSendsByScore(sends, discipline) {
@@ -4981,10 +4869,6 @@ function sortSendsByScore(sends, discipline) {
     });
 }
 
-function maxGradeOfSession(session) {
-    const sorted = sortSendsByScore(session.sends, session.discipline);
-    return sorted[0]?.Grade || '?';
-}
 
 /* ============== LONG-PRESS + EDIT/DELETE STATE ============== */
 const LONG_PRESS_MS = 500;
@@ -5270,6 +5154,8 @@ async function performDeleteLocation(locationName) {
 function attachLongPressToSendRow(rowEl, log) {
     // Only activate on own logs (trust-the-crew model)
     if (log.ClimberName !== State.activeUser) return;
+    // Not synced yet — the server has no row to edit; a failed one retries from its card.
+    if (log._optimistic || log._failed || String(log.LogId || '').startsWith('optimistic-')) return;
     rowEl.style.cursor = 'context-menu';
     
     const start = (e) => {
@@ -5441,31 +5327,6 @@ function attachLongPressToCapacityRow(rowEl, climber) {
     rowEl.addEventListener('contextmenu', (e) => e.preventDefault()); // Block native popup
 }
 
-function openJointActionSheet(group) {
-    const summary = document.getElementById('action-sheet-summary');
-    summary.innerHTML = `<span class="grade">${escapeHTML(group.climbers.join(' & '))}</span>`;
-    const editBtn = document.getElementById('action-edit');
-    const delBtn = document.getElementById('action-delete');
-    editBtn.textContent = 'Split into separate cards';
-    delBtn.style.display = 'none';
-    const restore = () => { editBtn.textContent = 'Edit climb'; delBtn.style.display = ''; };
-    editBtn.onclick = () => {
-        haptic('tap');
-        closeModal('action-sheet-modal');
-        const dk = `${group.date}|${group.discipline}`;
-        group.climbers.forEach(c => jointSplits.add(`${dk}|${c}`));
-        saveJointSplits();
-        restore();
-        renderFeed();
-        showToast('Split into separate cards');
-    };
-    document.getElementById('action-cancel').onclick = () => {
-        haptic('tap');
-        closeModal('action-sheet-modal');
-        restore();
-    };
-    openModal('action-sheet-modal');
-}
 
 // Day-anchored split: drop every member out of this joint DAY (per date|climber), so each
 // renders as their own solo day-card. Merge-back clears the flags. Mirrors openJointActionSheet.
@@ -5634,64 +5495,6 @@ function exitEditMode() {
     document.getElementById('submit-log').textContent = 'Log it';
 }
 
-function renderSessionCard(session, idx) {
-    const sendCount = session.sends.length;
-    // TR doesn't count as max (matches the personal-app convention)
-    const leadSends = session.sends.filter(s => !isTopRope(s.Style));
-    const leadCount = leadSends.length;
-    const trCount   = sendCount - leadCount;
-    let maxGrade = null;
-    if (leadCount > 0) {
-        const sortedLead = sortSendsByScore(leadSends, session.discipline);
-        maxGrade = sortedLead[0]?.Grade || null;
-    }
-    // "N sends · M TR · max X" — any of the three can be absent
-    const summaryItems = [];
-    if (leadCount > 0) summaryItems.push(`<span>${leadCount} send${leadCount === 1 ? '' : 's'}</span>`);
-    if (trCount > 0)   summaryItems.push(`<span>${trCount} TR</span>`);
-    if (maxGrade)      summaryItems.push(`<span class="max-grade">max <span class="grade-value">${escapeHTML(maxGrade)}</span></span>`);
-    const summaryHtml = summaryItems.join('<span class="dot">·</span>');
-    const relTime  = formatRelativeTime(session.date + 'T12:00:00');   // age of the climb, not of the log
-    const dateText = formatShortDate(session.date);
-    // Show "climb date · relative time" only when relTime is genuinely relative.
-    // Once it falls back to a raw date (7+ days old log), the second date adds
-    // no info — just show the climb date alone.
-    const isRelative = /ago|now|today|yesterday/i.test(relTime);
-    const timeText = isRelative ? `${dateText} · ${relTime}` : dateText;
-
-    const sortedSends = sortSendsByScore(session.sends, session.discipline);
-    const sendsHtml = sortedSends.map(s => sendRowHtml(s, session.discipline)).join('');
-    const cardHl = detectHighlight(session.climber, session.discipline, session.date);
-    const moreHl = detectAllHighlights(session.climber, session.discipline, session.date).slice(1);
-    // Coronation: banner leads with UNDISPUTED #1; the deposed king drops to a faint chip.
-    // 1-2 names only (3+ co-kings already falls back to a generic banner with no chip).
-    const dethroneChip = (cardHl && cardHl.kind === 'rank' && cardHl.board === 'hardest' && cardHl.tier === 'crown'
-        && cardHl.dethroned && cardHl.dethroned.length && cardHl.dethroned.length <= 2)
-        ? `<span class="hl-chip">↓ took it from ${escapeHTML(cardHl.dethroned.join(' & '))}</span>` : '';
-
-    const stateClass = session._failed ? 'failed' : (session._optimistic ? 'syncing' : '');
-
-    return `
-    <div class="session-card ${stateClass}" data-disc="${escapeHTML(session.discipline)}" data-idx="${idx}">
-        ${bannerMarkup(session, cardHl)}
-        <div class="session-header">
-            <div class="s-name-block">
-                ${highlightMarkup(session, cardHl)}
-                <div class="s-name" data-profile-link>${nameCrown(session.climber)}${escapeHTML(session.climber)}</div>
-                <div class="s-time">${escapeHTML(timeText)}${session._splitFrom ? ` <span class="merge-back" data-merge-key="${escapeHTML(session._splitFrom)}">↩ merge back</span>` : ''}</div>
-                ${session.belayers && session.belayers.length ? `<div class="s-with">with ${session.belayers.map(escapeHTML).join(', ')}</div>` : ''}
-            </div>
-            <div class="s-where">${session.wheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ')}</div>
-        </div>
-        ${(dethroneChip || moreHl.length) ? `<div class="hl-chips">${dethroneChip}${moreHl.map(chipMarkup).join('')}</div>` : ''}
-        <div class="s-summary">
-            ${summaryHtml}
-        </div>
-        ${sessionDotRow(session)}
-        <button class="expand-btn"><span class="expand-arrow">▾</span> View ${sendCount} climb${sendCount > 1 ? 's' : ''}</button>
-        <div class="session-children">${sendsHtml}</div>
-    </div>`;
-}
 
 // ===== send-row builder (shared by single + joint cards) =====
 /* ===== QUICK-LOG: log the same climb your partner just logged ===== */
@@ -5878,8 +5681,6 @@ function sendRowHtml(s, discipline) {
         </div>`;
 }
 
-// ===== compact per-climber badge for joint cards (all four tiers, inline) =====
-function inlineBadge(climber, disc, date) { return inlineBadgeFor(detectHighlight(climber, disc, date)); }
 function inlineBadgeFor(hl) {
     if (!hl) return '';
     if (hl.kind === 'rank')     return `<span class="hl-eyebrow"><span class="hl-rosette">${hl.tier === 'crown' ? RANK_CROWN_SVG : '▲'}</span> ${rankLabel(hl)}</span>`;
@@ -5893,58 +5694,6 @@ function inlineBadgeFor(hl) {
     return '';
 }
 
-// ===== joint (group) card render (inert until renderFeed routes to it) =====
-function renderJointCard(group, idx) {
-    const ordered = [...group.members].sort((a, b) => {
-        const am = a.climber === State.activeUser ? 1 : 0;
-        const bm = b.climber === State.activeUser ? 1 : 0;
-        if (am !== bm) return bm - am;
-        return b.sends.length - a.sends.length;
-    });
-    const names = ordered.map(m => m.climber);
-    const title = names.length === 2
-        ? `${escapeHTML(names[0])} &amp; ${escapeHTML(names[1])}`
-        : `${escapeHTML(names[0])}, ${escapeHTML(names[1])} &amp; co`;
-    const relTime = formatRelativeTime(group.date + 'T12:00:00');
-    const whereHtml = group.wheres.map(w => `<span class="s-where-link" data-loc="${escapeHTML(w)}">@ ${escapeHTML(w)}</span>`).join('  ');
-    const rowsHtml = ordered.map(m => {
-        const leadSends = m.sends.filter(s => !isTopRope(s.Style));
-        const leadCount = leadSends.length;
-        const trCount = m.sends.length - leadCount;
-        let maxGrade = null;
-        if (leadCount > 0) maxGrade = sortSendsByScore(leadSends, m.discipline)[0]?.Grade || null;
-        const parts = [];
-        if (leadCount > 0) parts.push(`${leadCount} send${leadCount === 1 ? '' : 's'}`);
-        if (trCount > 0)   parts.push(`${trCount} TR`);
-        if (maxGrade)      parts.push(`max <span class="jc-max">${escapeHTML(maxGrade)}</span>`);
-        const summary = parts.join(' · ');
-        const memHl = detectAllHighlights(m.climber, m.discipline, m.date);
-        const badge = memHl[0] ? inlineBadgeFor(memHl[0]) : '';
-        // One badge per member on a joint card — the loudest wins, the rest live in the expander.
-        const chipHtml = '';
-        const sendsHtml = sortSendsByScore(m.sends, m.discipline).map(s => sendRowHtml(s, m.discipline)).join('');
-        return `<div class="jc-climber" data-climber="${escapeHTML(m.climber)}">
-            ${badge ? `<div class="jc-badge-line">${badge}</div>` : ''}
-            <div class="jc-row">
-                <div class="jc-who"><span class="jc-name" data-profile-link>${nameCrown(m.climber)}${escapeHTML(m.climber)}</span>${chipHtml}</div>
-                <div class="jc-summary">${summary} <span class="jc-caret">▾</span></div>
-            </div>
-            <div class="jc-sends">${sendsHtml}${qkCardExtras(m.climber, m.date)}</div>
-        </div>`;
-    }).join('');
-    const stateClass = group._failed ? 'failed' : (group._optimistic ? 'syncing' : '');
-    return `
-    <div class="session-card joint ${stateClass}" data-disc="${escapeHTML(group.discipline)}" data-idx="${idx}" data-joint-key="${escapeHTML(group.key)}">
-        <div class="session-header">
-            <div class="s-name-block">
-                <div class="s-name">${title}</div>
-                <div class="s-time">${escapeHTML(/ago|now|today|yesterday/i.test(relTime) ? formatShortDate(group.date) + ' · ' + relTime : formatShortDate(group.date))}</div>
-            </div>
-            <div class="s-where">${whereHtml}</div>
-        </div>
-        <div class="jc-body">${rowsHtml}</div>
-    </div>`;
-}
 
 /* ===== DAY MODEL (phase 3) — one climber, one date, discipline-keyed sections ===== */
 // Folds sends + attempts into day objects. Sections carry character (send/project);
@@ -5993,64 +5742,8 @@ function buildDays(logs, attempts) {
     }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
 
-// A day is "social" if any of its sessions clusters with another person (belayer-link or boulder
-// co-location) — those stay in the legacy joint path so we never cannibalize a joint card.
-function dayIsSocial(climber, date) {
-    const lc = n => String(n || '').toLowerCase().trim();
-    const mine = [];
-    const others = [];
-    State.logs.forEach(l => {
-        if (getCleanDate(l.Date) !== date) return;
-        const rec = { climber: l.ClimberName, disc: l.Discipline, where: l.Where, belayer: l.Belayer };
-        if (l.ClimberName === climber) mine.push(rec); else others.push(rec);
-    });
-    return mine.some(m => {
-        const isBoulder = m.disc.includes('Boulder');
-        return others.some(o => {
-            if (o.disc !== m.disc) return false;
-            const linked = (m.belayer && lc(m.belayer) === lc(o.climber)) || (o.belayer && lc(o.belayer) === lc(m.climber));
-            const coLoc = isBoulder && m.where && m.where === o.where;
-            return linked || coLoc;
-        });
-    });
-}
-function dayUnifies(day) {
-    return day.isMulti && !day._optimistic && !day._failed && !dayIsSocial(day.climber, day.date);
-}
 
-// A quiet standalone day: single lane, zero sends, but it DOES have attempts.
-// These render as muted PROJECTING / TRAINING day-cards instead of vanishing (the legacy
-// path drops sendless sections + all training). Optimistic/failed stay legacy for retry.
-function dayStandalone(day) {
-    return !day.isMulti && day.totalSends === 0 && day.totalAttempts > 0
-        && !day._optimistic && !day._failed;
-}
 
-// Convert NON-unifying days back into the exact session objects the legacy pipeline expects.
-// (Attempts/training on these days don't render yet — they surface once those days unify, or
-// in the legacy day's own discipline section in a later bundle. 2a/2b scope: sends round-trip
-// byte-identical.)
-function daysToLegacySessions(days) {
-    const out = [];
-    days.forEach(day => {
-        day.sections.forEach(sec => {
-            if (sec.sends.length === 0) return;
-            const wheres = [], belayers = [];
-            let ts = sec.sends[0].Timestamp, opt = false, fail = false;
-            sec.sends.forEach(l => {
-                if (!wheres.includes(l.Where)) wheres.push(l.Where);
-                if (l.Belayer && l.Belayer !== l.ClimberName && !belayers.includes(l.Belayer)) belayers.push(l.Belayer);
-                if (new Date(l.Timestamp) > new Date(ts)) ts = l.Timestamp;
-                if (l._optimistic) opt = true;
-                if (l._failed) fail = true;
-            });
-            out.push({ climber: day.climber, date: day.date, discipline: sec.discipline,
-                wheres, belayers, where: wheres[0], sends: sec.sends, timestamp: ts,
-                _optimistic: opt, _failed: fail });
-        });
-    });
-    return out;
-}
 
 // Muted discipline colour for the "worked" project grade (desaturated vs a real send grade).
 const DAY_PROJ_GRADE_COLOR = {
@@ -6064,10 +5757,12 @@ function dayBelayerNames(day, exclude) {
     // Attempts count too — someone who belayed the route you worked was just as much there.
     // `exclude`: names already on the card (joint members) — they don't need a "with".
     const skip = new Set((exclude || []).map(n => String(n).toLowerCase().trim()));
-    const names = [...new Set(day.sections
-        .flatMap(s => [...s.sends, ...(s.attempts || [])])
-        .map(s => String(s.Belayer || '').trim()).filter(Boolean))]
-        .filter(n => !skip.has(n.toLowerCase()));
+    // One entry per person, ignoring case and stray spaces ("Tomas" = "tomas ").
+    const seen = new Map();
+    day.sections.flatMap(s => [...s.sends, ...(s.attempts || [])])
+        .map(s => String(s.Belayer || '').trim()).filter(Boolean)
+        .forEach(n => { const k = n.toLowerCase(); if (!seen.has(k) && !skip.has(k)) seen.set(k, n); });
+    const names = [...seen.values()];
     if (!names.length) return '';
     if (names.length === 1) return names[0];
     if (names.length === 2) return `${names[0]} & ${names[1]}`;
@@ -6172,9 +5867,8 @@ function dayClimbSectionHtml(sec, withChildren) {
 }
 
 
-// Unified day-card (solo, multi-lane). Characters live per-section; the card inherits its loudest.
-// TODO: once the legacy single-card path retires, fold renderSessionCard into this renderer —
-// the banner/name/where/expand/send-row markup is duplicated between them by design for now.
+// Solo day-card (one climber, one or more disciplines). Characters live per-section; the card
+// inherits its loudest. Every non-joint day renders here, including syncing and failed ones.
 function renderDayCard(day, idx) {
     const allHl = [];
     day.sections.forEach(sec => {
@@ -6243,6 +5937,7 @@ function renderDayCard(day, idx) {
         </div>
         ${(dethroneChip || moreHl.length) ? `<div class="hl-chips">${dethroneChip}${moreHl.map(chipMarkup).join('')}</div>` : ''}
         <div class="s-summary">${summaryHtml}</div>
+        ${day._failed ? `<div class="sync-fail">Couldn't save — tap to retry</div>` : ''}
         <div class="day-sections">${sectionsHtml}</div>
         ${totalClimbs > 0 ? `<button class="expand-btn"><span class="expand-arrow">▾</span> View ${totalClimbs} climb${totalClimbs > 1 ? 's' : ''}</button>
         ${qkCardExtras(day.climber, day.date)}
@@ -6255,18 +5950,21 @@ function renderDayCard(day, idx) {
 
 // Day-anchored joint grouping: people who climbed together on a date become ONE card spanning
 // each member's full day. Edges reuse the proven belay-link / boulder-co-location predicates,
-// lifted from the session to the day. Optimistic/failed and user-split days never join (they
-// stay legacy/solo). Returns { joint: [components of 2+], soloKeys: Set("date|climber") }.
+// lifted from the session to the day. User-split days never join (they render solo).
+// Returns { joint: [components of 2+], soloKeys: Set("date|climber") }.
 function buildJointDays(days) {
     const lc = n => String(n || '').toLowerCase().trim();
     const byDate = new Map();
+    const joint = [], soloKeys = new Set();
     days.forEach(d => {
-        if (d._optimistic || d._failed) return;
-        if (jointSplits.has(`${d.date}|${d.climber}`)) return;   // user split this person out
+        // Syncing/failed days join like any other (they used to drop to an old sends-only
+        // renderer, so the card fell apart and worked routes vanished while a climb synced).
+        // A day the user split out renders solo — it used to fall through to that same old
+        // renderer, which re-joined it, so "Split into separate cards" never stuck.
+        if (jointSplits.has(`${d.date}|${d.climber}`)) { soloKeys.add(`${d.date}|${d.climber}`); return; }
         if (!byDate.has(d.date)) byDate.set(d.date, []);
         byDate.get(d.date).push(d);
     });
-    const joint = [], soloKeys = new Set();
     byDate.forEach((nodes, date) => {
         const n = nodes.length;
         const parent = nodes.map((_, i) => i);
@@ -6380,8 +6078,10 @@ function renderJointDayCard(group, idx) {
         </div>`;
     }).join('');
 
+    const jFailed = group.members.some(m => m._failed), jSync = group.members.some(m => m._optimistic);
+    const jState = jFailed ? ' failed' : (jSync ? ' syncing' : '');
     return `
-    <div class="session-card joint"${jointDisc ? ` data-disc="${escapeHTML(jointDisc)}"` : ''} data-idx="${idx}" data-joint-key="${escapeHTML(group.key)}">
+    <div class="session-card joint${jState}"${jointDisc ? ` data-disc="${escapeHTML(jointDisc)}"` : ''} data-idx="${idx}" data-joint-key="${escapeHTML(group.key)}">
         <div class="session-header">
             <div class="s-name-block">
                 <div class="s-name">${title}</div>
@@ -6390,6 +6090,7 @@ function renderJointDayCard(group, idx) {
             <div class="s-where">${whereHtml}</div>
         </div>
         <div class="jc-body">${rowsHtml}</div>
+        ${jFailed ? `<div class="sync-fail">Couldn't save — tap to retry</div>` : ''}
     </div>`;
 }
 
@@ -6401,22 +6102,13 @@ function renderFeed() {
     }
     const days = buildDays(State.logs, State.attempts || []);
     const { joint: jointDays, soloKeys } = buildJointDays(days);
-    // A day renders solo (renderDayCard) if it's a size-1 component AND eligible; everything
-    // not joint and not solo-eligible (optimistic/failed) falls to the legacy retry path.
-    const isJointMember = new Set(jointDays.flatMap(j => j.members.map(m => `${m.date}|${m.climber}`)));
-    const soloDays = days.filter(d =>
-        soloKeys.has(`${d.date}|${d.climber}`) && (dayUnifies(d) || dayStandalone(d) || d.totalSends > 0));
+    // Every day is either part of a joint card or a solo day card — one renderer each.
+    const soloDays = days.filter(d => soloKeys.has(`${d.date}|${d.climber}`));
     // A solo day that's solo only because the user split a joint day → carries a merge-back chip.
     soloDays.forEach(d => { d._splitDay = jointSplits.has(`${d.date}|${d.climber}`); });
-    const soloRendered = new Set(soloDays.map(d => `${d.date}|${d.climber}`));
-    const legacyDays = days.filter(d =>
-        !isJointMember.has(`${d.date}|${d.climber}`) && !soloRendered.has(`${d.date}|${d.climber}`));
-    const unifying = soloDays;
-    const legacyItems = clusterSessions(daysToLegacySessions(legacyDays));
     const merged = [
-        ...unifying.map(d => ({ _isDay: true, timestamp: d.timestamp, day: d })),
-        ...jointDays.map(j => ({ _isJointDay: true, timestamp: j.timestamp, group: j })),
-        ...legacyItems.map(it => ({ _isDay: false, timestamp: it.timestamp, item: it }))
+        ...soloDays.map(d => ({ _isDay: true, timestamp: d.timestamp, day: d })),
+        ...jointDays.map(j => ({ _isJointDay: true, timestamp: j.timestamp, group: j }))
     ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     const visibleItems = merged.slice(0, feedPage * FEED_PAGE_SIZE);
@@ -6424,9 +6116,7 @@ function renderFeed() {
 
     _capCache = new Map(); _rankCache = new Map(); _rankMoveCache = new Map();
     let html = visibleItems.map((m, i) =>
-        m._isJointDay ? renderJointDayCard(m.group, i)
-        : m._isDay ? renderDayCard(m.day, i)
-        : (m.item.joint ? renderJointCard(m.item, i) : renderSessionCard(m.item, i))
+        m._isJointDay ? renderJointDayCard(m.group, i) : renderDayCard(m.day, i)
     ).join('');
     _capCache = null; _rankCache = null; _rankMoveCache = null;
     if (remaining > 0) {
@@ -6438,7 +6128,16 @@ function renderFeed() {
     visibleItems.forEach((m, i) => {
         const card = cards[i];
         if (!card) return;
-        const item = (m._isDay || m._isJointDay) ? null : m.item;
+        // A card holding a climb that failed to save: tapping it retries (capture phase, so it
+        // doesn't also expand). Location and name taps keep working.
+        if (card.classList.contains('failed')) {
+            const dayList = m._isJointDay ? m.group.members : [m.day];
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('.s-where-link, [data-profile-link]')) return;
+                e.stopPropagation();
+                dayList.flatMap(d => d.sections.flatMap(s => s.sends)).filter(l => l._failed).forEach(retrySend);
+            }, true);
+        }
 
         // Joint day-card wiring: per-member expand, name→profile, where-links, own-send edit,
         // long-press header → split the whole day into separate solo cards.
@@ -6542,79 +6241,6 @@ function renderFeed() {
                 saveJointSplits();
                 renderFeed();
                 showToast('Merged back');
-            });
-            return;
-        }
-
-        // location chips (both card types): tap → location page, long-press → rename
-        card.querySelectorAll('.s-where-link').forEach(linkEl => {
-            attachLongPressToLocChip(linkEl, linkEl.dataset.loc);
-            linkEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (Date.now() - locChipSuppressClick < 500) return;  // long-press handled it
-                haptic('tap');
-                showLocation(linkEl.dataset.loc, 'feed');
-            });
-        });
-
-        if (item.joint) {
-            // long-press the header → split into separate cards
-            const headerEl = card.querySelector('.session-header');
-            if (headerEl) {
-                let timer = null;
-                const start = (e) => {
-                    // Location chips have their own long-press (rename) — don't also arm the split gesture.
-                    if (e.target.closest('.s-where-link')) return;
-                    timer = setTimeout(() => { haptic('commit'); openJointActionSheet(item); }, LONG_PRESS_MS);
-                };
-                const cancel = () => clearTimeout(timer);
-                headerEl.addEventListener('touchstart', start, { passive: true });
-                headerEl.addEventListener('touchmove', cancel, { passive: true });
-                headerEl.addEventListener('touchend', cancel);
-                headerEl.addEventListener('touchcancel', cancel);
-                headerEl.addEventListener('mousedown', start);
-                headerEl.addEventListener('mouseup', cancel);
-                headerEl.addEventListener('mouseleave', cancel);
-            }
-            // per-climber rows: tap to expand, name → profile, own sends long-press to edit
-            card.querySelectorAll('.jc-climber').forEach(climberEl => {
-                const climberName = climberEl.dataset.climber;
-                const member = item.members.find(m => m.climber === climberName);
-                const rowEl = climberEl.querySelector('.jc-row');
-                if (rowEl) rowEl.addEventListener('click', () => { haptic('tap'); climberEl.classList.toggle('expanded'); });
-                const nameEl = climberEl.querySelector('.jc-name[data-profile-link]');
-                if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(climberName); });
-                if (member) {
-                    const sorted = sortSendsByScore(member.sends, member.discipline);
-                    climberEl.querySelectorAll('.jc-sends .send-row').forEach((sr, si) => {
-                        const log = sorted[si];
-                        if (log) attachLongPressToSendRow(sr, log);
-                    });
-                }
-            });
-        } else {
-            // single card: a failed (un-synced) card retries on tap; otherwise expand/collapse
-            card.addEventListener('click', () => {
-                if (item._failed) { item.sends.filter(s => s._failed).forEach(retrySend); return; }
-                haptic('tap');
-                card.classList.toggle('expanded');
-            });
-            const nameEl = card.querySelector('.s-name[data-profile-link]');
-            if (nameEl) nameEl.addEventListener('click', (e) => { e.stopPropagation(); haptic('tap'); showProfile(item.climber); });
-            const mergeBtn = card.querySelector('.merge-back');
-            if (mergeBtn) mergeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                haptic('tap');
-                const dk = mergeBtn.dataset.mergeKey;   // "date|discipline"
-                [...jointSplits].forEach(k => { if (k === dk || k.startsWith(dk + '|')) jointSplits.delete(k); });
-                saveJointSplits();
-                renderFeed();
-                showToast('Merged back');
-            });
-            const sortedSends = sortSendsByScore(item.sends, item.discipline);
-            card.querySelectorAll('.send-row').forEach((rowEl, sendIdx) => {
-                const log = sortedSends[sendIdx];
-                attachLongPressToSendRow(rowEl, log);
             });
         }
     });
@@ -7132,6 +6758,16 @@ let milestonesExpanded = false;
 // Tried once and not going back? Hide it — a view preference, kept on the device, and it
 // returns the moment you log a newer attempt on that route.
 const PROJ_HIDE_KEY = 'leaderboard.hiddenProjects';
+// Removed (✕) projects stay removed until you log a newer attempt — same rule on the profile
+// and the projects page (the page used to ignore it).
+function splitHiddenProjects(rows) {
+    const hidden = hiddenProjects();
+    const visible = rows.filter(r => {
+        const since = hidden[`${r.name.toLowerCase()}|${r.where || ''}`];
+        return !since || getCleanDate(r.last.Date) > since;
+    });
+    return { visible, hiddenCount: rows.length - visible.length };
+}
 function hiddenProjects() {
     try { return JSON.parse(localStorage.getItem(PROJ_HIDE_KEY) || '{}'); } catch (e) { return {}; }
 }
@@ -7149,10 +6785,20 @@ function renderProjectsPage() {
     const el = document.getElementById('projects-list');
     const climber = projClimber;
     if (!el || !climber) return;
-    const rows = projectRowsFor(climber);
+    const { visible: rows, hiddenCount } = splitHiddenProjects(projectRowsFor(climber));
     const filtered = rows.filter(p => projFilter === 'all' ? true : projFilter === 'sent' ? p.sent : !p.sent);
+    const unhideHtml = hiddenCount ? `<button class="pj-unhide" id="pjp-unhide">Show ${hiddenCount} removed</button>` : '';
+    const wireUnhide = () => {
+        const u = document.getElementById('pjp-unhide');
+        if (u) u.addEventListener('click', () => {
+            haptic('tap');
+            try { localStorage.removeItem(PROJ_HIDE_KEY); } catch (e) {}
+            renderProjectsPage();
+        });
+    };
     if (!filtered.length) {
-        el.innerHTML = `<div class="lb-empty">${projFilter === 'sent' ? 'Nothing sent off a project yet.' : 'Nothing on the go — log an attempt on a route and it shows up here.'}</div>`;
+        el.innerHTML = `<div class="lb-empty">${projFilter === 'sent' ? 'Nothing sent off a project yet.' : 'Nothing on the go — log an attempt on a route and it shows up here.'}</div>` + unhideHtml;
+        wireUnhide();
         return;
     }
     const scoreOf = p => getScoredValue(p.grade, 'Send', p.disc) || 0;
@@ -7166,7 +6812,7 @@ function renderProjectsPage() {
             const rgb = DISC_RGB[p.disc] || '16,185,129';
             const tries = [...p.tries].reverse().map(t => `<div class="pjp-try">
                 <span class="pjp-try-d">${escapeHTML(formatShortDate(getCleanDate(t.Date)))}</span>
-                <span class="pjp-try-o">${escapeHTML(String(t.Outcome || 'worked').toLowerCase())}${t.CountBucket ? ' · ' + escapeHTML(String(t.CountBucket)) : ''}</span>
+                <span class="pjp-try-o">${escapeHTML(String(t.Outcome || 'worked').toLowerCase())}${attemptCountLabel(t.CountBucket) ? ' · ' + attemptCountLabel(t.CountBucket) : ''}</span>
                 ${t.Notes ? `<span class="pjp-try-n">${escapeHTML(String(t.Notes).trim())}</span>` : ''}
             </div>`).join('');
             return `<div class="pj-card${p.sent ? ' sent' : ''}" style="--c:${rgb}">
@@ -7185,7 +6831,8 @@ function renderProjectsPage() {
             </div>`;
         }).join('');
         return `<div class="pjp-crag">${escapeHTML(crag)}<span>${byCrag[crag].length}</span></div>${list}`;
-    }).join('');
+    }).join('') + unhideHtml;
+    wireUnhide();
     el.querySelectorAll('[data-pj-log]').forEach(b => b.addEventListener('click', () => {
         haptic('tap');
         openAttemptPaneForProject(b.dataset.pjDisc, b.dataset.pjWhere, b.dataset.pjGrade, b.dataset.pjLog);
@@ -7225,6 +6872,8 @@ function projectRowsFor(climber) {
         p.tries.sort((a, b) => getCleanDate(a.Date).localeCompare(getCleanDate(b.Date)));
         const days = [...new Set(p.tries.map(t => getCleanDate(t.Date)))];
         const last = p.tries[p.tries.length - 1];
+        // Latest attempt wins — a route you regraded used to keep its first grade forever.
+        p.grade = last.Grade; p.disc = last.Discipline;
         const sent = State.logs.find(l => l.ClimberName === climber && l.Where === p.where
             && String(l.RouteName || '').trim().toLowerCase() === p.name.toLowerCase()
             && getCleanDate(l.Date) >= days[0]);
@@ -7243,30 +6892,8 @@ function renderProfileProjects(climber) {
         if (countEl) countEl.textContent = '';
         return;
     }
-    const byRoute = {};
-    mine.forEach(a => {
-        const k = `${String(a.RouteName).trim().toLowerCase()}|${a.Where || ''}`;
-        const p = byRoute[k] || (byRoute[k] = { name: String(a.RouteName).trim(), where: a.Where,
-            grade: a.Grade, disc: a.Discipline, tries: [] });
-        p.tries.push(a);
-    });
-    let rows = Object.values(byRoute).map(p => {
-        p.tries.sort((a, b) => getCleanDate(a.Date).localeCompare(getCleanDate(b.Date)));
-        const days = [...new Set(p.tries.map(t => getCleanDate(t.Date)))];
-        const last = p.tries[p.tries.length - 1];
-        const sent = State.logs.find(l => l.ClimberName === climber && l.Where === p.where
-            && String(l.RouteName || '').trim().toLowerCase() === p.name.toLowerCase()
-            && getCleanDate(l.Date) >= days[0]);
-        const note = [...p.tries].reverse().find(t => String(t.Notes || '').trim());
-        return { ...p, days, last, sent, note };
-    }).sort((a, b) => (a.sent ? 1 : 0) - (b.sent ? 1 : 0)
-        || getCleanDate(b.last.Date).localeCompare(getCleanDate(a.last.Date)));
-    const hidden = hiddenProjects();
-    const visible = rows.filter(r => {
-        const since = hidden[`${r.name.toLowerCase()}|${r.where || ''}`];
-        return !since || getCleanDate(r.last.Date) > since;
-    });
-    const hiddenCount = rows.length - visible.length;
+    let rows = projectRowsFor(climber);
+    const { visible, hiddenCount } = splitHiddenProjects(rows);
     rows = visible;
     const open = rows.filter(r => !r.sent);
     if (countEl) countEl.textContent = open.length ? `${open.length} open` : (rows.length ? 'all sent' : '');
@@ -7678,12 +7305,13 @@ function renderProfileSessions(climber) {
         .sort((a, b) => getCleanDate(b.Date).localeCompare(getCleanDate(a.Date))
             || new Date(b.Timestamp) - new Date(a.Timestamp));
     const container = document.getElementById('profile-sessions');
+    const lbCount = document.getElementById('logbook-count');
     if (climberLogs.length === 0) {
         container.innerHTML = '<div class="empty-msg">Nothing logged yet.</div>';
+        if (lbCount) lbCount.textContent = '';   // used to keep the previous climber's count
         return;
     }
-    
-    const lbCount = document.getElementById('logbook-count');
+
     if (lbCount) lbCount.textContent = `${climberLogs.length} climb${climberLogs.length === 1 ? '' : 's'}`;
     const visibleLogs = climberLogs.slice(0, profilePage * PROFILE_PAGE_SIZE);
     const remaining = climberLogs.length - visibleLogs.length;
