@@ -1,6 +1,8 @@
 {
   "name": "leaderboard-tests",
   "private": true,
-  "scripts": { "test": "node part1.test.js" },
+  "scripts": {
+    "test": "TZ=Europe/Oslo node part1.test.js && TZ=Europe/Oslo node part2.test.js && TZ=Europe/Oslo node part3.test.js"
+  },
   "dependencies": { "jsdom": "^24.0.0" }
 }
