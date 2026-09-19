@@ -1573,7 +1573,10 @@ h1.screen-title {
     white-space: nowrap;
     font-family: inherit;
 }
+.pill { transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.12s ease; }
 .pill:active { transform: scale(0.94); }
+@keyframes pill-settle { 0% { transform: scale(0.94); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+.pill.just-picked { animation: pill-settle 0.26s ease-out; }
 .lb-row:active, .hardest-row:active { transform: scale(0.98); }
 .nav-btn:active { transform: scale(0.92); }
 .seg-item:active { transform: scale(0.95); }
@@ -3625,7 +3628,7 @@ function renderDisciplinePills() {
         LoggerState.discipline = el.dataset.disc;
         localStorage.setItem('leaderboard.lastDiscipline', el.dataset.disc);
         // Highlight in place — re-rendering would move the pill to the front under your finger.
-        c.querySelectorAll('[data-disc]').forEach(p => p.classList.toggle('active', p === el));
+        selectPillInPlace(c, el, 'data-disc');
         renderWherePills();
         renderGradePills();
         renderStylePills();
@@ -3691,7 +3694,7 @@ function renderWherePills() {
             LoggerState.where = el.dataset.where;
             localStorage.setItem(stickyKey, LoggerState.where);
             // Highlight in place — don't re-render (which would reorder/pin and make the pill jump).
-            c.querySelectorAll('[data-where]').forEach(p => p.classList.toggle('active', p === el));
+            selectPillInPlace(c.querySelector('#where-pill-row') || c, el, 'data-where');
             populateRouteSuggestions();
             // In Boulder the colour ladder is per-gym — refresh grades on gym change
             if (LoggerState.discipline === 'In Boulder') renderGradePills();
@@ -3817,6 +3820,23 @@ async function addLocation(rawName) {
 // Grade rows start at 3 and run to 9a, so everyone lands miles from their own grades.
 // Scroll (never select) to where this climber actually lives: what they last logged in this
 // discipline, else their working level, else the middle of the scale.
+// Picking a pill in a scrolling row: highlight it in place (so the colour change animates),
+// give it a small settle, and glide it toward the middle. The grade rows used to rebuild on
+// every tap — the pill you pressed was replaced mid-press, the highlight popped in, and the row
+// snapped to centre and then scrolled again 50 ms later.
+function selectPillInPlace(row, el, attr) {
+    row.querySelectorAll(`[${attr}]`).forEach(p => p.classList.toggle('active', p === el));
+    el.classList.remove('just-picked');
+    void el.offsetWidth;                       // restart the settle on repeat taps
+    el.classList.add('just-picked');
+    centerPillSmooth(row, el);
+}
+function centerPillSmooth(row, el) {
+    if (!row || !el || typeof row.scrollTo !== 'function') return;
+    const r = row.getBoundingClientRect(), e = el.getBoundingClientRect();
+    const left = row.scrollLeft + (e.left - r.left) - (row.clientWidth - e.width) / 2;
+    row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+}
 function scrollGradeRow(container, disc, selected) {
     if (!container || !disc) return;
     const scale = AppConfig.grades[disc];
@@ -3890,21 +3910,16 @@ function renderGradePills() {
         const dot = p.color ? `<span class="grade-dot" style="background:${p.color}"></span>` : '';
         return `<button class="pill ${p.grade === LoggerState.grade ? 'active' : ''}" data-grade="${p.grade}">${dot}${p.grade}</button>`;
     }).join('');
-    scrollGradeRow(c, disc, LoggerState.grade);
+    scrollGradeRow(c, disc, LoggerState.grade);   // opening: place the row once, no animation
     c.querySelectorAll('[data-grade]').forEach(el => {
         el.addEventListener('click', () => {
             haptic('tap');
             LoggerState.grade = el.dataset.grade;
             localStorage.setItem(stickyKey, LoggerState.grade);
-            renderGradePills();
+            selectPillInPlace(c, el, 'data-grade');
             refreshLogSaveState();
         });
     });
-    // Auto-center active pill
-    setTimeout(() => {
-        const active = c.querySelector('.pill.active');
-        if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }, 50);
 }
 
 /* ----- Style pills ----- */
@@ -7788,7 +7803,7 @@ function renderAttemptDiscipline() {
         AttemptState.discipline = d;
         // Reconcile where/grade to the new discipline (same rule as the send logger)
         if (AttemptState.where && !getLocationsForDiscipline(d).includes(AttemptState.where)) AttemptState.where = null;
-        c.querySelectorAll('[data-adisc]').forEach(p => p.classList.toggle('active', p === el));
+        selectPillInPlace(c, el, 'data-adisc');
         renderAttemptWhere();
         renderAttemptGrade();
         renderAttemptOutcomeType();
@@ -7829,7 +7844,7 @@ function renderAttemptWhere() {
     c.querySelectorAll('[data-awhere]').forEach(el => el.addEventListener('click', () => {
         haptic('tap');
         AttemptState.where = el.dataset.awhere;
-        c.querySelectorAll('[data-awhere]').forEach(p => p.classList.toggle('active', p === el));
+        selectPillInPlace(c.querySelector('.pill-row') || c, el, 'data-awhere');
         populateAttemptRouteSuggestions();
         if (AttemptState.discipline === 'In Boulder') renderAttemptGrade();   // per-gym colour ladder
         refreshAttemptSaveState();
@@ -7862,16 +7877,15 @@ function renderAttemptGrade() {
         const dot = p.color ? `<span class="grade-dot" style="background:${p.color}"></span>` : '';
         return `<button class="pill ${p.grade === AttemptState.grade ? 'active' : ''}" data-agrade="${p.grade}">${dot}${p.grade}</button>`;
     }).join('');
-    scrollGradeRow(c, AttemptState.discipline, AttemptState.grade);
+    scrollGradeRow(c, AttemptState.discipline, AttemptState.grade);   // opening: place once
     c.querySelectorAll('[data-agrade]').forEach(el => el.addEventListener('click', () => {
         haptic('tap');
         AttemptState.grade = el.dataset.agrade;
-        renderAttemptGrade();
+        selectPillInPlace(c, el, 'data-agrade');
         refreshAttemptSaveState();
     }));
     const gi = document.getElementById('attempt-grade-info');
     if (gi) gi.classList.toggle('hidden', !['In Rope', 'Out Rope', 'Trad'].includes(disc));
-    setTimeout(() => { const a = c.querySelector('.pill.active'); if (a) a.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }, 50);
 }
 
 // Grade-conversion icon on the attempt logger → same modal, driven by AttemptState, re-renders
