@@ -1922,11 +1922,14 @@ body.modal-open { overflow: hidden; }
 .ht-live { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
     background: var(--gold); margin-left: 6px; vertical-align: middle; }
 .ht-legend { color: var(--text-muted); font-size: 0.7rem; margin: 2px 2px 12px; }
-.yhm { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 3px;
-    overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
-.yhm::-webkit-scrollbar { display: none; }
+.yhm-scroll { overflow-x: auto; scrollbar-width: none; }
+.yhm-scroll::-webkit-scrollbar { display: none; }
+.yhm { display: grid; grid-template-rows: repeat(7, 11px); grid-auto-flow: column; grid-auto-columns: 11px;
+    gap: 3px; width: max-content; padding: 2px 0; }
 .yhm i { width: 11px; height: 11px; border-radius: 2px; background: rgba(255,255,255,0.045); }
-.yhm-months { display: grid; grid-auto-flow: column; color: var(--text-muted); font-size: 9px; margin-top: 5px; }
+/* same column track as .yhm so each month letter sits over its week */
+.yhm-months { display: grid; grid-auto-flow: column; grid-auto-columns: 11px; column-gap: 3px; width: max-content;
+    color: var(--text-muted); font-size: 9px; margin-top: 5px; white-space: nowrap; }
 .sd-trendbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .sd-trendbar .mini-seg { display: inline-flex; padding: 3px; margin: 0; width: auto; }
 .sd-trendbar .mini-seg .seg-item { padding: 5px 10px; font-size: 0.7rem; }
@@ -6292,12 +6295,14 @@ function gradeProgress(score, discipline) {
     };
 }
 
+// "Last N days" = today and the N calendar days before it. Compares dates, not instants: it used
+// to compare UTC midnight (02:00 in Oslo) against the current local time, so a climb exactly
+// N days ago counted in the early hours and dropped out later the same day.
 function isWithinWindow(dateStr, days) {
     if (!dateStr) return false;
-    const d = new Date(getCleanDate(dateStr));
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    return d >= cutoff;
+    return getCleanDate(dateStr) >= getCleanDate(cutoff);
 }
 
 function computeCapacity(discipline, mode = 'lead') {
@@ -8262,7 +8267,7 @@ function renderSecretStats() {
     renderSecretPyramid(windowed);
     renderSecretVolume(windowed.filter(l => envMatch(l.Discipline)), win);
     renderSecretSpots(windowed.filter(l => envMatch(l.Discipline)));
-    renderSecretFlash(windowed);
+    renderSecretFlash(windowed.filter(l => envMatch(l.Discipline)));
     const allAtt = (State.attempts || []).filter(a => a.ClimberName === climber);
     const winAtt = win === 'all' ? allAtt : allAtt.filter(a => isWithinWindow(a.Date, parseInt(win, 10)));
     renderSecretMonths(windowed.filter(l => envMatch(l.Discipline)), winAtt.filter(a => envMatch(a.Discipline)));
@@ -8378,11 +8383,13 @@ function renderSecretProjects(climber) {
 function secretMetricsFor(logs) {
     const days = new Set(logs.map(l => getCleanDate(l.Date))).size;
     const lead = logs.filter(l => !isTopRope(l.Style));
+    const tr = logs.length - lead.length;
     const fl = lead.filter(l => { const s = String(l.Style || '').toLowerCase(); return s === 'flash' || s === 'onsight'; }).length;
     const flashRate = lead.length ? Math.round(fl / lead.length * 100) : 0;
     let hScore = -1, hGrade = null;
     lead.forEach(l => { const sc = getScoredValue(l.Grade, l.Style, l.Discipline); if (sc > hScore) { hScore = sc; hGrade = l.Grade; } });
-    return { sends: logs.length, days, flashRate, hScore, hGrade };
+    // A top-rope lap is a climb, not a send — same wording as the feed ("9 sends · 3 TR").
+    return { sends: lead.length, tr, days, flashRate, hScore, hGrade };
 }
 
 function deltaChip(cur, prev, kind) {
@@ -8407,8 +8414,10 @@ function renderSecretDeltas(allLogs, win) {
         curLogs = allLogs;
     } else {
         const N = parseInt(win, 10);
-        curLogs  = allLogs.filter(l => { const a = age(l); return a >= 0 && a < N; });
-        prevLogs = allLogs.filter(l => { const a = age(l); return a >= N && a < 2 * N; });
+        // Same window as everything else on the page (isWithinWindow: today + N days back),
+        // and a previous period of the same length straight before it.
+        curLogs  = allLogs.filter(l => isWithinWindow(l.Date, N) && age(l) >= 0);
+        prevLogs = allLogs.filter(l => { const a = age(l); return a > N && a <= 2 * N + 1; });
     }
     const c = secretMetricsFor(curLogs);
     const p = prevLogs ? secretMetricsFor(prevLogs) : null;
@@ -8435,7 +8444,7 @@ function renderSecretDeltas(allLogs, win) {
         hardestChip ? `<span class="${/up/.test(hardestChip) ? 'sd-up' : /down/.test(hardestChip) ? 'sd-down' : 'sd-flat'}">hardest ${/up/.test(hardestChip) ? 'up' : /down/.test(hardestChip) ? 'down' : 'level'}</span>` : ''
     ].filter(Boolean) : [];
     el.innerHTML = `
-        <div class="sd-head"><b>${c.sends} send${c.sends === 1 ? '' : 's'}</b> over <b>${c.days} day${c.days === 1 ? '' : 's'}</b>
+        <div class="sd-head"><b>${c.sends} send${c.sends === 1 ? '' : 's'}</b>${c.tr ? ` · <b>${c.tr} TR</b>` : ''} over <b>${c.days} day${c.days === 1 ? '' : 's'}</b>
             · hardest <span class="sd-g">${escapeHTML(c.hGrade || '—')}</span> · <b>${c.flashRate}%</b> flash</div>
         ${deltas.length ? `<div class="sd-deltas">${deltas.join('')}<span class="sd-vs">vs previous ${win === '365' ? 'year' : win + ' days'}</span></div>` : ''}`;
 }
@@ -8707,7 +8716,8 @@ function renderSecretSpots(logs) {
 function renderSecretFlash(logs) {
     const el = document.getElementById('secret-flash');
     const rows = AppConfig.disciplines.map(d => {
-        const ds = logs.filter(l => l.Discipline === d);
+        // Lead only — same rule as the header's flash rate (top-rope laps used to drag this down).
+        const ds = logs.filter(l => l.Discipline === d && !isTopRope(l.Style));
         if (ds.length === 0) return null;
         const fl = ds.filter(l => { const s = String(l.Style || '').toLowerCase(); return s === 'flash' || s === 'onsight'; }).length;
         return { disc: d, pct: Math.round(fl / ds.length * 100) };
@@ -8738,6 +8748,17 @@ function renderSecretHeatmap(logs) {
     const today = new Date(getCleanDate(new Date()) + 'T00:00:00');
     const start = new Date(today);
     start.setDate(start.getDate() - 363);
+    // Less than a year of history → start at your first climb (at least 16 weeks shown), so the
+    // map opens on your climbing instead of months of blank weeks. It used to always draw a full
+    // year from the left; on a phone only ~24 of 53 weeks fit, so recent climbing sat off-screen
+    // and the map looked empty.
+    const firstDay = Object.keys(perDay).sort()[0];
+    if (firstDay) {
+        const first = new Date(firstDay + 'T00:00:00');
+        const minStart = new Date(today); minStart.setDate(minStart.getDate() - 7 * 16);
+        const want = first < minStart ? first : minStart;
+        if (want > start) start.setTime(want.getTime());
+    }
     start.setDate(start.getDate() - ((start.getDay() + 6) % 7));   // back to a Monday
     const pad = n => String(n).padStart(2, '0');
     const key = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
@@ -8762,14 +8783,17 @@ function renderSecretHeatmap(logs) {
     }
     const labels = monthMarks.map(mm =>
         `<span style="grid-column:${mm.col}">${AppConfig.months[mm.m].slice(0, 1)}</span>`).join('');
-    el.innerHTML = `<div class="yhm">${cells}</div>
-        <div class="yhm-months">${labels}</div>
+    el.innerHTML = `<div class="yhm-scroll"><div class="yhm">${cells}</div>
+        <div class="yhm-months">${labels}</div></div>
         <div class="pyr-key">
             <span><i style="background:rgba(6,182,212,.85)"></i>In rope</span>
             <span><i style="background:rgba(15,122,90,.95)"></i>Out rope</span>
             <span><i style="background:rgba(245,158,11,.85)"></i>Boulder</span>
             <span><i style="background:rgba(244,63,94,.8)"></i>Trad</span>
         </div>`;
+    // Open on the newest week (right edge) — the squares and month letters scroll together.
+    const sc = el.querySelector('.yhm-scroll');
+    if (sc) requestAnimationFrame(() => { sc.scrollLeft = sc.scrollWidth; });
 }
 
 document.querySelectorAll('#secret-env .seg-item').forEach(b => b.addEventListener('click', () => {
@@ -9336,10 +9360,14 @@ function computeHardest() {
     return Array.from(byClimber.values()).sort((a, b) => b.score - a.score);
 }
 
+// Days-out boards count a day you only worked a route — they measure showing up, not sending.
+// (Hardest and capacity stay sends-only.)
+function dayOutRows() { return [...State.logs, ...(State.attempts || [])]; }
+
 // Addicted: distinct climbing days per climber
 function computeAddicted() {
     const byClimber = new Map();
-    State.logs.forEach(log => {
+    dayOutRows().forEach(log => {
         if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
         if (!AppConfig.disciplines.includes(log.Discipline)) return;
         const date = getCleanDate(log.Date);
@@ -9352,11 +9380,11 @@ function computeAddicted() {
         .sort((a, b) => b.count - a.count);
 }
 
-// Outdoor: distinct days with ≥1 outdoor send
+// Outdoor: distinct days out on rock (a send or a worked route)
 function computeOutdoor() {
     const outdoorDiscs = ['Out Rope', 'Out Boulder', 'Trad'];
     const byClimber = new Map();
-    State.logs.forEach(log => {
+    dayOutRows().forEach(log => {
         if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
         if (!outdoorDiscs.includes(log.Discipline)) return;
         const date = getCleanDate(log.Date);
@@ -9448,7 +9476,7 @@ function renderCountBoard(rows, unitLabel) {
     const container = document.getElementById('special-board');
     const top = rows.slice(0, 10);
     if (top.length === 0) {
-        container.innerHTML = '<div class="lb-empty">No data in the last 30 days.</div>';
+        container.innerHTML = '<div class="lb-empty">No days out in the last 60 days.</div>';
         return;
     }
     const maxCount = top[0].count || 1;
@@ -9479,14 +9507,14 @@ function renderCountBoard(rows, unitLabel) {
 // Doubles as the home for location pages, and the full directory via "Show all".
 function computeHotSpots() {
     const byLoc = new Map();
-    State.logs.forEach(log => {
+    dayOutRows().forEach(log => {
         if (!isWithinWindow(log.Date, SPECIAL_WINDOW_DAYS)) return;
         if (!AppConfig.disciplines.includes(log.Discipline)) return;
         const where = log.Where;
         if (!where) return;
         if (!byLoc.has(where)) byLoc.set(where, { where, visits: new Set(), climbers: new Set(), sends: 0 });
         const e = byLoc.get(where);
-        e.sends++;
+        if (!log.AttemptId) e.sends++;   // visits count worked days; the sends tally stays sends
         e.climbers.add(log.ClimberName);
         // a "visit" = one climber on one day — footfall, not one person's volume dump
         e.visits.add(log.ClimberName + '|' + getCleanDate(log.Date));
